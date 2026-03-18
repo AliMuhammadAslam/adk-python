@@ -132,9 +132,9 @@ def plot_workflow_graph(
 
     node_type = node.get("type", "node")
     icons = {
-        "agent": "✨",
-        "workflow": "🔄",
-        "join": "🔀",
+        "agent": "✦",
+        "workflow": "⊷",
+        "join": "⌵",
     }
     icon = icons.get(node_type, "")
     type_display = node_type.title()
