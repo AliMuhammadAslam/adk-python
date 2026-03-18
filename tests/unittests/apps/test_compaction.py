@@ -17,6 +17,7 @@ from unittest.mock import AsyncMock
 from unittest.mock import Mock
 
 from google.adk.agents.base_agent import BaseAgent
+from google.adk.agents.llm import _contents
 from google.adk.apps.app import App
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.apps.compaction import _run_compaction_for_sliding_window
@@ -25,7 +26,6 @@ from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.events.event_actions import EventCompaction
-from google.adk.flows.llm_flows import contents
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session
 from google.genai import types
@@ -796,7 +796,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(10.0, 'inv10', 'Event 10'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
 
     # Expected contents:
     # Summary 1-4 (at timestamp 4.0)
@@ -826,7 +826,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(9.0, 'inv9', 'Event 9'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = [
         'Summary 1-3',
         'Event 4',
@@ -847,7 +847,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_compacted_event(1.0, 3.0, 'Summary 1-3', appended_ts=6.0),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Summary 1-3', 'Event 4', 'Event 5']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)
@@ -860,7 +860,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(3.0, 'inv3', 'Event 3'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Event 1', 'Event 2', 'Event 3']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)
@@ -874,7 +874,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(3.0, 'inv3', 'Event 3'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Summary 1-2', 'Event 3']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)
@@ -891,7 +891,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(5.0, 'inv5', 'Event 5'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Summary 1-2', 'Summary 3-4', 'Event 5']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)
@@ -905,7 +905,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_compacted_event(2.0, 3.0, 'Summary 2-3'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Event 1', 'Summary 2-3']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)
@@ -918,7 +918,7 @@ class TestCompaction(unittest.IsolatedAsyncioTestCase):
         self._create_event(4.0, 'inv4', 'Event 4'),
     ]
 
-    result_contents = contents._get_contents(None, events)
+    result_contents = _contents._get_contents(None, events)
     expected_texts = ['Summary 1-2', 'Event 3', 'Event 4']
     actual_texts = [c.parts[0].text for c in result_contents]
     self.assertEqual(actual_texts, expected_texts)

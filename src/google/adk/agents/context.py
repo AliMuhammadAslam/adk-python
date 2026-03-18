@@ -14,9 +14,12 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Mapping
 from collections.abc import Sequence
+import hashlib
 from typing import Any
+from typing import Protocol
 from typing import TYPE_CHECKING
 
 from typing_extensions import override
@@ -34,13 +37,106 @@ if TYPE_CHECKING:
   from ..events.ui_widget import UiWidget
   from ..memory.base_memory_service import SearchMemoryResponse
   from ..memory.memory_entry import MemoryEntry
+  from ..sessions.session import Session
   from ..sessions.state import State
   from ..tools.tool_confirmation import ToolConfirmation
+  from ..workflow._definitions import NodeLike
   from .invocation_context import InvocationContext
 
 
+# This is the signature for the function that schedules a dynamic node in the
+# workflow.
+# First argument is the Context.
+# Second is the node to be scheduled,
+# Third is the execution_id of the node to be scheduled.
+# Fourth is the node_input to be passed to the node.
+# Fifth (optional) is the node_name to be used for the dynamic node. If not
+# provided, the execution_id will be used as the node_name.
+# Make sure the node_name is unique across all nodes in the workflow.
+# This node_name is also used to skip the node during resume if the node has
+# already been executed.
+#
+# It returns a future that will resolve to the output of the node.
+class ScheduleDynamicNode(Protocol):
+  """Signature for the function that schedules a dynamic node."""
+
+  def __call__(
+      self,
+      ctx: 'Context',
+      node: Any,
+      execution_id: str,
+      node_input: Any,
+      *,
+      node_name: str | None = None,
+  ) -> asyncio.Future[Any]:
+    ...
+
+
+class _SessionProxy:
+  """A proxy for the session that merges local events dynamically.
+
+  Needed for nodes which expect their events to be immediately available in
+  the session.
+
+  Reason:
+  - Workflow maintains an event queue.
+  - Running nodes append events to that queue, workflow pops that queue and emit
+    them back to client.
+  - In case of a nested workflow, the function response event is emitted by
+    client, which is then pushed & popped by the nested workflow.
+  - The parent workflow gets the event and emits to its queue.
+  - But before it can be yielded back to outer runner, the node inside the
+    nested workflow is yielded control and it starts to run.
+  - Since runner hasn't got the event yet, it hasn't appended to session.
+  """
+
+  def __init__(self, session: Session, local_events: list[Event]):
+    # We bypass Pydantic initialization as we are a proxy.
+    object.__setattr__(self, '_session', session)
+    object.__setattr__(self, '_local_events', local_events)
+
+  @property
+  def actual_session(self) -> Session:
+    return self._session
+
+  # Need to implement manual attribute getter to play nice with Pydantic.
+  def __getattribute__(self, name: str) -> Any:
+    if name == 'events':
+      session = object.__getattribute__(self, '_session')
+      local_events = object.__getattribute__(self, '_local_events')
+      session_events = session.events
+      session_event_ids = {event.id for event in session_events}
+      return session_events + [
+          event for event in local_events if event.id not in session_event_ids
+      ]
+
+    if name in (
+        '_session',
+        '_local_events',
+        'actual_session',
+        '__class__',
+        '__dict__',
+    ):
+      return object.__getattribute__(self, name)
+    return getattr(self._session, name)
+
+  def __setattr__(self, name: str, value: Any) -> None:
+    if name in ('_session', '_local_events'):
+      object.__setattr__(self, name, value)
+    elif name in ('events'):
+      raise AttributeError(f"Cannot set '{name}' on SessionProxy.")
+    else:
+      setattr(self._session, name, value)
+
+
 class Context(ReadonlyContext):
-  """The context within an agent run."""
+  """The context within an agent run.
+
+  When used in a workflow, additional fields are available:
+  ``node_path``, ``execution_id``, ``triggered_by``, ``in_nodes``,
+  ``resume_inputs``, ``transfer_targets``, ``retry_count``,
+  ``run_node()``, and ``get_next_child_execution_id()``.
+  """
 
   def __init__(
       self,
@@ -49,6 +145,17 @@ class Context(ReadonlyContext):
       event_actions: EventActions | None = None,
       function_call_id: str | None = None,
       tool_confirmation: ToolConfirmation | None = None,
+      # Workflow-specific fields (optional)
+      node_path: str = '',
+      execution_id: str = '',
+      local_events: list[Event] | None = None,
+      triggered_by: str = '',
+      in_nodes: set[str] | None = None,
+      resume_inputs: dict[str, Any] | None = None,
+      schedule_dynamic_node: ScheduleDynamicNode | None = None,
+      node_rerun_on_resume: bool = True,
+      transfer_targets: list[Any] | None = None,
+      retry_count: int = 0,
   ) -> None:
     """Initializes the Context.
 
@@ -59,6 +166,16 @@ class Context(ReadonlyContext):
         for tool-specific methods like request_credential and
         request_confirmation.
       tool_confirmation: The tool confirmation of the current tool call.
+      node_path: The path of the current node in the workflow graph.
+      execution_id: The execution ID of the current node.
+      local_events: Local events for session proxy (workflow only).
+      triggered_by: The name of the node that triggered the current node.
+      in_nodes: Names of predecessor nodes.
+      resume_inputs: Inputs for resuming node, keyed by interrupt id.
+      schedule_dynamic_node: Function to schedule dynamic nodes.
+      node_rerun_on_resume: Whether the node reruns on resume.
+      transfer_targets: Valid transfer targets for the current node.
+      retry_count: Number of times this node has been retried.
     """
     super().__init__(invocation_context)
 
@@ -72,6 +189,29 @@ class Context(ReadonlyContext):
     )
     self._function_call_id = function_call_id
     self._tool_confirmation = tool_confirmation
+
+    # Workflow-specific fields
+    self._node_path = node_path
+    self._execution_id = execution_id
+    self._triggered_by = triggered_by
+    self._in_nodes = (
+        frozenset(in_nodes) if in_nodes is not None else frozenset()
+    )
+    self._resume_inputs = resume_inputs or {}
+    self.schedule_dynamic_node = schedule_dynamic_node
+    self._node_rerun_on_resume = node_rerun_on_resume
+    self._child_execution_counter = 0
+    self._local_events = local_events if local_events is not None else []
+    self._transfer_targets = transfer_targets or []
+    self._retry_count = retry_count
+
+    # Use a session proxy when local_events are provided (workflow mode).
+    if local_events is not None:
+      self._session_proxy = _SessionProxy(
+          self._invocation_context.session, self._local_events
+      )
+    else:
+      self._session_proxy = None
 
   @property
   def function_call_id(self) -> str | None:
@@ -108,6 +248,125 @@ class Context(ReadonlyContext):
     """The event actions for the current context."""
     return self._event_actions
 
+  @property
+  @override
+  def session(self) -> Session:
+    """Returns the current session for this invocation."""
+    if self._session_proxy is not None:
+      return self._session_proxy
+    return self._invocation_context.session
+
+  # ============================================================================
+  # Workflow-specific properties and methods
+  # ============================================================================
+
+  @property
+  def node_path(self) -> str:
+    """Returns the path of the current node in the workflow graph."""
+    return self._node_path
+
+  @property
+  def execution_id(self) -> str:
+    """Returns the execution ID of the current node."""
+    return self._execution_id
+
+  @property
+  def triggered_by(self) -> str:
+    """Returns the name of the node that triggered the current node."""
+    return self._triggered_by
+
+  @property
+  def retry_count(self) -> int:
+    """Returns the number of times this node has been retried."""
+    return self._retry_count
+
+  @property
+  def in_nodes(self) -> frozenset[str]:
+    """Returns names of nodes that are predecessors of the current node."""
+    return self._in_nodes
+
+  @property
+  def resume_inputs(self) -> dict[str, Any]:
+    """Returns inputs for resuming node, keyed by interrupt id."""
+    return self._resume_inputs
+
+  @property
+  def transfer_targets(self) -> list[Any]:
+    """Returns the list of valid transfer targets for the current node."""
+    return self._transfer_targets
+
+  def get_invocation_context(self) -> InvocationContext:
+    """Returns a copy of the invocation context with the proxy session."""
+    ctx = self._invocation_context
+    ctx_with_proxy = ctx.model_copy(
+        update={
+            'session': self.session,
+        }
+    )
+    return ctx_with_proxy
+
+  def get_next_child_execution_id(self, node_name: str) -> str:
+    """Generates the next deterministic child execution ID."""
+    self._child_execution_counter += 1
+    unique_string = (
+        f'{self._execution_id}-{self._child_execution_counter}-{node_name}'
+    )
+    # TODO(swapnilag): use a better hash method.
+    hashed_id = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:15]
+    return f'{node_name}_{hashed_id}'
+
+  async def run_node(
+      self, node: NodeLike, node_input: Any = None, *, name: str | None = None
+  ) -> Any:
+    """Executes a node dynamically.
+
+    This method allows a node within a workflow to trigger the execution of
+    another node (or a callable that can be built into a node) and
+    asynchronously wait for its result. The dynamically executed node becomes
+    a child execution of the current node in the workflow.
+
+    Args:
+      node: The node to be executed. This can be a BaseNode instance or a
+        callable that can be built into a node.
+      node_input: The input data to be passed to the dynamically executed node.
+        Defaults to None.
+      name: An optional, unique name for this dynamic node execution. If not
+        provided, a name will be generated based on the node's type and a unique
+        identifier. This name is used for tracking and can be helpful for
+        resuming workflows.
+
+    Returns:
+      The output of the dynamically executed node, once it finishes executing.
+
+    Raises:
+      RuntimeError: If `run_node` is called outside the context of a workflow
+        execution where dynamic node scheduling is not available.
+    """
+
+    if not self._node_rerun_on_resume:
+      raise ValueError(
+          'A node must have rerun_on_resume=True. Reason is that dynamically'
+          ' scheduled nodes might be interrupted, and the workflow'
+          ' wakes-up/re-runs the parent node, so it can get the child node'
+          ' response.'
+      )
+
+    from ..workflow.utils._workflow_graph_utils import build_node  # pylint: disable=g-import-not-at-top
+
+    built_node = build_node(node)
+    if not self.schedule_dynamic_node:
+      raise RuntimeError(
+          f'Node {built_node.name} called outside of a workflow execution.'
+      )
+    execution_id = self.get_next_child_execution_id(built_node.name)
+    return await self.schedule_dynamic_node(
+        self,
+        built_node,
+        execution_id,
+        node_input,
+        node_name=name,
+    )
+
   # ============================================================================
   # Artifact methods
   # ============================================================================
@@ -126,7 +385,7 @@ class Context(ReadonlyContext):
       The artifact.
     """
     if self._invocation_context.artifact_service is None:
-      raise ValueError("Artifact service is not initialized.")
+      raise ValueError('Artifact service is not initialized.')
     return await self._invocation_context.artifact_service.load_artifact(
         app_name=self._invocation_context.app_name,
         user_id=self._invocation_context.user_id,
@@ -152,7 +411,7 @@ class Context(ReadonlyContext):
      The version of the artifact.
     """
     if self._invocation_context.artifact_service is None:
-      raise ValueError("Artifact service is not initialized.")
+      raise ValueError('Artifact service is not initialized.')
     version = await self._invocation_context.artifact_service.save_artifact(
         app_name=self._invocation_context.app_name,
         user_id=self._invocation_context.user_id,
@@ -178,7 +437,7 @@ class Context(ReadonlyContext):
       The artifact version info.
     """
     if self._invocation_context.artifact_service is None:
-      raise ValueError("Artifact service is not initialized.")
+      raise ValueError('Artifact service is not initialized.')
     return await self._invocation_context.artifact_service.get_artifact_version(
         app_name=self._invocation_context.app_name,
         user_id=self._invocation_context.user_id,
@@ -190,7 +449,7 @@ class Context(ReadonlyContext):
   async def list_artifacts(self) -> list[str]:
     """Lists the filenames of the artifacts attached to the current session."""
     if self._invocation_context.artifact_service is None:
-      raise ValueError("Artifact service is not initialized.")
+      raise ValueError('Artifact service is not initialized.')
     return await self._invocation_context.artifact_service.list_artifact_keys(
         app_name=self._invocation_context.app_name,
         user_id=self._invocation_context.user_id,
@@ -208,7 +467,7 @@ class Context(ReadonlyContext):
       auth_config: The authentication configuration containing the credential.
     """
     if self._invocation_context.credential_service is None:
-      raise ValueError("Credential service is not initialized.")
+      raise ValueError('Credential service is not initialized.')
     await self._invocation_context.credential_service.save_credential(
         auth_config, self
     )
@@ -225,7 +484,7 @@ class Context(ReadonlyContext):
       The loaded credential, or None if not found.
     """
     if self._invocation_context.credential_service is None:
-      raise ValueError("Credential service is not initialized.")
+      raise ValueError('Credential service is not initialized.')
     return await self._invocation_context.credential_service.load_credential(
         auth_config, self
     )
@@ -263,9 +522,9 @@ class Context(ReadonlyContext):
 
     if not self.function_call_id:
       raise ValueError(
-          "request_credential requires function_call_id. "
-          "This method can only be used in a tool context, not a callback "
-          "context. Consider using save_credential/load_credential instead."
+          'request_credential requires function_call_id. '
+          'This method can only be used in a tool context, not a callback '
+          'context. Consider using save_credential/load_credential instead.'
       )
     self._event_actions.requested_auth_configs[self.function_call_id] = (
         AuthHandler(auth_config).generate_auth_request()
@@ -297,8 +556,8 @@ class Context(ReadonlyContext):
 
     if not self.function_call_id:
       raise ValueError(
-          "request_confirmation requires function_call_id. "
-          "This method can only be used in a tool context."
+          'request_confirmation requires function_call_id. '
+          'This method can only be used in a tool context.'
       )
     self._event_actions.requested_tool_confirmations[self.function_call_id] = (
         ToolConfirmation(
@@ -329,7 +588,7 @@ class Context(ReadonlyContext):
     """
     if self._invocation_context.memory_service is None:
       raise ValueError(
-          "Cannot add session to memory: memory service is not available."
+          'Cannot add session to memory: memory service is not available.'
       )
     await self._invocation_context.memory_service.add_session_to_memory(
         self._invocation_context.session
@@ -355,7 +614,7 @@ class Context(ReadonlyContext):
     """
     if self._invocation_context.memory_service is None:
       raise ValueError(
-          "Cannot add events to memory: memory service is not available."
+          'Cannot add events to memory: memory service is not available.'
       )
     await self._invocation_context.memory_service.add_events_to_memory(
         app_name=self._invocation_context.session.app_name,
@@ -384,7 +643,7 @@ class Context(ReadonlyContext):
       ValueError: If memory service is not available.
     """
     if self._invocation_context.memory_service is None:
-      raise ValueError("Cannot add memory: memory service is not available.")
+      raise ValueError('Cannot add memory: memory service is not available.')
     await self._invocation_context.memory_service.add_memory(
         app_name=self._invocation_context.session.app_name,
         user_id=self._invocation_context.session.user_id,
@@ -405,7 +664,7 @@ class Context(ReadonlyContext):
       ValueError: If memory service is not available.
     """
     if self._invocation_context.memory_service is None:
-      raise ValueError("Memory service is not available.")
+      raise ValueError('Memory service is not available.')
     return await self._invocation_context.memory_service.search_memory(
         app_name=self._invocation_context.app_name,
         user_id=self._invocation_context.user_id,
@@ -433,7 +692,7 @@ class Context(ReadonlyContext):
       if existing_widget.id == ui_widget.id:
         raise ValueError(
             f"UI widget with ID '{ui_widget.id}' already exists in the current"
-            " event actions."
+            ' event actions.'
         )
 
     self._event_actions.render_ui_widgets.append(ui_widget)

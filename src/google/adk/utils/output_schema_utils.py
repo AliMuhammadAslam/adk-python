@@ -36,10 +36,13 @@ def can_use_output_schema_with_tools(model: Union[str, BaseLlm]) -> bool:
   #   tool_choice enforcement
   # This is strictly more reliable than the SetModelResponseTool
   # prompt-based workaround.
-  from ..models.lite_llm import LiteLlm
-
-  if isinstance(model, LiteLlm):
-    return True
+  if not isinstance(model, str):
+    try:
+      from ..models.lite_llm import LiteLlm
+    except ImportError:
+      LiteLlm = None
+    if LiteLlm is not None and isinstance(model, LiteLlm):
+      return True
 
   model_string = model if isinstance(model, str) else model.model
 

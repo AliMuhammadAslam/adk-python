@@ -116,3 +116,6 @@ CLAUDE.md
 .rooignore
 .bolt/
 .v0/
+
+# Conformance test outputs (timestamped folders from --test mode)
+**/conformance/20*-*-*_*-*-*/

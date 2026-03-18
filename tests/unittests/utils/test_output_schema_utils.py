@@ -13,11 +13,33 @@
 # limitations under the License.
 
 
-from google.adk.models.anthropic_llm import Claude
+import importlib.util
+
 from google.adk.models.google_llm import Gemini
-from google.adk.models.lite_llm import LiteLlm
 from google.adk.utils.output_schema_utils import can_use_output_schema_with_tools
 import pytest
+
+_has_anthropic = importlib.util.find_spec("anthropic") is not None
+_has_litellm = importlib.util.find_spec("litellm") is not None
+
+_skip_anthropic = pytest.mark.skipif(
+    not _has_anthropic, reason="anthropic not installed"
+)
+_skip_litellm = pytest.mark.skipif(
+    not _has_litellm, reason="litellm not installed"
+)
+
+
+def _make_claude(model: str):
+  from google.adk.models.anthropic_llm import Claude
+
+  return Claude(model=model)
+
+
+def _make_litellm(model: str):
+  from google.adk.models.lite_llm import LiteLlm
+
+  return LiteLlm(model=model)
 
 
 @pytest.mark.parametrize(
@@ -35,14 +57,6 @@ import pytest
         ("gemini-1.5-pro", "1", False),
         ("gemini-1.5-pro", "0", False),
         ("gemini-1.5-pro", None, False),
-        (Claude(model="claude-3.7-sonnet"), "1", False),
-        (Claude(model="claude-3.7-sonnet"), "0", False),
-        (Claude(model="claude-3.7-sonnet"), None, False),
-        (LiteLlm(model="openai/gpt-4o"), "1", True),
-        (LiteLlm(model="openai/gpt-4o"), "0", True),
-        (LiteLlm(model="openai/gpt-4o"), None, True),
-        (LiteLlm(model="anthropic/claude-3.7-sonnet"), None, True),
-        (LiteLlm(model="fireworks_ai/llama-v3p1-70b"), None, True),
     ],
 )
 def test_can_use_output_schema_with_tools(
@@ -54,3 +68,47 @@ def test_can_use_output_schema_with_tools(
   else:
     monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
   assert can_use_output_schema_with_tools(model) == expected
+
+
+@_skip_anthropic
+@pytest.mark.parametrize(
+    "model, env_value, expected",
+    [
+        ("claude-3.7-sonnet", "1", False),
+        ("claude-3.7-sonnet", "0", False),
+        ("claude-3.7-sonnet", None, False),
+    ],
+)
+def test_can_use_output_schema_with_tools_claude(
+    monkeypatch, model, env_value, expected
+):
+  """Test can_use_output_schema_with_tools with Claude models."""
+  claude_model = _make_claude(model)
+  if env_value is not None:
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", env_value)
+  else:
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+  assert can_use_output_schema_with_tools(claude_model) == expected
+
+
+@_skip_litellm
+@pytest.mark.parametrize(
+    "model, env_value, expected",
+    [
+        ("openai/gpt-4o", "1", True),
+        ("openai/gpt-4o", "0", True),
+        ("openai/gpt-4o", None, True),
+        ("anthropic/claude-3.7-sonnet", None, True),
+        ("fireworks_ai/llama-v3p1-70b", None, True),
+    ],
+)
+def test_can_use_output_schema_with_tools_litellm(
+    monkeypatch, model, env_value, expected
+):
+  """Test can_use_output_schema_with_tools with LiteLLM models."""
+  litellm_model = _make_litellm(model)
+  if env_value is not None:
+    monkeypatch.setenv("GOOGLE_GENAI_USE_VERTEXAI", env_value)
+  else:
+    monkeypatch.delenv("GOOGLE_GENAI_USE_VERTEXAI", raising=False)
+  assert can_use_output_schema_with_tools(litellm_model) == expected

@@ -4623,7 +4623,7 @@ class TestHITLTracingEndToEnd:
 
     HITL_CONFIRMATION_REQUEST and HITL_CONFIRMATION_REQUEST_COMPLETED.
     """
-    from google.adk.flows.llm_flows.functions import REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
+    from google.adk.agents.llm._functions import REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
     from google.adk.tools.function_tool import FunctionTool
     from google.genai.types import FunctionCall
     from google.genai.types import FunctionResponse

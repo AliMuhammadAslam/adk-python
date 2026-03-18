@@ -97,6 +97,8 @@ from .utils import common
 from .utils import envs
 from .utils import evals
 from .utils.base_agent_loader import BaseAgentLoader
+from .utils.graph_serialization import serialize_app_info
+from .utils.graph_visualization import plot_workflow_graph
 from .utils.shared_value import SharedValue
 from .utils.state import create_empty_state
 
@@ -811,82 +813,33 @@ class AdkWebServer:
               status_code=404, detail=f"App not found: {app_name}"
           )
 
-        def serialize_agent(agent: BaseAgent) -> dict[str, Any]:
-          """Recursively serialize an agent, excluding non-serializable fields."""
-          agent_dict = {}
+        # Read README.md if it exists
+        readme_content = None
+        if self.agents_dir:
+          import os
 
-          for field_name, field_info in agent.__class__.model_fields.items():
-            # Skip non-serializable fields
-            if field_name in [
-                "parent_agent",
-                "before_agent_callback",
-                "after_agent_callback",
-                "before_model_callback",
-                "after_model_callback",
-                "on_model_error_callback",
-                "before_tool_callback",
-                "after_tool_callback",
-                "on_tool_error_callback",
-            ]:
-              continue
+          readme_path = os.path.join(self.agents_dir, app_name, "README.md")
+          if os.path.exists(readme_path):
+            try:
+              with open(readme_path, "r", encoding="utf-8") as f:
+                readme_content = f.read()
+            except Exception as e:
+              print(f"Error reading README.md: {e}")
 
-            value = getattr(agent, field_name, None)
+        return serialize_app_info(runner.app, readme_content)
 
-            # Handle sub_agents recursively
-            if field_name == "sub_agents" and value:
-              agent_dict[field_name] = [
-                  serialize_agent(sub_agent) for sub_agent in value
-              ]
-            elif value is None or field_name == "tools":
-              continue
-            else:
-              try:
-                if isinstance(value, (str, int, float, bool, list, dict)):
-                  agent_dict[field_name] = value
-                elif hasattr(value, "model_dump"):
-                  agent_dict[field_name] = value.model_dump(
-                      mode="python", exclude_none=True
-                  )
-                else:
-                  agent_dict[field_name] = str(value)
-              except Exception:
-                pass
+    @app.get("/dev/build_graph_image/{app_name}")
+    async def get_app_info_image(app_name: str) -> Any:
+      runner = await self.get_runner_async(app_name)
 
-          return agent_dict
+      if not runner.app:
+        raise HTTPException(
+            status_code=404, detail=f"App not found: {app_name}"
+        )
 
-        app_info = {
-            "name": runner.app.name,
-            "root_agent": serialize_agent(runner.app.root_agent),
-        }
-
-        # Add optional fields if present
-        if runner.app.plugins:
-          app_info["plugins"] = [
-              {"name": getattr(plugin, "name", type(plugin).__name__)}
-              for plugin in runner.app.plugins
-          ]
-
-        if runner.app.context_cache_config:
-          try:
-            app_info["context_cache_config"] = (
-                runner.app.context_cache_config.model_dump(
-                    mode="python", exclude_none=True
-                )
-            )
-          except Exception:
-            pass
-
-        if runner.app.resumability_config:
-          try:
-            app_info["resumability_config"] = (
-                runner.app.resumability_config.model_dump(
-                    mode="python", exclude_none=True
-                )
-            )
-          except Exception:
-            pass
-
-        return app_info
+      app_info = serialize_app_info(runner.app)
+      dot_string = plot_workflow_graph(app_info, format="dot")
+      return GetEventGraphResult(dot_src=dot_string)
 
     @app.get("/debug/trace/session/{session_id}", tags=[TAG_DEBUG])
     async def get_session_trace(session_id: str) -> Any:

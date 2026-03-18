@@ -35,6 +35,7 @@ def create_test_event(
     content_text: str = "Hello world",
     is_final: bool = True,
     invocation_id: str = "test_invocation",
+    node_path: str = "",
 ) -> Event:
   """Helper to create test events."""
   # Create mock content
@@ -48,6 +49,9 @@ def create_test_event(
       content=content,
       actions=EventActions(),
   )
+
+  if node_path:
+    event.node_info.path = node_path
 
   # Mock is_final_response if needed
   if not is_final:
@@ -75,7 +79,7 @@ class TestLlmAgentOutputSave:
       )
 
       with caplog.at_level("DEBUG"):
-        agent._LlmAgent__maybe_save_output_to_state(event)
+        agent._maybe_save_output_to_state(event, "agent_a")
 
       # Should not add anything to state_delta
       assert len(event.actions.state_delta) == 0
@@ -92,9 +96,13 @@ class TestLlmAgentOutputSave:
   def test_maybe_save_output_to_state_saves_same_author(self):
     """Test that output is saved when event author matches agent name."""
     agent = LlmAgent(name="test_agent", output_key="result")
-    event = create_test_event(author="test_agent", content_text="Test response")
+    event = create_test_event(
+        author="test_agent",
+        content_text="Test response",
+        node_path="test_agent",
+    )
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should save to state_delta
     assert event.actions.state_delta["result"] == "Test response"
@@ -102,9 +110,13 @@ class TestLlmAgentOutputSave:
   def test_maybe_save_output_to_state_no_output_key(self):
     """Test that nothing is saved when output_key is not set."""
     agent = LlmAgent(name="test_agent")  # No output_key
-    event = create_test_event(author="test_agent", content_text="Test response")
+    event = create_test_event(
+        author="test_agent",
+        content_text="Test response",
+        node_path="test_agent",
+    )
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should not save anything
     assert len(event.actions.state_delta) == 0
@@ -113,10 +125,13 @@ class TestLlmAgentOutputSave:
     """Test that output is not saved for non-final responses."""
     agent = LlmAgent(name="test_agent", output_key="result")
     event = create_test_event(
-        author="test_agent", content_text="Partial response", is_final=False
+        author="test_agent",
+        content_text="Partial response",
+        is_final=False,
+        node_path="test_agent",
     )
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should not save partial responses
     assert len(event.actions.state_delta) == 0
@@ -124,9 +139,13 @@ class TestLlmAgentOutputSave:
   def test_maybe_save_output_to_state_no_content(self):
     """Test that nothing is saved when event has no content."""
     agent = LlmAgent(name="test_agent", output_key="result")
-    event = create_test_event(author="test_agent", content_text="")
+    event = create_test_event(
+        author="test_agent",
+        content_text="",
+        node_path="test_agent",
+    )
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should not save empty content
     assert len(event.actions.state_delta) == 0
@@ -139,9 +158,13 @@ class TestLlmAgentOutputSave:
 
     # Create event with JSON content
     json_content = '{"message": "Hello", "confidence": 0.95}'
-    event = create_test_event(author="test_agent", content_text=json_content)
+    event = create_test_event(
+        author="test_agent",
+        content_text=json_content,
+        node_path="test_agent",
+    )
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should save parsed and validated output
     expected_output = {"message": "Hello", "confidence": 0.95}
@@ -165,8 +188,9 @@ class TestLlmAgentOutputSave:
         content=content,
         actions=EventActions(),
     )
+    event.node_info.path = "test_agent"
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "test_agent")
 
     # Should concatenate all text parts
     assert event.actions.state_delta["result"] == "Hello world!"
@@ -190,7 +214,7 @@ class TestLlmAgentOutputSave:
       )
 
       with caplog.at_level("DEBUG"):
-        agent_a._LlmAgent__maybe_save_output_to_state(agent_b_event)
+        agent_a._maybe_save_output_to_state(agent_b_event, "support_agent")
 
       # Agent A should not save Agent B's output
       assert len(agent_b_event.actions.state_delta) == 0
@@ -219,7 +243,7 @@ class TestLlmAgentOutputSave:
       )
 
       with caplog.at_level("DEBUG"):
-        agent._LlmAgent__maybe_save_output_to_state(event)
+        agent._maybe_save_output_to_state(event, "TestAgent")
 
       # Should not save due to case mismatch
       assert len(event.actions.state_delta) == 0
@@ -238,7 +262,7 @@ class TestLlmAgentOutputSave:
     agent = LlmAgent(name="agent1", output_key="result")
     event = create_test_event(author="agent2", content_text="Test response")
 
-    agent._LlmAgent__maybe_save_output_to_state(event)
+    agent._maybe_save_output_to_state(event, "agent1")
 
     # Should call logger.debug with correct parameters
     mock_logger.debug.assert_called_once_with(
@@ -263,13 +287,16 @@ class TestLlmAgentOutputSave:
     # ARRANGE: Create a final event with empty or whitespace-only content.
     # This simulates the final, empty chunk from a model's streaming response.
     event = create_test_event(
-        author="test_agent", content_text=empty_content, is_final=True
+        author="test_agent",
+        content_text=empty_content,
+        is_final=True,
+        node_path="test_agent",
     )
 
     # ACT: Call the method. The test's primary goal is to ensure this
     # does NOT raise a pydantic.ValidationError, which it would have before the fix.
     try:
-      agent._LlmAgent__maybe_save_output_to_state(event)
+      agent._maybe_save_output_to_state(event, "test_agent")
     except Exception as e:
       pytest.fail(f"The method unexpectedly raised an exception: {e}")
 

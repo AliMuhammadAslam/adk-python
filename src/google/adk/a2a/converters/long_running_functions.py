@@ -31,8 +31,8 @@ from a2a.types import TaskStatusUpdateEvent
 from a2a.types import TextPart
 from google.genai import types as genai_types
 
+from ...agents.llm._functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from ...events.event import Event
-from ...flows.llm_flows.functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from .part_converter import A2A_DATA_PART_METADATA_IS_LONG_RUNNING_KEY
 from .part_converter import A2A_DATA_PART_METADATA_TYPE_FUNCTION_CALL
 from .part_converter import A2A_DATA_PART_METADATA_TYPE_FUNCTION_RESPONSE

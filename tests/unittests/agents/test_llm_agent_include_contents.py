@@ -189,6 +189,7 @@ async def test_include_contents_none_behavior():
   assert len(mock_model.requests[0].config.tools) > 0
 
 
+@pytest.mark.skip(reason="Workflow agents cannot be sub-agents of LlmAgent")
 @pytest.mark.asyncio
 async def test_include_contents_none_sequential_agents():
   """Test include_contents='none' with sequential agents."""

@@ -69,10 +69,10 @@ from ..a2a.logs.log_utils import build_a2a_request_log
 from ..a2a.logs.log_utils import build_a2a_response_log
 from ..agents.invocation_context import InvocationContext
 from ..events.event import Event
-from ..flows.llm_flows.contents import _is_other_agent_reply
-from ..flows.llm_flows.contents import _present_other_agent_message
-from ..flows.llm_flows.functions import find_matching_function_call
 from .base_agent import BaseAgent
+from .llm._contents import _is_other_agent_reply
+from .llm._contents import _present_other_agent_message
+from .llm._functions import find_matching_function_call
 
 __all__ = [
     "A2AClientError",

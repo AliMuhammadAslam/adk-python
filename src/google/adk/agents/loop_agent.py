@@ -12,143 +12,142 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Loop agent implementation."""
+"""Loop agent implementation using workflow graph."""
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 import logging
 from typing import Any
-from typing import AsyncGenerator
 from typing import ClassVar
 from typing import Dict
 from typing import Optional
 
+from pydantic import Field
 from typing_extensions import override
 
 from ..events.event import Event
 from ..features import experimental
 from ..features import FeatureName
-from ..utils.context_utils import Aclosing
-from .base_agent import BaseAgent
-from .base_agent import BaseAgentState
+from ..workflow import BaseNode
+from ..workflow import START
+from ..workflow import Workflow
+from ..workflow.utils._workflow_graph_utils import build_node
 from .base_agent_config import BaseAgentConfig
-from .invocation_context import InvocationContext
+from .context import Context
 from .loop_agent_config import LoopAgentConfig
 
 logger = logging.getLogger('google_adk.' + __name__)
+LOOP_COUNT_KEY = 'loop_count'
+_DEFAULT_ROUTE = 'next'
 
 
-@experimental(FeatureName.AGENT_STATE)
-class LoopAgentState(BaseAgentState):
-  """State for LoopAgent."""
+class _DefaultRouteNode(BaseNode):
+  """A node wrapper that provides a default route if none is set.
 
-  current_sub_agent: str = ''
-  """The name of the current sub-agent to run in the loop."""
-
-  times_looped: int = 0
-  """The number of times the loop agent has looped."""
-
-
-class LoopAgent(BaseAgent):
-  """A shell agent that run its sub-agents in a loop.
-
-  When sub-agent generates an event with escalate or max_iterations are
-  reached, the loop agent will stop.
+  If no escalation occurred, this wrapper yields the default_route.
   """
+
+  inner_node: BaseNode = Field(...)
+  name: str = Field(default='')
+
+  def model_post_init(self, context: Any) -> None:
+    self.name = self.inner_node.name
+
+  @override
+  async def run(
+      self, *, ctx: Context, node_input: Any
+  ) -> AsyncGenerator[Event, None]:
+    escalated = False
+    async for event in self.inner_node.run(ctx=ctx, node_input=node_input):
+      yield event
+
+      # Only consider events strictly from the direct child agent
+      # to avoid grandchild escalation breaking the loop.
+      if (
+          event.node_info.path == ctx.node_path
+          and event.actions
+          and event.actions.escalate
+      ):
+        if event.actions and event.actions.escalate:
+          escalated = True
+
+    if escalated:
+      return
+    # If no escalation occurred, continue the loop.
+    yield Event(route=_DEFAULT_ROUTE)
+
+
+class LoopAgent(Workflow):
+  """A shell agent that runs its sub-agents in a loop using workflow graph."""
 
   config_type: ClassVar[type[BaseAgentConfig]] = LoopAgentConfig
   """The config type for this agent."""
 
   max_iterations: Optional[int] = None
-  """The maximum number of iterations to run the loop agent.
+  """The maximum number of iterations to run the loop agent."""
 
-  If not set, the loop agent will run indefinitely until a sub-agent
-  escalates.
-  """
+  @property
+  def _loop_count_key(self) -> str:
+    return f'{self.name}_{LOOP_COUNT_KEY}'
 
-  @override
-  async def _run_async_impl(
-      self, ctx: InvocationContext
-  ) -> AsyncGenerator[Event, None]:
-    if not self.sub_agents:
-      return
-
-    agent_state = self._load_agent_state(ctx, LoopAgentState)
-    is_resuming_at_current_agent = agent_state is not None
-    times_looped, start_index = self._get_start_state(agent_state)
-
-    should_exit = False
-    pause_invocation = False
-    while (
-        not self.max_iterations or times_looped < self.max_iterations
-    ) and not (should_exit or pause_invocation):
-      for i in range(start_index, len(self.sub_agents)):
-        sub_agent = self.sub_agents[i]
-
-        if ctx.is_resumable and not is_resuming_at_current_agent:
-          # If we are resuming from the current event, it means the same event
-          # has already been logged, so we should avoid yielding it again.
-          agent_state = LoopAgentState(
-              current_sub_agent=sub_agent.name,
-              times_looped=times_looped,
-          )
-          ctx.set_agent_state(self.name, agent_state=agent_state)
-          yield self._create_agent_state_event(ctx)
-
-        is_resuming_at_current_agent = False
-
-        async with Aclosing(sub_agent.run_async(ctx)) as agen:
-          async for event in agen:
-            yield event
-            if event.actions.escalate:
-              should_exit = True
-            if ctx.should_pause_invocation(event):
-              pause_invocation = True
-
-        if should_exit or pause_invocation:
-          break  # break inner for loop
-
-      # Restart from the beginning of the loop.
-      start_index = 0
-      times_looped += 1
-      # Reset the state of all sub-agents in the loop.
-      ctx.reset_sub_agent_states(self.name)
-
-    # If the invocation is paused, we should not yield the end of agent event.
-    if pause_invocation:
-      return
-
-    if ctx.is_resumable:
-      ctx.set_agent_state(self.name, end_of_agent=True)
-      yield self._create_agent_state_event(ctx)
-
-  def _get_start_state(
+  async def _increment_loop_count(
       self,
-      agent_state: Optional[LoopAgentState],
-  ) -> tuple[int, int]:
-    """Computes the start state of the loop agent from the agent state."""
-    if not agent_state:
-      return 0, 0
+      ctx: Context,
+  ) -> AsyncGenerator[Event, None]:
+    """Increments the loop count.
 
-    times_looped = agent_state.times_looped
-    start_index = 0
-    if agent_state.current_sub_agent:
-      try:
-        sub_agent_names = [sub_agent.name for sub_agent in self.sub_agents]
-        start_index = sub_agent_names.index(agent_state.current_sub_agent)
-      except ValueError:
-        # A sub-agent was removed so the agent name is not found.
-        # For now, we restart from the beginning.
-        logger.warning(
-            'Sub-agent %s was not found. Restarting from the beginning.',
-            agent_state.current_sub_agent,
-        )
-    return times_looped, start_index
+    Args:
+      ctx: The workflow context.
+
+    Yields:
+      An `Event` updating the loop count in the context state.
+      An `Event` with a 'continue_loop' route if the loop should continue,
+      or an `Event` clearing the loop count from the state otherwise.
+    """
+    loop_count = ctx.state.get(self._loop_count_key, 0) + 1
+    yield Event(state={self._loop_count_key: loop_count})
+
+    should_continue = not (
+        self.max_iterations and loop_count >= self.max_iterations
+    )
+    if should_continue:
+      yield Event(route='continue_loop')
+    else:
+      yield Event(state={self._loop_count_key: None})
 
   @override
-  async def _run_live_impl(
-      self, ctx: InvocationContext
-  ) -> AsyncGenerator[Event, None]:
+  def model_post_init(self, context: Any) -> None:
+    if self.sub_agents:
+      if self.graph is not None or self.edges:
+        raise ValueError(
+            'LoopAgent constructs its graph internally and does not'
+            " accept 'graph' or 'edges' arguments."
+        )
+
+      # Wrap sub-agents to handle escalate action
+      wrappers = []
+      for agent in self.sub_agents:
+        inner_node = build_node(agent)
+        wrappers.append(_DefaultRouteNode(inner_node=inner_node))
+
+      #  START -> agent1 -> agent2 -> ... -> agentN -> increment -> agent1
+      self.edges.append((START, wrappers[0]))
+      for i in range(len(wrappers) - 1):
+        self.edges.append((wrappers[i], {_DEFAULT_ROUTE: wrappers[i + 1]}))
+
+      # Store the bound method in a local variable so both edges share the
+      # same object identity.
+      increment_fn = self._increment_loop_count
+      self.edges.extend([
+          (wrappers[-1], {_DEFAULT_ROUTE: increment_fn}),
+          (increment_fn, {'continue_loop': wrappers[0]}),
+      ])
+
+    super().model_post_init(context)
+
+  @override
+  async def _run_live_impl(self, ctx: Context) -> AsyncGenerator[Event, None]:
     raise NotImplementedError('This is not supported yet for LoopAgent.')
     yield  # AsyncGenerator requires having at least one yield statement
 

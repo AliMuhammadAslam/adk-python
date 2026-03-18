@@ -23,6 +23,7 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.readonly_context import ReadonlyContext
+from google.adk.apps.app import App
 from google.adk.models.anthropic_llm import Claude
 from google.adk.models.google_llm import Gemini
 from google.adk.models.lite_llm import LiteLlm
@@ -33,9 +34,20 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools.vertex_ai_search_tool import VertexAiSearchTool
+from google.adk.workflow import Workflow
+from google.adk.workflow._dynamic_node_registry import dynamic_node_registry
+from google.adk.workflow._node import node
 from google.genai import types
 from pydantic import BaseModel
 import pytest
+
+from .. import testing_utils
+from ..workflow import workflow_testing_utils
+
+
+def _make_mock_model(responses: list[str]) -> testing_utils.MockModel:
+  """Create a MockModel with text responses."""
+  return testing_utils.MockModel.create(responses)
 
 
 async def _create_readonly_context(
@@ -540,3 +552,190 @@ def test_builtin_planner_overwrite_logging(caplog):
       'Overwriting `thinking_config` from `generate_content_config`'
       in caplog.text
   )
+
+
+class TestParallelWorker:
+
+  @pytest.mark.asyncio
+  async def test_llm_agent_with_parallel_worker(
+      self,
+      request: pytest.FixtureRequest,
+  ):
+    """Tests that a LlmAgent can be configured with parallel_worker=True."""
+
+    dynamic_node_registry.clear()
+
+    async def producer_func():
+      # Produces a list of items to be processed in parallel
+      return ['item1', 'item2']
+
+    mock_model = _make_mock_model([
+        'processed',
+        'processed',
+    ])
+
+    llm_agent = node(
+        LlmAgent(
+            name='llm_agent',
+            model=mock_model,
+        ),
+        parallel_worker=True,
+    )
+
+    outer_agent = Workflow(
+        name='outer_agent',
+        edges=[
+            ('START', producer_func),
+            (producer_func, llm_agent),
+        ],
+    )
+
+    app = App(
+        name=request.function.__name__,
+        root_agent=outer_agent,
+    )
+    runner = testing_utils.InMemoryRunner(app=app)
+    events = await runner.run_async(testing_utils.get_user_content('start'))
+
+    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
+
+    assert simplified_events == [
+        (
+            'outer_agent',
+            {
+                'node_name': 'producer_func',
+                'output': ['item1', 'item2'],
+            },
+        ),
+        # Children outputs
+        (
+            'llm_agent__0',
+            {
+                'node_name': 'call_llm',
+                'output': 'processed',
+            },
+        ),
+        (
+            'llm_agent__1',
+            {
+                'node_name': 'call_llm',
+                'output': 'processed',
+            },
+        ),
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent__0',
+                'output': 'processed',
+            },
+        ),
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent__1',
+                'output': 'processed',
+            },
+        ),
+        # Parent output
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent',
+                'output': [
+                    'processed',
+                    'processed',
+                ],
+            },
+        ),
+    ]
+
+  @pytest.mark.asyncio
+  async def test_llm_agent_with_parallel_worker_with_flag(
+      self,
+      request: pytest.FixtureRequest,
+  ):
+    """Tests that a LlmAgent can be configured with flag parallel_worker=True."""
+
+    dynamic_node_registry.clear()
+
+    async def producer_func():
+      # Produces a list of items to be processed in parallel
+      return ['item1', 'item2']
+
+    mock_model = _make_mock_model([
+        'processed',
+        'processed',
+    ])
+
+    llm_agent = LlmAgent(
+        name='llm_agent',
+        model=mock_model,
+        parallel_worker=True,
+    )
+
+    outer_agent = Workflow(
+        name='outer_agent',
+        edges=[
+            ('START', producer_func),
+            (producer_func, llm_agent),
+        ],
+    )
+
+    app = App(
+        name=request.function.__name__,
+        root_agent=outer_agent,
+    )
+    runner = testing_utils.InMemoryRunner(app=app)
+    events = await runner.run_async(testing_utils.get_user_content('start'))
+
+    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
+
+    assert simplified_events == [
+        (
+            'outer_agent',
+            {
+                'node_name': 'producer_func',
+                'output': ['item1', 'item2'],
+            },
+        ),
+        # Children outputs
+        (
+            'llm_agent__0',
+            {
+                'node_name': 'call_llm',
+                'output': 'processed',
+            },
+        ),
+        (
+            'llm_agent__1',
+            {
+                'node_name': 'call_llm',
+                'output': 'processed',
+            },
+        ),
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent__0',
+                'output': 'processed',
+            },
+        ),
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent__1',
+                'output': 'processed',
+            },
+        ),
+        # Parent output
+        (
+            'outer_agent',
+            {
+                'node_name': 'llm_agent',
+                'output': [
+                    'processed',
+                    'processed',
+                ],
+            },
+        ),
+    ]

@@ -14,6 +14,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 from typing import cast
 from typing import Optional
 
@@ -21,11 +22,45 @@ from google.adk.platform import time as platform_time
 from google.adk.platform import uuid as platform_uuid
 from google.genai import types
 from pydantic import alias_generators
+from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
 from ..models.llm_response import LlmResponse
 from .event_actions import EventActions
+
+
+class NodeInfo(BaseModel):
+  """Workflow node metadata attached to an Event."""
+
+  model_config = ConfigDict(
+      ser_json_bytes='base64',
+      val_json_bytes='base64',
+      alias_generator=alias_generators.to_camel,
+      populate_by_name=True,
+  )
+
+  path: str = ''
+  """The path of the node in the workflow.
+  In a workflow A, if node B is directly under A, and B emits an event, the
+  path will be "A/B". Agent state event will have path as "A".
+  """
+
+  execution_id: str = ''
+  """The execution ID of the node that generated the event."""
+
+  source_node_name: str | None = None
+  """The original node definition name for a dynamically scheduled
+  node. Used to reconstruct dynamic node state from session events."""
+
+  parent_execution_id: str | None = None
+  """The execution ID of the parent node that dynamically scheduled
+  this node. Used to reconstruct dynamic node state from session events."""
+
+  @property
+  def name(self) -> str:
+    """The name of the node that generated the event."""
+    return self.path.split('/')[-1] if self.path else ''
 
 
 class Event(LlmResponse):
@@ -46,18 +81,24 @@ class Event(LlmResponse):
 
   invocation_id: str = ''
   """The invocation ID of the event. Should be non-empty before appending to a session."""
-  author: str
+  author: str = ''
   """'user' or the name of the agent, indicating who appended the event to the
   session."""
   actions: EventActions = Field(default_factory=EventActions)
   """The actions taken by the agent."""
 
-  long_running_tool_ids: Optional[set[str]] = None
+  output: Any | None = None
+  """Generic data output from a workflow node."""
+
+  node_info: NodeInfo = Field(default_factory=NodeInfo)
+  """Workflow node metadata (path, execution_id, etc.)."""
+
+  long_running_tool_ids: set[str] | None = None
   """Set of ids of the long running function calls.
   Agent client will know from this field about which function call is long running.
   only valid for function call event
   """
-  branch: Optional[str] = None
+  branch: str | None = None
   """The branch of the event.
 
   The format is like agent_1.agent_2.agent_3, where agent_1 is the parent of
@@ -73,6 +114,61 @@ class Event(LlmResponse):
   """The unique identifier of the event."""
   timestamp: float = Field(default_factory=lambda: platform_time.get_time())
   """The timestamp of the event."""
+
+  def __init__(self, **kwargs: Any):
+    """Initializes the event.
+
+    Supports convenience kwargs routed to actions or node_info:
+      message: ContentUnion -> content (alias, converted via t_content)
+      state: dict -> actions.state_delta
+      route: value -> actions.route
+      node_path: str -> node_info.path
+    """
+    message = kwargs.pop('message', None)
+    state = kwargs.pop('state', None)
+    route = kwargs.pop('route', None)
+    node_path = kwargs.pop('node_path', None)
+
+    if message is not None and kwargs.get('content') is not None:
+      raise ValueError(
+          "'message' and 'content' are mutually exclusive."
+          ' Use one or the other.'
+      )
+
+    if message is not None:
+      from google.genai import _transformers
+
+      kwargs['content'] = _transformers.t_content(message)
+
+    super().__init__(**kwargs)
+    if state:
+      self.actions.state_delta = state
+    if route is not None:
+      self.actions.route = route
+    if node_path is not None:
+      self.node_info.path = node_path
+
+  @property
+  def message(self) -> Optional[types.Content]:
+    """Alias for content. Returns the user-facing message of the event."""
+    return self.content
+
+  @message.setter
+  def message(self, value: Optional[types.ContentUnion]) -> None:
+    """Sets the content of the event."""
+    if value is not None:
+      from google.genai import _transformers
+
+      self.content = _transformers.t_content(value)
+    else:
+      self.content = None
+
+  @property
+  def node_name(self) -> str:
+    """The name of the node that generated the event."""
+    if self.actions and (self.actions.agent_state or self.actions.end_of_agent):
+      return ''
+    return self.node_info.name
 
   def model_post_init(self, __context):
     """Post initialization logic for the event."""

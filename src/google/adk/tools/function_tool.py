@@ -27,6 +27,8 @@ from google.genai import types
 import pydantic
 from typing_extensions import override
 
+from ..utils._schema_utils import get_list_inner_type
+from ..utils._schema_utils import is_list_of_basemodel
 from ..utils.context_utils import Aclosing
 from ..utils.context_utils import find_context_parameter
 from ._automatic_function_calling_util import build_function_declaration
@@ -153,6 +155,24 @@ class FunctionTool(BaseTool):
               )
               # Keep the original value if conversion fails
               pass
+        # Handle list[BaseModel] types
+        elif is_list_of_basemodel(target_type) and isinstance(
+            args[param_name], list
+        ):
+          item_type = get_list_inner_type(target_type)
+          try:
+            converted_args[param_name] = [
+                item_type.model_validate(item)
+                if isinstance(item, dict)
+                else item
+                for item in args[param_name]
+            ]
+          except Exception as e:
+            logger.warning(
+                f"Failed to convert argument '{param_name}' to"
+                f' list[{item_type.__name__}]: {e}'
+            )
+            pass
 
     return converted_args
 

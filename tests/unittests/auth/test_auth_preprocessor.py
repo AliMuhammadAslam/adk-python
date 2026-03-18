@@ -21,12 +21,12 @@ from unittest.mock import Mock
 from unittest.mock import patch
 
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.llm._functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from google.adk.auth.auth_handler import AuthHandler
 from google.adk.auth.auth_preprocessor import _AuthLlmRequestProcessor
 from google.adk.auth.auth_tool import AuthConfig
 from google.adk.auth.auth_tool import AuthToolArguments
 from google.adk.events.event import Event
-from google.adk.flows.llm_flows.functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from google.adk.models.llm_request import LlmRequest
 import pytest
 
@@ -319,7 +319,7 @@ class TestAuthLlmRequestProcessor:
   @pytest.mark.asyncio
   @patch('google.adk.auth.auth_preprocessor.AuthHandler')
   @patch('google.adk.auth.auth_tool.AuthConfig.model_validate')
-  @patch('google.adk.flows.llm_flows.functions.handle_function_calls_async')
+  @patch('google.adk.auth.auth_preprocessor.handle_function_calls_async')
   async def test_processes_multiple_auth_responses_and_resumes_tools(
       self,
       mock_handle_function_calls,

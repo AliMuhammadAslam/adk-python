@@ -142,6 +142,9 @@ def simplify_resumable_app_events(
   for event in events:
     if event.content:
       results.append((event.author, simplify_content(event.content)))
+    elif event.output and isinstance(event.output, (str, dict)):
+      # Single_turn agents strip event.content and set event.output instead.
+      results.append((event.author, event.output))
     elif event.actions.end_of_agent:
       results.append((event.author, END_OF_AGENT))
     elif event.actions.agent_state is not None:

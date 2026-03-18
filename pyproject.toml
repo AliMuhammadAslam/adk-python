@@ -88,10 +88,10 @@ adk = "google.adk.cli:main"
 dev = [
   # go/keep-sorted start
   "flit>=3.10.0",
-  "isort>=6.0.0",
   "mypy>=1.15.0",
-  "pyink>=25.12.0",
   "pylint>=2.6.0",
+  "tox>=4.23.2",
+  "tox-uv>=1.33.2",
   # go/keep-sorted end
 ]
 
@@ -164,12 +164,12 @@ extensions = [
   "llama-index-embeddings-google-genai>=0.3.0", # For files retrieval using LlamaIndex.
   "lxml>=5.3.0",                                # For load_web_page tool.
   "pypika>=0.50.0",                             # For crewai->chromadb dependency
-  "toolbox-adk>=0.7.0, <0.8.0",                 # For tools.toolbox_toolset.ToolboxToolset
+  # "toolbox-adk>=0.7.0, <0.8.0",                 # For tools.toolbox_toolset.ToolboxToolset
 ]
 
 otel-gcp = ["opentelemetry-instrumentation-google-genai>=0.6b0, <1.0.0"]
 
-toolbox = ["toolbox-adk>=0.7.0, <0.8.0"]
+# toolbox = ["toolbox-adk>=0.7.0, <0.8.0"]
 
 [tool.pyink]
 # Format py files following Google style-guide

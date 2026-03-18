@@ -38,8 +38,8 @@ from a2a.types import TaskStatus
 from a2a.types import TaskStatusUpdateEvent
 from a2a.types import TextPart
 
+from ...agents.llm._functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from ...events.event import Event
-from ...flows.llm_flows.functions import REQUEST_EUC_FUNCTION_CALL_NAME
 from ..experimental import a2a_experimental
 from .part_converter import A2A_DATA_PART_METADATA_IS_LONG_RUNNING_KEY
 from .part_converter import A2A_DATA_PART_METADATA_TYPE_FUNCTION_CALL

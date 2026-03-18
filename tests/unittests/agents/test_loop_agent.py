@@ -12,23 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Testings for the SequentialAgent."""
-
 from typing import AsyncGenerator
 
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.invocation_context import InvocationContext as BaseInvocationContext
+from google.adk.agents.loop_agent import _DEFAULT_ROUTE
 from google.adk.agents.loop_agent import LoopAgent
-from google.adk.agents.loop_agent import LoopAgentState
-from google.adk.apps import ResumabilityConfig
+from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
 from google.adk.events.event_actions import EventActions
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.workflow import START
+from google.adk.workflow import Workflow
+from google.adk.workflow._execution_state import NodeStatus
+from google.adk.workflow._workflow import NodeState
+from google.adk.workflow._workflow import WorkflowAgentState
 from google.genai import types
 import pytest
 from typing_extensions import override
 
-from .. import testing_utils
+from ..workflow import testing_utils
 
 END_OF_AGENT = testing_utils.END_OF_AGENT
 
@@ -37,25 +41,13 @@ class _TestingAgent(BaseAgent):
 
   @override
   async def _run_async_impl(
-      self, ctx: InvocationContext
+      self, ctx: BaseInvocationContext
   ) -> AsyncGenerator[Event, None]:
     yield Event(
         author=self.name,
         invocation_id=ctx.invocation_id,
         content=types.Content(
             parts=[types.Part(text=f'Hello, async {self.name}!')]
-        ),
-    )
-
-  @override
-  async def _run_live_impl(
-      self, ctx: InvocationContext
-  ) -> AsyncGenerator[Event, None]:
-    yield Event(
-        author=self.name,
-        invocation_id=ctx.invocation_id,
-        content=types.Content(
-            parts=[types.Part(text=f'Hello, live {self.name}!')]
         ),
     )
 
@@ -64,7 +56,7 @@ class _TestingAgentWithEscalateAction(BaseAgent):
 
   @override
   async def _run_async_impl(
-      self, ctx: InvocationContext
+      self, ctx: BaseInvocationContext
   ) -> AsyncGenerator[Event, None]:
     yield Event(
         author=self.name,
@@ -73,13 +65,6 @@ class _TestingAgentWithEscalateAction(BaseAgent):
             parts=[types.Part(text=f'Hello, async {self.name}!')]
         ),
         actions=EventActions(escalate=True),
-    )
-    yield Event(
-        author=self.name,
-        invocation_id=ctx.invocation_id,
-        content=types.Content(
-            parts=[types.Part(text='I have done my job after escalation!!')]
-        ),
     )
 
 
@@ -110,6 +95,7 @@ async def test_run_async(request: pytest.FixtureRequest, resumable: bool):
           agent,
       ],
   )
+  inc_node_name = '_increment_loop_count'
   parent_ctx = await _create_parent_invocation_context(
       request.function.__name__, loop_agent, resumable=resumable
   )
@@ -120,14 +106,50 @@ async def test_run_async(request: pytest.FixtureRequest, resumable: bool):
     expected_events = [
         (
             loop_agent.name,
-            {'current_sub_agent': agent.name, 'times_looped': 0},
+            {
+                'node_states': {
+                    agent.name: NodeStatus.RUNNING.value,
+                },
+            },
         ),
         (agent.name, f'Hello, async {agent.name}!'),
         (
             loop_agent.name,
-            {'current_sub_agent': agent.name, 'times_looped': 1},
+            {
+                'node_states': {
+                    agent.name: NodeStatus.COMPLETED.value,
+                    inc_node_name: NodeStatus.RUNNING.value,
+                },
+            },
+        ),
+        (
+            loop_agent.name,
+            {
+                'node_states': {
+                    agent.name: NodeStatus.RUNNING.value,
+                    inc_node_name: NodeStatus.COMPLETED.value,
+                },
+            },
         ),
         (agent.name, f'Hello, async {agent.name}!'),
+        (
+            loop_agent.name,
+            {
+                'node_states': {
+                    agent.name: NodeStatus.COMPLETED.value,
+                    inc_node_name: NodeStatus.RUNNING.value,
+                },
+            },
+        ),
+        (
+            loop_agent.name,
+            {
+                'node_states': {
+                    agent.name: NodeStatus.COMPLETED.value,
+                    inc_node_name: NodeStatus.COMPLETED.value,
+                },
+            },
+        ),
         (loop_agent.name, END_OF_AGENT),
     ]
   else:
@@ -136,6 +158,36 @@ async def test_run_async(request: pytest.FixtureRequest, resumable: bool):
         (agent.name, f'Hello, async {agent.name}!'),
     ]
   assert simplified_events == expected_events
+  assert loop_agent._loop_count_key not in parent_ctx.session.state
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('resumable', [True, False])
+async def test_run_async_twice_on_same_session(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  agent = _TestingAgent(name=f'{request.function.__name__}_test_agent')
+  loop_agent = LoopAgent(
+      name=f'{request.function.__name__}_test_loop_agent',
+      max_iterations=2,
+      sub_agents=[
+          agent,
+      ],
+  )
+  parent_ctx = await _create_parent_invocation_context(
+      request.function.__name__, loop_agent, resumable=resumable
+  )
+  # Run agent once to populate session state if resumable.
+  _ = [e async for e in loop_agent.run_async(parent_ctx)]
+
+  # Test run agent twice
+  parent_ctx_2 = await _create_parent_invocation_context(
+      f'{request.function.__name__}_2', loop_agent, resumable=resumable
+  )
+  parent_ctx_2.session = parent_ctx.session
+  events_2 = [e async for e in loop_agent.run_async(parent_ctx_2)]
+  testing_utils.simplify_resumable_app_events(events_2)
+  assert loop_agent._loop_count_key not in parent_ctx_2.session.state
 
 
 @pytest.mark.asyncio
@@ -150,35 +202,63 @@ async def test_resume_async(request: pytest.FixtureRequest):
           agent_2,
       ],
   )
+  inc_node_name = '_increment_loop_count'
   parent_ctx = await _create_parent_invocation_context(
       request.function.__name__, loop_agent, resumable=True
   )
-  parent_ctx.agent_states[loop_agent.name] = LoopAgentState(
-      current_sub_agent=agent_2.name, times_looped=1
-  ).model_dump(mode='json')
+  parent_ctx.agent_states[loop_agent.name] = WorkflowAgentState(
+      nodes={
+          START.name: NodeState(status=NodeStatus.COMPLETED),
+          agent_1.name: NodeState(status=NodeStatus.COMPLETED),
+          agent_2.name: NodeState(status=NodeStatus.PENDING),
+          inc_node_name: NodeState(status=NodeStatus.COMPLETED),
+      },
+  )
+  parent_ctx.session.state[loop_agent._loop_count_key] = 1
 
   events = [e async for e in loop_agent.run_async(parent_ctx)]
 
   simplified_events = testing_utils.simplify_resumable_app_events(events)
+
   expected_events = [
+      (
+          loop_agent.name,
+          {
+              'node_states': {
+                  START.name: NodeStatus.COMPLETED.value,
+                  agent_1.name: NodeStatus.COMPLETED.value,
+                  agent_2.name: NodeStatus.RUNNING.value,
+                  inc_node_name: NodeStatus.COMPLETED.value,
+              },
+          },
+      ),
       (agent_2.name, f'Hello, async {agent_2.name}!'),
+      (
+          loop_agent.name,
+          {
+              'node_states': {
+                  START.name: NodeStatus.COMPLETED.value,
+                  agent_1.name: NodeStatus.COMPLETED.value,
+                  agent_2.name: NodeStatus.COMPLETED.value,
+                  inc_node_name: NodeStatus.RUNNING.value,
+              },
+          },
+      ),
+      (
+          loop_agent.name,
+          {
+              'node_states': {
+                  START.name: NodeStatus.COMPLETED.value,
+                  agent_1.name: NodeStatus.COMPLETED.value,
+                  agent_2.name: NodeStatus.COMPLETED.value,
+                  inc_node_name: NodeStatus.COMPLETED.value,
+              },
+          },
+      ),
       (loop_agent.name, END_OF_AGENT),
   ]
   assert simplified_events == expected_events
-
-
-@pytest.mark.asyncio
-async def test_run_async_skip_if_no_sub_agent(request: pytest.FixtureRequest):
-  loop_agent = LoopAgent(
-      name=f'{request.function.__name__}_test_loop_agent',
-      max_iterations=2,
-      sub_agents=[],
-  )
-  parent_ctx = await _create_parent_invocation_context(
-      request.function.__name__, loop_agent
-  )
-  events = [e async for e in loop_agent.run_async(parent_ctx)]
-  assert not events
+  assert loop_agent._loop_count_key not in parent_ctx.session.state
 
 
 @pytest.mark.asyncio
@@ -211,8 +291,9 @@ async def test_run_async_with_escalate_action(
         (
             loop_agent.name,
             {
-                'current_sub_agent': non_escalating_agent.name,
-                'times_looped': 0,
+                'node_states': {
+                    non_escalating_agent.name: NodeStatus.RUNNING.value,
+                },
             },
         ),
         (
@@ -221,15 +302,25 @@ async def test_run_async_with_escalate_action(
         ),
         (
             loop_agent.name,
-            {'current_sub_agent': escalating_agent.name, 'times_looped': 0},
+            {
+                'node_states': {
+                    non_escalating_agent.name: NodeStatus.COMPLETED.value,
+                    escalating_agent.name: NodeStatus.RUNNING.value,
+                },
+            },
         ),
         (
             escalating_agent.name,
             f'Hello, async {escalating_agent.name}!',
         ),
         (
-            escalating_agent.name,
-            'I have done my job after escalation!!',
+            loop_agent.name,
+            {
+                'node_states': {
+                    non_escalating_agent.name: NodeStatus.COMPLETED.value,
+                    escalating_agent.name: NodeStatus.COMPLETED.value,
+                },
+            },
         ),
         (loop_agent.name, END_OF_AGENT),
     ]
@@ -243,9 +334,48 @@ async def test_run_async_with_escalate_action(
             escalating_agent.name,
             f'Hello, async {escalating_agent.name}!',
         ),
-        (
-            escalating_agent.name,
-            'I have done my job after escalation!!',
-        ),
     ]
   assert simplified_events == expected_events
+  assert loop_agent._loop_count_key not in parent_ctx.session.state
+
+
+@pytest.mark.asyncio
+async def test_grandchild_escalation_ignored(request: pytest.FixtureRequest):
+  """Verifies that an escalate action from a grandchild agent does not break the loop."""
+  # Grandchild agent that escalates
+  grandchild = _TestingAgentWithEscalateAction(
+      name='grandchild_agent',
+  )
+  # Child agent (Workflow) that wraps the grandchild.
+  # It simply runs and yields the grandchild's event.
+  child = Workflow(
+      name='child_agent',
+      edges=[(START, grandchild)],
+  )
+
+  # Loop runs child agent. Max iterations = 2.
+  loop_agent = LoopAgent(
+      name=f'{request.function.__name__}_loop_agent',
+      sub_agents=[child],
+      max_iterations=2,
+  )
+
+  parent_ctx = await _create_parent_invocation_context(
+      request.function.__name__, loop_agent, resumable=True
+  )
+  events = [e async for e in loop_agent.run_async(parent_ctx)]
+
+  simplified_events = testing_utils.simplify_resumable_app_events(events)
+
+  # Check for loop iteration events to confirm it ran more than once.
+  # simplify_resumable_app_events returns (author, content/state) tuples.
+  # We expect the loop to run twice because the escalation is from 'grandchild',
+  # but the loop agent only listens to 'child'.
+
+  # Count "Hello, async grandchild_agent!" occurrences
+  hello_counts = sum(
+      1
+      for e in simplified_events
+      if e == ('grandchild_agent', 'Hello, async grandchild_agent!')
+  )
+  assert hello_counts == 2

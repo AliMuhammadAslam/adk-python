@@ -38,6 +38,9 @@ from .agents.context_cache_config import ContextCacheConfig
 from .agents.invocation_context import InvocationContext
 from .agents.invocation_context import new_invocation_context_id
 from .agents.live_request_queue import LiveRequestQueue
+from .agents.llm._contents import _is_live_model_audio_event_with_inline_data
+from .agents.llm._functions import find_event_by_function_call_id
+from .agents.llm._functions import find_matching_function_call
 from .agents.run_config import RunConfig
 from .apps.app import App
 from .apps.app import ResumabilityConfig
@@ -48,9 +51,6 @@ from .code_executors.built_in_code_executor import BuiltInCodeExecutor
 from .errors.session_not_found_error import SessionNotFoundError
 from .events.event import Event
 from .events.event import EventActions
-from .flows.llm_flows import contents
-from .flows.llm_flows.functions import find_event_by_function_call_id
-from .flows.llm_flows.functions import find_matching_function_call
 from .memory.base_memory_service import BaseMemoryService
 from .memory.in_memory_memory_service import InMemoryMemoryService
 from .platform.thread import create_thread
@@ -782,9 +782,7 @@ class Runner:
     # transcription events should not be appended.
     # Function call and function response events should be appended.
     # Other control events should be appended.
-    if is_live_call and contents._is_live_model_audio_event_with_inline_data(
-        event
-    ):
+    if is_live_call and _is_live_model_audio_event_with_inline_data(event):
       # We don't append live model audio events with inline data to avoid
       # storing large blobs in the session. However, events with file_data
       # (references to artifacts) should be appended.
@@ -1126,6 +1124,14 @@ class Runner:
       The agent to run. (the active agent that should reply to the latest user
       message)
     """
+    # Mesh and Workflow Agents handle their own internal routing.
+    # Workflow will figure which node is interrupted and should be resumed.
+    from .agents.llm._mesh import _Mesh
+    from .workflow._workflow import Workflow
+
+    if isinstance(root_agent, (_Mesh, Workflow)):
+      return root_agent
+
     # If the last event is a function response, should send this response to
     # the agent that returned the corresponding function call regardless the
     # type of the agent. e.g. a remote a2a agent may surface a credential
@@ -1261,9 +1267,9 @@ class Runner:
           app_name=self.app_name, user_id=user_id, session_id=session_id
       )
       if not quiet:
-        print(f'\n ### Created new session: {session_id}')
+        logger.info('Created new session: %s', session_id)
     elif not quiet:
-      print(f'\n ### Continue session: {session_id}')
+      logger.info('Continue session: %s', session_id)
 
     collected_events: list[Event] = []
 
@@ -1272,7 +1278,7 @@ class Runner:
 
     for message in user_messages:
       if not quiet:
-        print(f'\nUser > {message}')
+        logger.info('User > %s', message)
 
       async for event in self.run_async(
           user_id=user_id,

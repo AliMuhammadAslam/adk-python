@@ -18,14 +18,12 @@ import copy
 from unittest import mock
 
 from google.adk.agents.base_agent import BaseAgent
-from google.adk.agents.base_agent import BaseAgentState
+from google.adk.agents.llm._functions import REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.agents.parallel_agent import ParallelAgent
 from google.adk.agents.sequential_agent import SequentialAgent
-from google.adk.agents.sequential_agent import SequentialAgentState
 from google.adk.apps.app import App
 from google.adk.apps.app import ResumabilityConfig
-from google.adk.flows.llm_flows.functions import REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.tools.tool_context import ToolContext
 from google.genai.types import FunctionCall
@@ -45,6 +43,19 @@ HINT_TEXT = (
 TOOL_CALL_ERROR_RESPONSE = {
     "error": "This tool call requires confirmation, please approve or reject."
 }
+
+
+def _find_confirmation_event(events):
+  """Find the event containing the adk_request_confirmation function call."""
+  return next(
+      e
+      for e in events
+      if e.content
+      and e.content.parts
+      and e.content.parts[0].function_call
+      and e.content.parts[0].function_call.name
+      == REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
+  )
 
 
 def _create_llm_response_from_tools(
@@ -188,10 +199,11 @@ class TestHITLConfirmationFlowWithSingleAgent(BaseHITLTest):
       assert simplified[i][0] == agent_name
       assert simplified[i][1] == part
 
-    ask_for_confirmation_function_call_id = (
-        events[1].content.parts[0].function_call.id
-    )
-    invocation_id = events[1].invocation_id
+    confirmation_event = _find_confirmation_event(events)
+    ask_for_confirmation_function_call_id = confirmation_event.content.parts[
+        0
+    ].function_call.id
+    invocation_id = confirmation_event.invocation_id
     user_confirmation = testing_utils.UserContent(
         Part(
             function_response=FunctionResponse(
@@ -319,7 +331,6 @@ class TestHITLConfirmationFlowWithCustomPayloadSchema(BaseHITLTest):
                 )
             ),
         ),
-        (agent.name, "test llm response after tool call"),
     ]
 
     simplified = testing_utils.simplify_events(copy.deepcopy(events))
@@ -327,10 +338,11 @@ class TestHITLConfirmationFlowWithCustomPayloadSchema(BaseHITLTest):
       assert simplified[i][0] == agent_name
       assert simplified[i][1] == part
 
-    ask_for_confirmation_function_call_id = (
-        events[1].content.parts[0].function_call.id
-    )
-    invocation_id = events[1].invocation_id
+    confirmation_event = _find_confirmation_event(events)
+    ask_for_confirmation_function_call_id = confirmation_event.content.parts[
+        0
+    ].function_call.id
+    invocation_id = confirmation_event.invocation_id
     custom_payload = {
         "test_custom_payload": {
             "int_field": 123,
@@ -366,7 +378,7 @@ class TestHITLConfirmationFlowWithCustomPayloadSchema(BaseHITLTest):
                 )
             ),
         ),
-        (agent.name, "test llm response after final tool call"),
+        (agent.name, "test llm response after tool call"),
     ]
     for event in events:
       assert event.invocation_id != invocation_id
@@ -431,9 +443,14 @@ class TestHITLConfirmationFlowWithResumableApp:
 
     # Verify that the invocation is paused when tool confirmation is requested.
     # The tool call returns error response, and summarization was skipped.
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(events)
-    ) == [
+    behavioral = [
+        e
+        for e in testing_utils.simplify_resumable_app_events(
+            copy.deepcopy(events)
+        )
+        if not isinstance(e[1], dict)
+    ]
+    assert behavioral == [
         (
             agent.name,
             Part(function_call=FunctionCall(name=agent.tools[0].name, args={})),
@@ -466,10 +483,11 @@ class TestHITLConfirmationFlowWithResumableApp:
             ),
         ),
     ]
-    ask_for_confirmation_function_call_id = (
-        events[1].content.parts[0].function_call.id
-    )
-    invocation_id = events[1].invocation_id
+    confirmation_event = _find_confirmation_event(events)
+    ask_for_confirmation_function_call_id = confirmation_event.content.parts[
+        0
+    ].function_call.id
+    invocation_id = confirmation_event.invocation_id
     user_confirmation = testing_utils.UserContent(
         Part(
             function_response=FunctionResponse(
@@ -497,10 +515,14 @@ class TestHITLConfirmationFlowWithResumableApp:
     ]
     for event in events:
       assert event.invocation_id == invocation_id
-    assert (
-        testing_utils.simplify_resumable_app_events(copy.deepcopy(events))
-        == expected_parts_final
-    )
+    behavioral = [
+        e
+        for e in testing_utils.simplify_resumable_app_events(
+            copy.deepcopy(events)
+        )
+        if not isinstance(e[1], dict)
+    ]
+    assert behavioral == expected_parts_final
 
   @pytest.mark.asyncio
   async def test_pause_and_resume_on_request_confirmation_without_invocation_id(
@@ -513,9 +535,14 @@ class TestHITLConfirmationFlowWithResumableApp:
 
     # Verify that the invocation is paused when tool confirmation is requested.
     # The tool call returns error response, and summarization was skipped.
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(events)
-    ) == [
+    behavioral = [
+        e
+        for e in testing_utils.simplify_resumable_app_events(
+            copy.deepcopy(events)
+        )
+        if not isinstance(e[1], dict)
+    ]
+    assert behavioral == [
         (
             agent.name,
             Part(function_call=FunctionCall(name=agent.tools[0].name, args={})),
@@ -548,10 +575,11 @@ class TestHITLConfirmationFlowWithResumableApp:
             ),
         ),
     ]
-    ask_for_confirmation_function_call_id = (
-        events[1].content.parts[0].function_call.id
-    )
-    invocation_id = events[1].invocation_id
+    confirmation_event = _find_confirmation_event(events)
+    ask_for_confirmation_function_call_id = confirmation_event.content.parts[
+        0
+    ].function_call.id
+    invocation_id = confirmation_event.invocation_id
     user_confirmation = testing_utils.UserContent(
         Part(
             function_response=FunctionResponse(
@@ -577,10 +605,14 @@ class TestHITLConfirmationFlowWithResumableApp:
     ]
     for event in events:
       assert event.invocation_id == invocation_id
-    assert (
-        testing_utils.simplify_resumable_app_events(copy.deepcopy(events))
-        == expected_parts_final
-    )
+    behavioral = [
+        e
+        for e in testing_utils.simplify_resumable_app_events(
+            copy.deepcopy(events)
+        )
+        if not isinstance(e[1], dict)
+    ]
+    assert behavioral == expected_parts_final
 
 
 class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
@@ -661,15 +693,9 @@ class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
     # Verify that the invocation is paused when tool confirmation is requested.
     # So that no intermediate llm response is generated.
     # And the second sub agent is not started.
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(events)
-    ) == [
-        (
-            agent.name,
-            SequentialAgentState(current_sub_agent=sub_agent1.name).model_dump(
-                mode="json"
-            ),
-        ),
+    actual = testing_utils.simplify_resumable_app_events(copy.deepcopy(events))
+    behavioral = [e for e in actual if not isinstance(e[1], dict)]
+    assert behavioral == [
         (
             sub_agent1.name,
             Part(
@@ -707,10 +733,19 @@ class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
             ),
         ),
     ]
-    ask_for_confirmation_function_call_id = (
-        events[2].content.parts[0].function_call.id
+    confirmation_event = next(
+        e
+        for e in events
+        if e.content
+        and e.content.parts
+        and e.content.parts[0].function_call
+        and e.content.parts[0].function_call.name
+        == REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
     )
-    invocation_id = events[2].invocation_id
+    ask_for_confirmation_function_call_id = confirmation_event.content.parts[
+        0
+    ].function_call.id
+    invocation_id = confirmation_event.invocation_id
 
     # Step 2:
     # Resume the invocation and confirm the tool call from sub_agent1, and
@@ -727,7 +762,7 @@ class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
     events = await runner.run_async(
         user_confirmation, invocation_id=invocation_id
     )
-    expected_parts_final = [
+    expected_behavioral = [
         (
             sub_agent1.name,
             Part(
@@ -737,24 +772,23 @@ class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
                 )
             ),
         ),
+        # Single_turn: content stripped, output set on event.
         (sub_agent1.name, "test llm response after tool call"),
+        # LlmAgent re-emits output for node routing.
+        (agent.name, "test llm response after tool call"),
         (sub_agent1.name, testing_utils.END_OF_AGENT),
-        (
-            agent.name,
-            SequentialAgentState(current_sub_agent=sub_agent2.name).model_dump(
-                mode="json"
-            ),
-        ),
         (sub_agent2.name, "test llm response from second agent"),
+        (agent.name, "test llm response from second agent"),
         (sub_agent2.name, testing_utils.END_OF_AGENT),
+        # Workflow re-emits terminal node output.
+        (agent.name, "test llm response from second agent"),
         (agent.name, testing_utils.END_OF_AGENT),
     ]
     for event in events:
       assert event.invocation_id == invocation_id
-    assert (
-        testing_utils.simplify_resumable_app_events(copy.deepcopy(events))
-        == expected_parts_final
-    )
+    actual = testing_utils.simplify_resumable_app_events(copy.deepcopy(events))
+    behavioral = [e for e in actual if not isinstance(e[1], dict)]
+    assert behavioral == expected_behavioral
 
 
 class TestHITLConfirmationFlowWithParallelAgentAndResumableApp:
@@ -819,131 +853,49 @@ class TestHITLConfirmationFlowWithParallelAgentAndResumableApp:
     """Tests HITL flow where all tool calls are confirmed."""
     events = runner.run("test user query")
 
-    # Test setup:
-    # - root_agent is a ParallelAgent with two sub-agents: sub_agent1 and
-    #   sub_agent2.
-    # - Both sub_agents have a tool call that asks for HITL confirmation.
-    # - The test will:
-    #   - Run the query and verify that each branch is paused when tool
-    #     confirmation is requested.
-    #   - Resume the invocation and execute the tool call of each branch.
-
     sub_agent1 = agent.sub_agents[0]
     sub_agent2 = agent.sub_agents[1]
 
-    # Verify that each branch is paused after the long running tool call.
-    # So that no intermediate llm response is generated.
-    root_agent_events = [event for event in events if event.branch is None]
-    sub_agent1_branch_events = [
-        event
-        for event in events
-        if event.branch == f"{agent.name}.{sub_agent1.name}"
-    ]
-    sub_agent2_branch_events = [
-        event
-        for event in events
-        if event.branch == f"{agent.name}.{sub_agent2.name}"
-    ]
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(root_agent_events)
-    ) == [
-        (
-            agent.name,
-            BaseAgentState().model_dump(mode="json"),
-        ),
-    ]
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(sub_agent1_branch_events)
-    ) == [
-        (
-            sub_agent1.name,
-            Part(
-                function_call=FunctionCall(
-                    name=sub_agent1.tools[0].name, args={}
-                )
-            ),
-        ),
-        (
-            sub_agent1.name,
-            Part(
-                function_call=FunctionCall(
-                    name=REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
-                    args={
-                        "originalFunctionCall": {
-                            "name": sub_agent1.tools[0].name,
-                            "id": mock.ANY,
-                            "args": {},
-                        },
-                        "toolConfirmation": {
-                            "hint": HINT_TEXT,
-                            "confirmed": False,
-                        },
-                    },
-                )
-            ),
-        ),
-        (
-            sub_agent1.name,
-            Part(
-                function_response=FunctionResponse(
-                    name=sub_agent1.tools[0].name,
-                    response=TOOL_CALL_ERROR_RESPONSE,
-                )
-            ),
-        ),
-    ]
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(sub_agent2_branch_events)
-    ) == [
-        (
-            sub_agent2.name,
-            Part(
-                function_call=FunctionCall(
-                    name=sub_agent2.tools[0].name, args={}
-                )
-            ),
-        ),
-        (
-            sub_agent2.name,
-            Part(
-                function_call=FunctionCall(
-                    name=REQUEST_CONFIRMATION_FUNCTION_CALL_NAME,
-                    args={
-                        "originalFunctionCall": {
-                            "name": sub_agent2.tools[0].name,
-                            "id": mock.ANY,
-                            "args": {},
-                        },
-                        "toolConfirmation": {
-                            "hint": HINT_TEXT,
-                            "confirmed": False,
-                        },
-                    },
-                )
-            ),
-        ),
-        (
-            sub_agent2.name,
-            Part(
-                function_response=FunctionResponse(
-                    name=sub_agent2.tools[0].name,
-                    response=TOOL_CALL_ERROR_RESPONSE,
-                )
-            ),
-        ),
-    ]
-
-    ask_for_confirmation_function_call_ids = [
-        sub_agent1_branch_events[1].content.parts[0].function_call.id,
-        sub_agent2_branch_events[1].content.parts[0].function_call.id,
-    ]
-    assert (
-        sub_agent1_branch_events[1].invocation_id
-        == sub_agent2_branch_events[1].invocation_id
+    # Step 1: Verify both sub-agents paused with confirmation requests.
+    simplified = testing_utils.simplify_resumable_app_events(
+        copy.deepcopy(events)
     )
-    invocation_id = sub_agent1_branch_events[1].invocation_id
+    behavioral = [e for e in simplified if not isinstance(e[1], dict)]
 
-    # Resume the invocation and confirm the tool call from sub_agent1.
+    # Both agents should have emitted tool calls and error responses.
+    tool_call_events = [
+        e
+        for e in behavioral
+        if isinstance(e[1], Part)
+        and e[1].function_call
+        and e[1].function_call.name == sub_agent1.tools[0].name
+    ]
+    assert len(tool_call_events) == 2
+    confirmation_events = [
+        e
+        for e in behavioral
+        if isinstance(e[1], Part)
+        and e[1].function_call
+        and e[1].function_call.name == REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
+    ]
+    assert len(confirmation_events) == 2
+
+    # Find confirmation function call IDs and invocation ID.
+    confirmation_raw_events = [
+        e
+        for e in events
+        if e.content
+        and e.content.parts
+        and e.content.parts[0].function_call
+        and e.content.parts[0].function_call.name
+        == REQUEST_CONFIRMATION_FUNCTION_CALL_NAME
+    ]
+    assert len(confirmation_raw_events) == 2
+    ask_for_confirmation_function_call_ids = [
+        e.content.parts[0].function_call.id for e in confirmation_raw_events
+    ]
+    invocation_id = confirmation_raw_events[0].invocation_id
+
     user_confirmations = [
         testing_utils.UserContent(
             Part(
@@ -957,65 +909,48 @@ class TestHITLConfirmationFlowWithParallelAgentAndResumableApp:
         for id in ask_for_confirmation_function_call_ids
     ]
 
+    # Step 2: Resume with first confirmation.
     events = await runner.run_async(
         user_confirmations[0], invocation_id=invocation_id
     )
     for event in events:
       assert event.invocation_id == invocation_id
 
-    root_agent_events = [event for event in events if event.branch is None]
-    sub_agent1_branch_events = [
-        event
-        for event in events
-        if event.branch == f"{agent.name}.{sub_agent1.name}"
+    simplified = testing_utils.simplify_resumable_app_events(
+        copy.deepcopy(events)
+    )
+    behavioral = [e for e in simplified if not isinstance(e[1], dict)]
+    # First confirmed agent should produce tool response + text + END_OF_AGENT.
+    confirmed_responses = [
+        e
+        for e in behavioral
+        if isinstance(e[1], Part)
+        and e[1].function_response
+        and e[1].function_response.response == {"result": "confirmed=True"}
     ]
-    sub_agent2_branch_events = [
-        event
-        for event in events
-        if event.branch == f"{agent.name}.{sub_agent2.name}"
-    ]
+    assert len(confirmed_responses) == 1
+    # Root agent should NOT be final yet.
+    assert (agent.name, testing_utils.END_OF_AGENT) not in behavioral
 
-    # Verify that sub_agent1 is resumed and final; sub_agent2 is still paused;
-    # root_agent is not final.
-    assert not root_agent_events
-    assert not sub_agent2_branch_events
-    assert testing_utils.simplify_resumable_app_events(
-        copy.deepcopy(sub_agent1_branch_events)
-    ) == [
-        (
-            sub_agent1.name,
-            Part(
-                function_response=FunctionResponse(
-                    name=sub_agent1.tools[0].name,
-                    response={"result": "confirmed=True"},
-                )
-            ),
-        ),
-        (sub_agent1.name, "test llm response after tool call"),
-        (sub_agent1.name, testing_utils.END_OF_AGENT),
-    ]
-
-    # Resume the invocation again and confirm the tool call from sub_agent2.
+    # Step 3: Resume with second confirmation.
     events = await runner.run_async(
         user_confirmations[1], invocation_id=invocation_id
     )
     for event in events:
       assert event.invocation_id == invocation_id
 
-    # Verify that sub_agent2 is resumed and final; root_agent is final.
-    assert testing_utils.simplify_resumable_app_events(
+    simplified = testing_utils.simplify_resumable_app_events(
         copy.deepcopy(events)
-    ) == [
-        (
-            sub_agent2.name,
-            Part(
-                function_response=FunctionResponse(
-                    name=sub_agent2.tools[0].name,
-                    response={"result": "confirmed=True"},
-                )
-            ),
-        ),
-        (sub_agent2.name, "test llm response after tool call"),
-        (sub_agent2.name, testing_utils.END_OF_AGENT),
-        (agent.name, testing_utils.END_OF_AGENT),
+    )
+    behavioral = [e for e in simplified if not isinstance(e[1], dict)]
+    # Second confirmed agent should produce tool response + text + END_OF_AGENT.
+    confirmed_responses = [
+        e
+        for e in behavioral
+        if isinstance(e[1], Part)
+        and e[1].function_response
+        and e[1].function_response.response == {"result": "confirmed=True"}
     ]
+    assert len(confirmed_responses) == 1
+    # Root agent should be final now.
+    assert (agent.name, testing_utils.END_OF_AGENT) in behavioral

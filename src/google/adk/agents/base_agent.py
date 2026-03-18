@@ -136,12 +136,6 @@ class BaseAgent(BaseModel):
   sub_agents: list[BaseAgent] = Field(default_factory=list)
   """The sub-agents of this agent."""
 
-  version: str = ''
-  """The agent's version.
-
-  Version of the agent being invoked. Used to identify the Agent involved in telemetry.
-  """
-
   before_agent_callback: Optional[BeforeAgentCallback] = None
   """Callback or list of callbacks to be invoked before the agent run.
 
@@ -276,7 +270,6 @@ class BaseAgent(BaseModel):
     cloned_agent.parent_agent = None
     return cloned_agent
 
-  @final
   async def run_async(
       self,
       parent_context: InvocationContext,
@@ -556,6 +549,7 @@ class BaseAgent(BaseModel):
 
   @override
   def model_post_init(self, __context: Any) -> None:
+    super().model_post_init(__context)
     self.__set_parent_agent_for_sub_agents()
 
   @field_validator('name', mode='after')
@@ -686,7 +680,6 @@ class BaseAgent(BaseModel):
 
     kwargs: Dict[str, Any] = {
         'name': config.name,
-        'version': config.version,
         'description': config.description,
     }
     if config.sub_agents:

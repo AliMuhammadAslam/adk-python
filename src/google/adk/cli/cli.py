@@ -15,7 +15,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from pathlib import Path
+from typing import Any
 from typing import Optional
 from typing import Union
 
@@ -28,6 +30,7 @@ from ..apps.app import App
 from ..artifacts.base_artifact_service import BaseArtifactService
 from ..auth.credential_service.base_credential_service import BaseCredentialService
 from ..auth.credential_service.in_memory_credential_service import InMemoryCredentialService
+from ..events.event import Event
 from ..memory.base_memory_service import BaseMemoryService
 from ..runners import Runner
 from ..sessions.base_session_service import BaseSessionService
@@ -91,6 +94,81 @@ async def run_input_file(
   return session
 
 
+_REQUEST_INPUT = 'adk_request_input'
+_REQUEST_CONFIRMATION = 'adk_request_confirmation'
+
+
+def _collect_pending_function_calls(
+    events: list[Event],
+) -> list[tuple[str, str, dict[str, Any]]]:
+  """Collects pending HITL function calls from events.
+
+  Returns a list of (function_call_id, function_name, args) tuples
+  for function calls that need user input.
+  """
+  pending = []
+  for event in events:
+    lr_ids = getattr(event, 'long_running_tool_ids', None)
+    if not lr_ids:
+      continue
+    content = getattr(event, 'content', None)
+    if not content or not content.parts:
+      continue
+    for part in content.parts:
+      fc = part.function_call
+      if fc and fc.id in lr_ids:
+        pending.append((fc.id, fc.name, fc.args or {}))
+  return pending
+
+
+def _prompt_for_function_call(
+    fc_id: str, fc_name: str, args: dict[str, Any]
+) -> types.Content:
+  """Prompts the user for a HITL function call and returns the response."""
+  if fc_name == _REQUEST_INPUT:
+    message = args.get('message') or 'Input requested'
+    schema = args.get('response_schema')
+    click.echo(f'[HITL input] {message}')
+    if schema:
+      click.echo(f'  Schema: {json.dumps(schema)}')
+  elif fc_name == _REQUEST_CONFIRMATION:
+    tool_confirmation = args.get('toolConfirmation', {})
+    hint = tool_confirmation.get('hint', '')
+    original_fc = args.get('originalFunctionCall', {})
+    original_name = original_fc.get('name', 'unknown')
+    click.echo(f'[HITL confirm] {hint or f"Confirm {original_name}?"}')
+    click.echo('  Type "yes" to confirm, anything else to reject.')
+  else:
+    click.echo(f'[HITL] Waiting for input for {fc_name}({args})')
+
+  user_input = input('[user]: ')
+
+  # Build the FunctionResponse.
+  if fc_name == _REQUEST_CONFIRMATION:
+    confirmed = user_input.strip().lower() in ('yes', 'y')
+    response = {'confirmed': confirmed}
+  else:
+    # Try to parse as JSON, fall back to wrapping as {"result": value}.
+    try:
+      parsed = json.loads(user_input)
+      response = parsed if isinstance(parsed, dict) else {'result': parsed}
+    except (json.JSONDecodeError, ValueError):
+      response = {'result': user_input}
+
+  return types.Content(
+      role='user',
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  id=fc_id,
+                  name=fc_name,
+                  response=response,
+              )
+          )
+      ],
+  )
+
+
 async def run_interactively(
     root_agent_or_app: Union[LlmAgent, App],
     artifact_service: BaseArtifactService,
@@ -111,25 +189,51 @@ async def run_interactively(
       memory_service=memory_service,
       credential_service=credential_service,
   )
+
+  next_message = None
+  resume_invocation_id = None
   while True:
-    query = input('[user]: ')
-    if not query or not query.strip():
-      continue
-    if query == 'exit':
-      break
+    if next_message is None:
+      query = input('[user]: ')
+      if not query or not query.strip():
+        continue
+      if query == 'exit':
+        break
+      next_message = types.Content(role='user', parts=[types.Part(text=query)])
+
+    collected_events = []
+    invocation_id = None
     async with Aclosing(
         runner.run_async(
             user_id=session.user_id,
             session_id=session.id,
-            new_message=types.Content(
-                role='user', parts=[types.Part(text=query)]
-            ),
+            new_message=next_message,
+            invocation_id=resume_invocation_id,
         )
     ) as agen:
       async for event in agen:
+        collected_events.append(event)
+        if getattr(event, 'invocation_id', None):
+          invocation_id = event.invocation_id
         if event.content and event.content.parts:
           if text := ''.join(part.text or '' for part in event.content.parts):
             click.echo(f'[{event.author}]: {text}')
+
+    next_message = None
+    resume_invocation_id = None
+
+    # Check for pending HITL function calls that need user input.
+    pending = _collect_pending_function_calls(collected_events)
+    if pending:
+      # Handle each pending function call. If there are multiple,
+      # collect all responses into a single Content with multiple parts.
+      parts = []
+      for fc_id, fc_name, args in pending:
+        response_content = _prompt_for_function_call(fc_id, fc_name, args)
+        parts.extend(response_content.parts)
+      next_message = types.Content(role='user', parts=parts)
+      resume_invocation_id = invocation_id
+
   await runner.close()
 
 
