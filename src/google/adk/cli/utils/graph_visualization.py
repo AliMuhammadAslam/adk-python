@@ -31,6 +31,7 @@ def plot_workflow_graph(
   """Plots the workflow graph with node statuses."""
   root_agent = app_info.get("root_agent", {})
   graph = root_agent.get("graph", {})
+  is_workflow = bool(graph)
 
   if not graph:
     root_name = root_agent.get("name", "root_agent")
@@ -196,7 +197,7 @@ def plot_workflow_graph(
     if is_terminal:
       terminal_nodes.append(node_name)
 
-  if terminal_nodes:
+  if is_workflow and terminal_nodes:
     dot.node(
         "__END__",
         "END",
