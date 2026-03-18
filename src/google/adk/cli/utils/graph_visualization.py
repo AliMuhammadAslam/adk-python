@@ -138,10 +138,10 @@ def plot_workflow_graph(
       dot.node(
           "__START__",
           "START",
-          shape="circle",
+          shape="oval",
           style="filled",
-          fillcolor="#3B82F6",
-          color="#2563EB",
+          fillcolor="#10B981",
+          color="#059669",
           fontcolor="#FFFFFF",
           fontname="Helvetica-Bold",
           width="0.9",
@@ -151,6 +151,46 @@ def plot_workflow_graph(
     if from_node and to_node:
       label = f"  {edge.get('route')}" if edge.get("route") else ""
       dot.edge(from_node, to_node, label=label)
+
+  terminal_nodes = []
+  for node in nodes:
+    node_name = node.get("name")
+    if not node_name or node_name in ("__START__", "__END__"):
+      continue
+
+    outgoing_edges = [
+        e for e in edges if e.get("from_node", {}).get("name") == node_name
+    ]
+
+    is_terminal = False
+    if not outgoing_edges:
+      is_terminal = True
+    else:
+      has_default_handling = any(
+          not e.get("route") or e.get("route") == "__DEFAULT__"
+          for e in outgoing_edges
+      )
+      if not has_default_handling:
+        is_terminal = True
+
+    if is_terminal:
+      terminal_nodes.append(node_name)
+
+  if terminal_nodes:
+    dot.node(
+        "__END__",
+        "END",
+        shape="oval",
+        style="filled",
+        fillcolor="#EF4444",
+        color="#DC2626",
+        fontcolor="#FFFFFF",
+        fontname="Helvetica-Bold",
+        width="0.9",
+        fixedsize="true",
+    )
+    for t_node in terminal_nodes:
+      dot.edge(t_node, "__END__")
 
   if format == "dot":
     return dot.source
