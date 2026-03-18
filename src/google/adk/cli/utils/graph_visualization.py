@@ -130,10 +130,18 @@ def plot_workflow_graph(
     elif status == NodeStatus.CANCELLED:
       fillcolor = "lightgray"
 
+    node_type = node.get("type", "node")
+    icons = {
+        "agent": "🤖",
+        "join": "🔀",
+    }
+    icon = icons.get(node_type, "")
+    node_label = f"{icon} {node_name}" if icon else node_name
+
     if is_conditional:
       dot.node(
           node_name,
-          node_name,
+          node_label,
           shape="diamond",
           style="filled",
           fillcolor=fillcolor,
@@ -141,9 +149,18 @@ def plot_workflow_graph(
           width="0.8",
           margin="0.0,0.0",
       )
+    elif node_type == "join":
+      dot.node(
+          node_name,
+          node_label,
+          shape="oval",
+          style="filled",
+          fillcolor=fillcolor,
+          margin="0.05,0.05",
+      )
     else:
       dot.node(
-          node_name, node_name, style="rounded,filled", fillcolor=fillcolor
+          node_name, node_label, style="rounded,filled", fillcolor=fillcolor
       )
 
   # Add edges
