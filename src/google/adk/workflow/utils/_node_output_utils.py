@@ -110,6 +110,9 @@ def _get_node_output_and_route(
   elif len(events_with_data) == 1:
     output_data = events_with_data[0].output
   else:
-    output_data = [e.output for e in events_with_data]
+    raise ValueError(
+        f'Node {node_path} produced multiple Events with output data.'
+        ' A node execution should produce at most one output event.'
+    )
 
   return output_data, routes_to_match
