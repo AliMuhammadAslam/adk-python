@@ -6,6 +6,8 @@ In real-world applications, interacting with external APIs, databases, or third-
 
 The ADK framework allows you to easily handle these scenarios by wrapping the unreliable logic in a `@node` decorator configured with `RetryConfig`. If the node raises one of the expected exceptions, the workflow engine automatically pauses, waits for a backoff delay, and reschedules the node for another attempt.
 
+When a node raises an exception, the framework automatically emits an error event (with `error_code` and `error_message`) so the error is visible in the event stream. If the node has retry configured, it will be retried after the backoff delay.
+
 This sample demonstrates a `get_weather` node that intentionally fails randomly (70% chance) by raising an `HTTPError` representing a 500 Internal Server error. The framework gracefully recovers and eventually succeeds, passing the result to `report_weather`.
 
 ## Graph
@@ -33,14 +35,14 @@ This sample demonstrates a `get_weather` node that intentionally fails randomly 
 
    ```python
    @node(retry_config=RetryConfig(max_retries=5, initial_delay=1))
-   def get_weather(ctx: Context) -> str:
+   def get_weather() -> str:
        # ... flaky logic here ...
    ```
+
+   When an exception like `HTTPError` occurs, the ADK framework catches it, emits an error event, and processes the backoff delay automatically. As long as `max_retries` hasn't been exceeded, the node executes again.
 
 1. **Track Retries (Optional)**: If you need to know which attempt the node is currently running, you can access `ctx.retry_count` from the `Context`.
 
    ```python
    yield Event(message=f"Getting weather... attempt {ctx.retry_count}")
    ```
-
-   When an exception like `HTTPError` occurs, the ADK framework catches it and processes the backoff delay automatically. As long as `max_retries` hasn't been exceeded, the node executes again.

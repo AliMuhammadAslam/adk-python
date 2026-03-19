@@ -1016,3 +1016,109 @@ async def test_nested_workflow_cancellation_on_sibling_failure(
   assert inner_path in ctx.agent_states
   inner_state = WorkflowAgentState.model_validate(ctx.agent_states[inner_path])
   assert inner_state.nodes['inner_slow_node'].status == NodeStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+async def test_error_event_emitted_on_failure(
+    request: pytest.FixtureRequest,
+):
+  """Tests that an error event is emitted when a node raises an exception."""
+  tracker = {'iteration_count': 0}
+  node_a = TestingNode(name='NodeA', output='Executing A')
+
+  flaky_node = _FlakyNode(
+      name='FlakyNode',
+      message='Executing B',
+      succeed_on_iteration=999,
+      tracker=tracker,
+      exception_to_raise=ValueError('Something went wrong'),
+      retry_config=None,
+  )
+  graph = WorkflowGraph(
+      edges=[
+          Edge(START, node_a),
+          Edge(node_a, flaky_node),
+      ],
+  )
+  agent = Workflow(
+      name='test_error_event',
+      graph=graph,
+  )
+
+  ctx = await create_parent_invocation_context(
+      request.function.__name__, agent, resumable=True
+  )
+
+  events = []
+  with pytest.raises(ValueError, match='Something went wrong'):
+    async for e in agent.run_async(ctx):
+      events.append(e)
+
+  # Find the error event emitted by the failed node.
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event)
+      and e.error_code is not None
+      and e.node_name == 'FlakyNode'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_code == 'ValueError'
+  assert error_events[0].error_message == 'Something went wrong'
+
+
+@pytest.mark.asyncio
+async def test_error_event_emitted_on_each_retry(
+    request: pytest.FixtureRequest,
+):
+  """Tests that an error event is emitted for each failed retry attempt."""
+  tracker = {'iteration_count': 0}
+
+  # Node will fail 2 times, then succeed on 3rd attempt
+  flaky_node = _FlakyNode(
+      name='FlakyNode',
+      message='Success',
+      succeed_on_iteration=3,
+      tracker=tracker,
+      exception_to_raise=CustomRetryableError('Transient error'),
+      retry_config=RetryConfig(
+          initial_delay=0.0,
+          exceptions=['CustomRetryableError'],
+      ),
+  )
+  graph = WorkflowGraph(
+      edges=[
+          Edge(START, flaky_node),
+      ],
+  )
+  agent = Workflow(
+      name='test_error_event_retry',
+      graph=graph,
+  )
+
+  ctx = await create_parent_invocation_context(
+      request.function.__name__, agent, resumable=True
+  )
+
+  events = [e async for e in agent.run_async(ctx)]
+
+  # Two failures before success → two error events.
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event)
+      and e.error_code is not None
+      and e.node_name == 'FlakyNode'
+  ]
+  assert len(error_events) == 2
+  for err in error_events:
+    assert err.error_code == 'CustomRetryableError'
+    assert err.error_message == 'Transient error'
+
+  # The node should still produce its output after retries.
+  assert simplify_events_with_node(events) == [
+      (
+          'test_error_event_retry',
+          {'node_name': 'FlakyNode', 'output': 'Success'},
+      ),
+  ]

@@ -39,7 +39,7 @@ def get_weather(ctx: Context) -> str:
   yield "sunny"
 
 
-def report_weather(ctx: Context, node_input: str):
+def report_weather(node_input: str):
   yield Event(message=f"The weather is {node_input}")
 
 

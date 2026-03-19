@@ -272,6 +272,27 @@ def _check_and_schedule_nodes(run_state: _WorkflowRunState) -> None:
         _schedule_node(run_state, node_name)
 
 
+def _create_error_event(
+    ctx: InvocationContext,
+    node_path: str,
+    node_name: str,
+    execution_id: str,
+    exception: Exception,
+) -> Event:
+  """Creates an error event for a failed node execution."""
+  return enrich_event(
+      Event(
+          error_code=type(exception).__name__,
+          error_message=str(exception),
+      ),
+      ctx,
+      author=get_node_name_from_path(node_path),
+      node_path=join_paths(node_path, node_name),
+      execution_id=execution_id,
+      branch=True,
+  )
+
+
 async def _node_runner(
     run_state: _WorkflowRunState,
     node: BaseNode,
@@ -410,10 +431,20 @@ async def _node_runner(
         )
     )
   except TimeoutError:
+    timeout_err = NodeTimeoutError(node_name, timeout)
+    await run_state.event_queue.put(
+        _create_error_event(
+            run_state.ctx,
+            run_state.node_path,
+            node_name,
+            execution_id,
+            timeout_err,
+        )
+    )
     await run_state.event_queue.put(
         _NodeCompletion(
             node_name=node_name,
-            exception=NodeTimeoutError(node_name, timeout),
+            exception=timeout_err,
         )
     )
   except NodeInterruptedError:
@@ -436,6 +467,15 @@ async def _node_runner(
     # so that it can be marked cancelled.
     raise
   except Exception as e:
+    await run_state.event_queue.put(
+        _create_error_event(
+            run_state.ctx,
+            run_state.node_path,
+            node_name,
+            execution_id,
+            e,
+        )
+    )
     await run_state.event_queue.put(
         _NodeCompletion(node_name=node_name, exception=e)
     )
