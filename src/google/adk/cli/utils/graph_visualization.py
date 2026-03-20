@@ -21,7 +21,7 @@ from typing import Any
 
 import graphviz
 
-from ...workflow._execution_state import NodeStatus
+from ...workflow._node_status import NodeStatus
 
 
 def plot_workflow_graph(

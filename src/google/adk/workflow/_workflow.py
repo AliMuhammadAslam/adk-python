@@ -39,12 +39,12 @@ from ._base_node import BaseNode
 from ._base_node import START
 from ._dynamic_node_registry import dynamic_node_registry
 from ._errors import NodeInterruptedError
-from ._execution_state import NodeState
-from ._execution_state import NodeStatus
 from ._node import Node
 from ._node_runner import _check_and_schedule_nodes
 from ._node_runner import _schedule_node
 from ._node_runner import _schedule_retry_task
+from ._node_state import NodeState
+from ._node_status import NodeStatus
 from ._run_state import _NodeCompletion
 from ._run_state import _NodeResumption
 from ._run_state import _WorkflowRunState
@@ -253,9 +253,7 @@ class Workflow(BaseAgent, Node):
     paths: set[str] = set()
     for name in self.graph._terminal_node_names:
       full_path = join_paths(prefix, name)
-      node = next(
-          (n for n in self.graph.nodes if n.name == name), None
-      )
+      node = next((n for n in self.graph.nodes if n.name == name), None)
       if isinstance(node, Workflow) and node.graph:
         paths |= node._resolve_terminal_paths(full_path)
       else:

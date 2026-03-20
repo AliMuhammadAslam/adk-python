@@ -37,8 +37,8 @@ from ._base_node import BaseNode
 from ._dynamic_node_registry import dynamic_node_registry
 from ._errors import NodeInterruptedError
 from ._errors import NodeTimeoutError
-from ._execution_state import NodeState
-from ._execution_state import NodeStatus
+from ._node_state import NodeState
+from ._node_status import NodeStatus
 from ._run_state import _NodeCompletion
 from ._run_state import _NodeResumption
 from ._run_state import _WorkflowRunState

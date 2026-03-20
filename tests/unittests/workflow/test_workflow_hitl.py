@@ -35,7 +35,7 @@ from google.adk.workflow import BaseNode
 from google.adk.workflow import Edge
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._execution_state import NodeStatus
+from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow.utils._node_path_utils import is_direct_child
 from google.adk.workflow.utils._workflow_hitl_utils import create_request_input_response
 from google.adk.workflow.utils._workflow_hitl_utils import get_request_input_interrupt_ids

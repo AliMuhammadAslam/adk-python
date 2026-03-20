@@ -20,8 +20,8 @@ from typing import Any
 from typing import Optional
 
 from ...events.event import Event
-from .._execution_state import NodeState
-from .._execution_state import NodeStatus
+from .._node_state import NodeState
+from .._node_status import NodeStatus
 from .._workflow_graph import WorkflowGraph
 from ._node_path_utils import is_direct_child
 

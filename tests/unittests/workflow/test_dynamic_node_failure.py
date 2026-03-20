@@ -22,8 +22,8 @@ from google.adk.workflow import Edge
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
 from google.adk.workflow._base_node import BaseNode
-from google.adk.workflow._execution_state import NodeStatus
 from google.adk.workflow._node import node
+from google.adk.workflow._node_status import NodeStatus
 import pytest
 
 from .workflow_testing_utils import create_parent_invocation_context

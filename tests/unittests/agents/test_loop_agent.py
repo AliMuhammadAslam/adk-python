@@ -25,7 +25,7 @@ from google.adk.events.event_actions import EventActions
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._execution_state import NodeStatus
+from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._workflow import NodeState
 from google.adk.workflow._workflow import WorkflowAgentState
 from google.genai import types

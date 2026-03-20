@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 
 from ._definitions import RouteValue
-from ._execution_state import NodeStatus
+from ._node_status import NodeStatus
 from ._workflow_graph import DEFAULT_ROUTE
 from ._workflow_graph import WorkflowGraph
 from .utils._node_output_utils import _get_node_output_and_route

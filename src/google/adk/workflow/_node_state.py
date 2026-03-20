@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Per-node execution state."""
+
 from __future__ import annotations
 
-from enum import Enum
 from typing import Any
 from typing import Optional
 
@@ -22,30 +23,7 @@ from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
 
-
-class NodeStatus(Enum):
-  """The status of a node in the workflow graph."""
-
-  INACTIVE = 0
-  """The node is not ready to be executed."""
-
-  PENDING = 1
-  """The node is ready to be executed."""
-
-  RUNNING = 2
-  """The node is being executed."""
-
-  COMPLETED = 3
-  """The node has been executed successfully."""
-
-  WAITING = 4
-  """The node is waiting (e.g. for a user response or re-trigger)."""
-
-  FAILED = 5
-  """The node has failed."""
-
-  CANCELLED = 6
-  """The node has been cancelled."""
+from ._node_status import NodeStatus
 
 
 class NodeState(BaseModel):
@@ -63,7 +41,7 @@ class NodeState(BaseModel):
   """The node that triggered the current node."""
 
   retry_count: int = Field(default=0, exclude_if=lambda v: v == 0)
-  """The retry count number for this node execution. 0 means this is the default first execution."""
+  """The retry count number for this node execution."""
 
   interrupts: list[str] = Field(default_factory=list)
   """The interrupt ids that are pending to be resolved."""

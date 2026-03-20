@@ -18,8 +18,8 @@ from __future__ import annotations
 
 import random
 
-from .._execution_state import NodeState
 from .._node_runner import _schedule_node
+from .._node_state import NodeState
 from .._retry_config import RetryConfig
 from .._run_state import _WorkflowRunState
 
