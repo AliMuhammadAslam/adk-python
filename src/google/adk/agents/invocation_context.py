@@ -161,8 +161,11 @@ class InvocationContext(BaseModel):
   Branch is used when multiple sub-agents shouldn't see their peer agents'
   conversation history.
   """
-  agent: BaseAgent
-  """The current agent of this invocation context. Readonly."""
+  agent: Optional[BaseAgent] = None
+  """The current agent of this invocation context.
+
+  None when Runner drives a BaseNode (not a BaseAgent).
+  """
   user_content: Optional[types.Content] = None
   """The user content that started this invocation. Readonly."""
   session: Session

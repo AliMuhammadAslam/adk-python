@@ -131,8 +131,14 @@ class Runner:
 
   app_name: str
   """The app name of the runner."""
-  agent: BaseAgent
+  agent: Optional[BaseAgent] = None
   """The root agent to run."""
+  node: Any = None  # BaseNode
+  """The root node to run. Alternative to agent for node-based execution.
+
+  TODO: Change type to BaseNode once BaseAgent extends BaseNode.
+  Then agent field can be removed.
+  """
   artifact_service: Optional[BaseArtifactService] = None
   """The artifact service for the runner."""
   plugin_manager: PluginManager
@@ -154,6 +160,7 @@ class Runner:
       app: Optional[App] = None,
       app_name: Optional[str] = None,
       agent: Optional[BaseAgent] = None,
+      node: Any = None,
       plugins: Optional[List[BasePlugin]] = None,
       artifact_service: Optional[BaseArtifactService] = None,
       session_service: BaseSessionService,
@@ -196,13 +203,23 @@ class Runner:
           `app` is not provided but either `app_name` or `agent` is missing.
     """
     self.app = app
-    (
-        self.app_name,
-        self.agent,
-        self.context_cache_config,
-        self.resumability_config,
-        plugins,
-    ) = self._validate_runner_params(app, app_name, agent, plugins)
+    if node is not None:
+      # Node path — skip agent validation.
+      self.app_name = app_name or node.name
+      # TODO: Support context_cache_config, resumability_config, and
+      # plugins for the node runtime path.
+      self.agent = None
+      self.context_cache_config = None
+      self.resumability_config = None
+      plugins = None
+    else:
+      (
+          self.app_name,
+          self.agent,
+          self.context_cache_config,
+          self.resumability_config,
+          plugins,
+      ) = self._validate_runner_params(app, app_name, agent, plugins)
     self.artifact_service = artifact_service
     self.session_service = session_service
     self.memory_service = memory_service
@@ -210,6 +227,7 @@ class Runner:
     self.plugin_manager = PluginManager(
         plugins=plugins, close_timeout=plugin_close_timeout
     )
+    self.node = node
     self.auto_create_session = auto_create_session
     (
         self._agent_origin_app_name,
@@ -393,6 +411,93 @@ class Runner:
         'auto_create_session=True when constructing the runner.'
     )
 
+  async def _run_node_async(
+      self,
+      *,
+      user_id: str,
+      session_id: str,
+      new_message: Optional[types.Content] = None,
+      run_config: Optional[RunConfig] = None,
+  ) -> AsyncGenerator[Event, None]:
+    """Run a BaseNode through NodeRunner.
+
+    Events flow through ic.event_queue via NodeRunner.
+
+    TODO: Add tracing, plugin lifecycle, and resumability support
+    for the node runtime path.
+    """
+    from .workflow._node_runner_class import NodeRunner
+
+    # 1. Setup
+    session = await self._get_or_create_session(
+        user_id=user_id, session_id=session_id
+    )
+    ic = self._new_invocation_context(
+        session,
+        new_message=new_message,
+        run_config=run_config or RunConfig(),
+    )
+    ic.event_queue = asyncio.Queue()
+
+    # 2. Start root node in background
+    from .agents.context import Context
+
+    root_ctx = Context(ic)
+    root_node_runner = NodeRunner(node=self.node, parent_ctx=root_ctx)
+    done_sentinel = object()
+
+    async def _drive_root_node():
+      try:
+        await root_node_runner.run(node_input=ic.user_content)
+      finally:
+        await ic.event_queue.put((done_sentinel, None))
+
+    task = asyncio.create_task(_drive_root_node())
+
+    # 3. Main loop: consume events, persist, yield
+    try:
+      async for event in self._consume_event_queue(ic, done_sentinel):
+        yield event
+    finally:
+      await self._cleanup_root_task(task, self.node.name)
+
+  async def _consume_event_queue(
+      self, ic: InvocationContext, done_sentinel: object
+  ) -> AsyncGenerator[Event, None]:
+    """Consume events from ic.event_queue until done_sentinel."""
+    while True:
+      event_or_done, processed_signal = await ic.event_queue.get()
+      if event_or_done is done_sentinel:
+        break
+      event: Event = event_or_done
+      if not event.partial:
+        await self.session_service.append_event(session=ic.session, event=event)
+      yield event
+      if isinstance(processed_signal, asyncio.Event):
+        processed_signal.set()
+
+  async def _cleanup_root_task(
+      self, task: asyncio.Task, node_name: str
+  ) -> None:
+    """Cancel the root task if still running, then await it.
+
+    The task may still be running if the caller stopped iterating
+    early (e.g., break in async for). In that case we must cancel
+    to avoid a leaked task.
+    """
+    if not task.done():
+      logger.debug(
+          'Cancelling root node %s (caller stopped early).',
+          node_name,
+      )
+      task.cancel()
+    try:
+      await task
+    except asyncio.CancelledError:
+      logger.warning('Root node %s was cancelled.', node_name)
+    except Exception:
+      logger.warning('Root node %s failed.', node_name, exc_info=True)
+
   async def _get_or_create_session(
       self,
       *,
@@ -538,6 +643,16 @@ class Runner:
 
     if new_message and not new_message.role:
       new_message.role = 'user'
+
+    if self.node is not None:
+      async for event in self._run_node_async(
+          user_id=user_id,
+          session_id=session_id,
+          new_message=new_message,
+          run_config=run_config,
+      ):
+        yield event
+      return
 
     async def _run_with_trace(
         new_message: Optional[types.Content] = None,
