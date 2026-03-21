@@ -81,7 +81,9 @@ class AgentLoader(BaseAgentLoader):
       # Check for "root_agent" directly in "{agent_name}" module/package
       elif hasattr(module_candidate, "root_agent"):
         logger.debug("Found root_agent directly in %s", agent_name)
-        if isinstance(module_candidate.root_agent, BaseAgent):
+        from ...workflow._base_node import BaseNode
+
+        if isinstance(module_candidate.root_agent, (BaseAgent, BaseNode)):
           return module_candidate.root_agent
         else:
           logger.warning(
@@ -128,7 +130,9 @@ class AgentLoader(BaseAgentLoader):
         return module_candidate.app
       elif hasattr(module_candidate, "root_agent"):
         logger.info("Found root_agent in %s.agent", agent_name)
-        if isinstance(module_candidate.root_agent, BaseAgent):
+        from ...workflow._base_node import BaseNode
+
+        if isinstance(module_candidate.root_agent, (BaseAgent, BaseNode)):
           return module_candidate.root_agent
         else:
           logger.warning(

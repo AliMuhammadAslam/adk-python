@@ -538,18 +538,33 @@ class AdkWebServer:
     # Instantiate extra plugins if configured
     extra_plugins_instances = self._instantiate_extra_plugins()
 
-    if isinstance(agent_or_app, BaseAgent):
+    from ..workflow._base_node import BaseNode
+
+    if isinstance(agent_or_app, BaseNode) and not isinstance(
+        agent_or_app, BaseAgent
+    ):
+      # BaseNode path — bypass App, create Runner directly.
+      runner = Runner(
+          app_name=app_name,
+          node=agent_or_app,
+          session_service=self.session_service,
+          artifact_service=self.artifact_service,
+          memory_service=self.memory_service,
+          credential_service=self.credential_service,
+          auto_create_session=self.auto_create_session,
+      )
+    elif isinstance(agent_or_app, BaseAgent):
       agentic_app = App(
           name=app_name,
           root_agent=agent_or_app,
           plugins=extra_plugins_instances,
       )
+      runner = self._create_runner(agentic_app)
     else:
       # Combine existing plugins with extra plugins
       agent_or_app.plugins = agent_or_app.plugins + extra_plugins_instances
       agentic_app = agent_or_app
-
-    runner = self._create_runner(agentic_app)
+      runner = self._create_runner(agentic_app)
     self.runner_dict[app_name] = runner
     return runner
 
@@ -561,6 +576,20 @@ class AdkWebServer:
 
   def _create_runner(self, agentic_app: App) -> Runner:
     """Create a runner with common services."""
+    from ..agents.base_agent import BaseAgent
+    from ..workflow._base_node import BaseNode
+
+    root = agentic_app.root_agent
+    if isinstance(root, BaseNode) and not isinstance(root, BaseAgent):
+      return Runner(
+          app_name=agentic_app.name,
+          node=root,
+          session_service=self.session_service,
+          artifact_service=self.artifact_service,
+          memory_service=self.memory_service,
+          credential_service=self.credential_service,
+          auto_create_session=self.auto_create_session,
+      )
     return Runner(
         app=agentic_app,
         artifact_service=self.artifact_service,
@@ -808,11 +837,6 @@ class AdkWebServer:
       async def get_app_info(app_name: str) -> Any:
         runner = await self.get_runner_async(app_name)
 
-        if not runner.app:
-          raise HTTPException(
-              status_code=404, detail=f"App not found: {app_name}"
-          )
-
         # Read README.md if it exists
         readme_content = None
         if self.agents_dir:
@@ -826,13 +850,20 @@ class AdkWebServer:
             except Exception as e:
               print(f"Error reading README.md: {e}")
 
-        return serialize_app_info(runner.app, readme_content)
+        if runner.app:
+          return serialize_app_info(runner.app, readme_content)
+        # BaseNode root — no App, return minimal info.
+        return {
+            "name": app_name,
+            "description": getattr(runner.node, "description", ""),
+            "readme": readme_content,
+        }
 
     @app.get("/dev/build_graph_image/{app_name}")
     async def get_app_info_image(app_name: str, dark_mode: bool = False) -> Any:
       runner = await self.get_runner_async(app_name)
 
-      if not runner.app:
+      if not runner.app and not runner.node:
         raise HTTPException(
             status_code=404, detail=f"App not found: {app_name}"
         )
@@ -1713,6 +1744,9 @@ class AdkWebServer:
       function_calls = event.get_function_calls()
       function_responses = event.get_function_responses()
       agent_or_app = self.agent_loader.load_agent(app_name)
+      # TODO: Support event graph visualization for Workflow(BaseNode).
+      if not isinstance(agent_or_app, (BaseAgent, App)):
+        return {}
       root_agent = self._get_root_agent(agent_or_app)
       dot_graph = None
       if function_calls:

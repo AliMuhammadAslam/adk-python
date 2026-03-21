@@ -25,6 +25,7 @@ import click
 from google.genai import types
 from pydantic import BaseModel
 
+from ..agents.base_agent import BaseAgent
 from ..agents.llm_agent import LlmAgent
 from ..apps.app import App
 from ..artifacts.base_artifact_service import BaseArtifactService
@@ -60,18 +61,32 @@ async def run_input_file(
     input_path: str,
     memory_service: Optional[BaseMemoryService] = None,
 ) -> Session:
-  app = (
-      agent_or_app
-      if isinstance(agent_or_app, App)
-      else App(name=app_name, root_agent=agent_or_app)
-  )
-  runner = Runner(
-      app=app,
-      artifact_service=artifact_service,
-      session_service=session_service,
-      memory_service=memory_service,
-      credential_service=credential_service,
-  )
+  from ..workflow._base_node import BaseNode
+
+  if isinstance(agent_or_app, BaseNode) and not isinstance(
+      agent_or_app, BaseAgent
+  ):
+    runner = Runner(
+        app_name=app_name,
+        node=agent_or_app,
+        session_service=session_service,
+        artifact_service=artifact_service,
+        memory_service=memory_service,
+        credential_service=credential_service,
+    )
+  else:
+    app = (
+        agent_or_app
+        if isinstance(agent_or_app, App)
+        else App(name=app_name, root_agent=agent_or_app)
+    )
+    runner = Runner(
+        app=app,
+        artifact_service=artifact_service,
+        session_service=session_service,
+        memory_service=memory_service,
+        credential_service=credential_service,
+    )
   with open(input_path, 'r', encoding='utf-8') as f:
     input_file = InputFile.model_validate_json(f.read())
   input_file.state['_time'] = datetime.now().isoformat()
@@ -177,18 +192,32 @@ async def run_interactively(
     credential_service: BaseCredentialService,
     memory_service: Optional[BaseMemoryService] = None,
 ) -> None:
-  app = (
-      root_agent_or_app
-      if isinstance(root_agent_or_app, App)
-      else App(name=session.app_name, root_agent=root_agent_or_app)
-  )
-  runner = Runner(
-      app=app,
-      artifact_service=artifact_service,
-      session_service=session_service,
-      memory_service=memory_service,
-      credential_service=credential_service,
-  )
+  from ..workflow._base_node import BaseNode
+
+  if isinstance(root_agent_or_app, BaseNode) and not isinstance(
+      root_agent_or_app, BaseAgent
+  ):
+    runner = Runner(
+        app_name=session.app_name,
+        node=root_agent_or_app,
+        session_service=session_service,
+        artifact_service=artifact_service,
+        memory_service=memory_service,
+        credential_service=credential_service,
+    )
+  else:
+    app = (
+        root_agent_or_app
+        if isinstance(root_agent_or_app, App)
+        else App(name=session.app_name, root_agent=root_agent_or_app)
+    )
+    runner = Runner(
+        app=app,
+        artifact_service=artifact_service,
+        session_service=session_service,
+        memory_service=memory_service,
+        credential_service=credential_service,
+    )
 
   next_message = None
   resume_invocation_id = None
