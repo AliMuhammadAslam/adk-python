@@ -29,6 +29,7 @@ from google.genai import types
 from pydantic import BaseModel
 from pydantic import Field
 from pydantic import model_validator
+from pydantic import PrivateAttr
 from typing_extensions import override
 
 from ..agents.context import Context
@@ -56,9 +57,13 @@ class _LlmAgentWrapper(BaseNode):
   """Adapts a task/single_turn LlmAgent for use as a workflow graph node.
 
   Output handling by mode:
-    single_turn: LlmAgent.run_node_impl() emits an agent-level output
-      event (no path) that flows through the wrapper naturally. The
-      outer node_runner enriches it with the wrapper's path.
+    single_turn (leaf, no sub_agents): Bypasses Mesh by running
+      _SingleLlmAgent directly. Output is extracted via
+      LlmAgent._maybe_save_output_to_state and emitted as a
+      separate Event before END_OF_AGENT.
+    single_turn (with sub_agents): Runs the full LlmAgent which
+      handles output internally via run_node_impl(). The wrapper
+      only suppresses output on interrupt.
     task: The wrapper intercepts finish_task actions and re-emits the
       output as a separate Event, since the original finish_task event
       carries the output inside actions, not in event.output.
@@ -66,6 +71,7 @@ class _LlmAgentWrapper(BaseNode):
 
   agent: LlmAgent = Field(...)
   rerun_on_resume: bool = Field(default=True)
+  _single: Any = PrivateAttr(default=None)
 
   @model_validator(mode='before')
   @classmethod
@@ -89,6 +95,14 @@ class _LlmAgentWrapper(BaseNode):
         )
     if self.agent.mode == 'task':
       self.wait_for_output = True
+
+    # For leaf single_turn agents, use _SingleLlmAgent directly,
+    # bypassing the _Mesh orchestration layer.
+    if self.agent.mode == 'single_turn' and not self.agent.sub_agents:
+      from ..agents.llm._single_llm_agent import _SingleLlmAgent
+
+      self._single = _SingleLlmAgent.from_base_llm_agent(self.agent)
+
     return self
 
   @override
@@ -104,6 +118,10 @@ class _LlmAgentWrapper(BaseNode):
     copied = super().model_copy(update=update, deep=deep)
     if update and 'name' in update:
       copied.agent = copied.agent.model_copy(update={'name': update['name']})
+      if copied._single is not None:
+        copied._single = copied._single.model_copy(
+            update={'name': update['name']}
+        )
     return copied
 
   def _validate_input(self, node_input: Any) -> None:
@@ -153,30 +171,57 @@ class _LlmAgentWrapper(BaseNode):
     self._validate_input(node_input)
     agent_ctx, agent_input = self._prepare_input(ctx, node_input)
 
+    inner = self._single if self._single is not None else self.agent
+
     # When the agent has parallel_worker=True, call run_node_impl()
     # directly to bypass Node.run()'s internal parallel logic.
     if self.agent.parallel_worker:
-      run_iter = self.agent.run_node_impl(ctx=agent_ctx, node_input=agent_input)
+      run_iter = inner.run_node_impl(ctx=agent_ctx, node_input=agent_input)
     else:
-      run_iter = self.agent.run(ctx=agent_ctx, node_input=agent_input)
+      run_iter = inner.run(ctx=agent_ctx, node_input=agent_input)
 
     if self.agent.mode == 'single_turn':
-      # Output flows through naturally: LlmAgent.run_node_impl() emits
-      # a path-less Event(output=...) that the outer node_runner enriches.
-      # Suppress output when interrupted (long-running tools, HITL) to
-      # avoid mixed output/interrupt errors in node_runner.
-      interrupted = False
-      async for event in run_iter:
-        if isinstance(event, Event) and event.long_running_tool_ids:
-          interrupted = True
-        if (
-            interrupted
-            and isinstance(event, Event)
-            and event.output is not None
-            and not event.node_info.path
-        ):
-          continue
-        yield event
+      if self._single is not None:
+        # Leaf agent bypass: since we skip LlmAgent.run_node_impl(),
+        # replicate its output handling here.
+        # _maybe_save_output_to_state applies output_schema/output_key
+        # and clears content on the final response. We emit the output
+        # as a pathless Event before END_OF_AGENT.
+        node_path = agent_ctx.node_path or ''
+        single_output = None
+        async for event in run_iter:
+          if isinstance(event, Event):
+            output_before = event.output
+            self.agent._maybe_save_output_to_state(event, node_path)
+            if event.output is not None and output_before is None:
+              single_output = event.output
+          if (
+              single_output is not None
+              and isinstance(event, Event)
+              and event.actions
+              and event.actions.end_of_agent
+          ):
+            yield Event(output=single_output)
+            single_output = None
+          yield event
+        if single_output is not None:
+          yield Event(output=single_output)
+      else:
+        # Agent with sub_agents: LlmAgent.run_node_impl() handles
+        # output internally. Suppress output when interrupted to
+        # avoid mixed output/interrupt errors in node_runner.
+        interrupted = False
+        async for event in run_iter:
+          if isinstance(event, Event) and event.long_running_tool_ids:
+            interrupted = True
+          if (
+              interrupted
+              and isinstance(event, Event)
+              and event.output is not None
+              and not event.node_info.path
+          ):
+            continue
+          yield event
     else:
       # Task mode: finish_task output is inside event.actions, not
       # event.output. Intercept it and re-emit as a proper output event.

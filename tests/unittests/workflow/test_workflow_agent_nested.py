@@ -619,10 +619,7 @@ async def test_nested_workflow_agent_with_hitl(
       # call_llm produces text response (no more function calls).
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
-          {
-              'node_name': 'call_llm',
-              'output': 'LLM response after tool',
-          },
+          'LLM response after tool',
       ),
       # llm_agent completes.
       (
@@ -634,7 +631,7 @@ async def test_nested_workflow_agent_with_hitl(
               },
           },
       ),
-      # LlmAgent re-emits single_turn output before END_OF_AGENT.
+      # Wrapper emits output before END_OF_AGENT.
       (
           'outer_agent/nested_agent/llm_agent',
           {
@@ -1079,12 +1076,9 @@ async def test_nested_workflow_agent_with_tool_calls(
       ),
       (
           'outer_agent/nested_agent/llm_agent/call_llm',
-          {
-              'node_name': 'call_llm',
-              'output': 'LLM response after tools',
-          },
+          'LLM response after tools',
       ),
-      # LlmAgentWrapper re-emits the output for downstream routing.
+      # Wrapper emits output before END_OF_AGENT.
       (
           'outer_agent/nested_agent/llm_agent',
           {

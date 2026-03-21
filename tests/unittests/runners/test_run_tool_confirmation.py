@@ -772,9 +772,8 @@ class TestHITLConfirmationFlowWithSequentialAgentAndResumableApp:
                 )
             ),
         ),
-        # Single_turn: content stripped, output set on event.
         (sub_agent1.name, "test llm response after tool call"),
-        # LlmAgent re-emits output for node routing.
+        # Wrapper emits output before END_OF_AGENT.
         (agent.name, "test llm response after tool call"),
         (sub_agent1.name, testing_utils.END_OF_AGENT),
         (sub_agent2.name, "test llm response from second agent"),

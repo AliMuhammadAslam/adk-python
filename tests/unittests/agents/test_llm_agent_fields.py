@@ -607,44 +607,24 @@ class TestParallelWorker:
                 'output': ['item1', 'item2'],
             },
         ),
-        # Children outputs
+        # LLM content events (streaming text from each worker).
+        ('llm_agent__0', 'processed'),
+        ('llm_agent__1', 'processed'),
+        # Wrapper output events for each worker.
         (
-            'llm_agent__0',
-            {
-                'node_name': 'call_llm',
-                'output': 'processed',
-            },
-        ),
-        (
-            'llm_agent__1',
-            {
-                'node_name': 'call_llm',
-                'output': 'processed',
-            },
+            'outer_agent',
+            {'node_name': 'llm_agent__0', 'output': 'processed'},
         ),
         (
             'outer_agent',
-            {
-                'node_name': 'llm_agent__0',
-                'output': 'processed',
-            },
-        ),
-        (
-            'outer_agent',
-            {
-                'node_name': 'llm_agent__1',
-                'output': 'processed',
-            },
+            {'node_name': 'llm_agent__1', 'output': 'processed'},
         ),
         # Parent output
         (
             'outer_agent',
             {
                 'node_name': 'llm_agent',
-                'output': [
-                    'processed',
-                    'processed',
-                ],
+                'output': ['processed', 'processed'],
             },
         ),
     ]
@@ -698,44 +678,24 @@ class TestParallelWorker:
                 'output': ['item1', 'item2'],
             },
         ),
-        # Children outputs
+        # LLM content events (streaming text from each worker).
+        ('llm_agent__0', 'processed'),
+        ('llm_agent__1', 'processed'),
+        # Wrapper output events for each worker.
         (
-            'llm_agent__0',
-            {
-                'node_name': 'call_llm',
-                'output': 'processed',
-            },
-        ),
-        (
-            'llm_agent__1',
-            {
-                'node_name': 'call_llm',
-                'output': 'processed',
-            },
+            'outer_agent',
+            {'node_name': 'llm_agent__0', 'output': 'processed'},
         ),
         (
             'outer_agent',
-            {
-                'node_name': 'llm_agent__0',
-                'output': 'processed',
-            },
-        ),
-        (
-            'outer_agent',
-            {
-                'node_name': 'llm_agent__1',
-                'output': 'processed',
-            },
+            {'node_name': 'llm_agent__1', 'output': 'processed'},
         ),
         # Parent output
         (
             'outer_agent',
             {
                 'node_name': 'llm_agent',
-                'output': [
-                    'processed',
-                    'processed',
-                ],
+                'output': ['processed', 'processed'],
             },
         ),
     ]

@@ -211,9 +211,8 @@ class TestPauseInvocationWithSequentialAgent(BasePauseInvocationTest):
                 name="test_tool", response={"result": None}
             ),
         ),
-        # Single_turn output: content is stripped, output set on event.
         ("sub_agent_1", "model response after tool call"),
-        # LlmAgent re-emits output at agent level for node routing.
+        # Wrapper emits output before END_OF_AGENT.
         ("root_agent", "model response after tool call"),
         ("sub_agent_1", END_OF_AGENT),
         ("sub_agent_2", Part.from_function_call(name="test_tool", args={})),
@@ -405,9 +404,8 @@ class TestPauseInvocationWithLoopAgent(BasePauseInvocationTest):
     actual = testing_utils.simplify_resumable_app_events(runner.run("test"))
     behavioral = [e for e in actual if not isinstance(e[1], dict)]
     assert behavioral == [
-        # Single_turn output: content is stripped, output set on event.
         ("sub_agent_1", "sub agent 1 response"),
-        # LlmAgent re-emits output at agent level for node routing.
+        # Wrapper emits output before END_OF_AGENT.
         ("root_agent", "sub agent 1 response"),
         ("sub_agent_1", END_OF_AGENT),
         ("sub_agent_2", Part.from_function_call(name="test_tool", args={})),

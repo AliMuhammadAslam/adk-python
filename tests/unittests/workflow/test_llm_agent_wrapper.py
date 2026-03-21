@@ -12,7 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for LlmAgentWrapper and build_node auto-wrapping."""
+"""Tests for LlmAgentWrapper and build_node auto-wrapping.
+
+Verifies that LlmAgentWrapper correctly adapts LlmAgent for use as a
+workflow graph node, including mode validation, input conversion,
+content isolation, and output extraction.
+"""
 
 from __future__ import annotations
 
@@ -38,7 +43,7 @@ from .workflow_testing_utils import create_parent_invocation_context
 from .workflow_testing_utils import InputCapturingNode
 from .workflow_testing_utils import TestingNode
 
-# -- Helpers --
+# --- Helpers ---
 
 
 class StoryOutput(BaseModel):
@@ -131,42 +136,93 @@ def _mock_agent_run(
   return _Ctx()
 
 
-# -- Unit tests for LlmAgentWrapper --
+def _mock_wrapper_run(wrapper, content_text=None):
+  """Patches wrapper._single.run to yield a final LLM response event.
+
+  For single_turn agents using the _SingleLlmAgent path, the wrapper
+  extracts output from final LLM response events.
+
+  Simulates realistic _SingleLlmAgent output: LLM events carry a
+  subgraph path (e.g. '{name}/call_llm') so the outer node_runner
+  treats them as subgraph events, not as the wrapper's direct output.
+
+  Args:
+    wrapper: The LlmAgentWrapper to mock.
+    content_text: The text for the final LLM response event.
+  """
+  target = wrapper._single if wrapper._single is not None else wrapper.agent
+  name = wrapper.name
+
+  async def fake_run(*, ctx, node_input):
+    if content_text:
+      event = Event(
+          invocation_id='test_inv',
+          author=name,
+          content=types.Content(parts=[types.Part(text=content_text)]),
+      )
+      # Set a subgraph path matching real _SingleLlmAgent behavior.
+      # ctx.node_path already includes the wrapper's name (e.g.
+      # 'test_wf/test_agent'), so call_llm is a direct child.
+      event.node_info.path = f'{ctx.node_path}/call_llm'
+      yield event
+
+  original = target.run
+  object.__setattr__(target, 'run', fake_run)
+
+  class _Ctx:
+
+    def __enter__(self):
+      return self
+
+    def __exit__(self, *args):
+      object.__setattr__(target, 'run', original)
+
+  return _Ctx()
+
+
+# --- Validation ---
 
 
 class TestLlmAgentWrapperValidation:
 
   def test_task_mode_accepted(self):
+    """Wrapping a task-mode agent succeeds."""
     agent = _make_task_agent(mode='task')
     wrapper = LlmAgentWrapper(agent=agent)
     assert wrapper.name == 'test_agent'
 
   def test_single_turn_mode_accepted(self):
+    """Wrapping a single_turn-mode agent succeeds."""
     agent = _make_task_agent(mode='single_turn')
     wrapper = LlmAgentWrapper(agent=agent)
     assert wrapper.name == 'test_agent'
 
   def test_chat_mode_rejected(self):
+    """Wrapping a chat-mode agent raises ValueError."""
     agent = _make_task_agent(mode='chat')
     with pytest.raises(ValueError, match='task and single_turn'):
       LlmAgentWrapper(agent=agent)
 
   def test_name_defaults_to_agent_name(self):
+    """Wrapper name defaults to the inner agent's name."""
     agent = _make_task_agent(name='my_agent')
     wrapper = LlmAgentWrapper(agent=agent)
     assert wrapper.name == 'my_agent'
 
   def test_name_override(self):
+    """Explicit name overrides the agent's name."""
     agent = _make_task_agent(name='my_agent')
     wrapper = LlmAgentWrapper(agent=agent, name='custom_name')
     assert wrapper.name == 'custom_name'
 
   def test_rerun_on_resume_defaults_true(self):
+    """Wrapper defaults to rerun_on_resume=True."""
     agent = _make_task_agent()
     wrapper = LlmAgentWrapper(agent=agent)
     assert wrapper.rerun_on_resume is True
 
   def test_workflow_as_sub_agent_rejected(self):
+    """Using a Workflow as a sub_agent of LlmAgent raises ValueError."""
     wf = Workflow(
         name='my_workflow',
         edges=[(START, lambda: 'done')],
@@ -182,24 +238,26 @@ class TestLlmAgentWrapperValidation:
       )
 
 
-# -- Unit tests for build_node auto-wrapping --
+# --- build_node auto-wrapping ---
 
 
 class TestBuildNodeAutoWrap:
 
   def test_task_mode_wrapped(self):
+    """build_node wraps a task-mode LlmAgent in LlmAgentWrapper."""
     agent = _make_task_agent(mode='task')
     node = build_node(agent)
     assert isinstance(node, LlmAgentWrapper)
     assert node.agent is agent
 
   def test_single_turn_mode_wrapped(self):
+    """build_node wraps a single_turn-mode LlmAgent in LlmAgentWrapper."""
     agent = _make_task_agent(mode='single_turn')
     node = build_node(agent)
     assert isinstance(node, LlmAgentWrapper)
 
   def test_default_mode_auto_converted_to_single_turn(self):
-    # No explicit mode → defaults to 'chat', auto-converted to single_turn
+    """LlmAgent with default mode is auto-converted to single_turn."""
     agent = WorkflowLlmAgent(
         name='test_agent',
         model='gemini-2.5-flash',
@@ -208,42 +266,40 @@ class TestBuildNodeAutoWrap:
     node = build_node(agent)
     assert isinstance(node, LlmAgentWrapper)
     assert agent.mode == 'single_turn'
-    # Internal coordinator must also be updated.
-    assert agent._coordinator.mode == 'single_turn'
 
   def test_explicit_chat_mode_rejected(self):
+    """build_node rejects LlmAgent with explicit chat mode."""
     agent = _make_task_agent(mode='chat')
     with pytest.raises(ValueError, match="mode='chat'.*not supported"):
       build_node(agent)
 
-  def test_default_mode_coordinator_synced_in_workflow(self):
-    """Coordinator mode is synced when LlmAgent is used in Workflow edges."""
+  def test_default_mode_synced_in_workflow(self):
+    """LlmAgent mode is synced to single_turn when used in Workflow edges."""
     agent = WorkflowLlmAgent(
         name='test_agent',
         model='gemini-2.5-flash',
         instruction='Test.',
     )
     assert agent.mode == 'chat'
-    assert agent._coordinator.mode == 'chat'
     Workflow(name='wf', edges=[(START, agent)])
     assert agent.mode == 'single_turn'
-    assert agent._coordinator.mode == 'single_turn'
 
   def test_name_override_in_build_node(self):
+    """build_node respects explicit name override."""
     agent = _make_task_agent(mode='task')
     node = build_node(agent, name='override')
     assert isinstance(node, LlmAgentWrapper)
     assert node.name == 'override'
 
 
-# -- Integration tests: finish_task extraction --
+# --- Integration tests ---
 
 
 @pytest.mark.asyncio
-async def test_wrapper_extracts_finish_task_output(
+async def test_task_mode_finish_task_output_reaches_downstream(
     request: pytest.FixtureRequest,
 ):
-  """Wrapper emits Event(output=output) from finish_task action."""
+  """Task mode wrapper extracts finish_task output for downstream nodes."""
   agent = _make_task_agent(mode='task')
   wrapper = LlmAgentWrapper(agent=agent)
 
@@ -286,8 +342,10 @@ def test_single_turn_mode_no_wait_for_output():
 
 
 @pytest.mark.asyncio
-async def test_wrapper_single_turn_mode(request: pytest.FixtureRequest):
-  """Single turn mode agents work the same way through the wrapper."""
+async def test_single_turn_output_reaches_downstream(
+    request: pytest.FixtureRequest,
+):
+  """Single_turn wrapper output is received by downstream nodes."""
   agent = _make_task_agent(mode='single_turn')
   wrapper = LlmAgentWrapper(agent=agent)
 
@@ -301,21 +359,18 @@ async def test_wrapper_single_turn_mode(request: pytest.FixtureRequest):
   )
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
 
-  with _mock_agent_run(
-      agent,
-      event_output={'result': 'Done processing.'},
-  ):
+  with _mock_wrapper_run(wrapper, content_text='Done processing.'):
     events = [e async for e in wf.run_async(ctx)]
 
   assert len(capture.received_inputs) == 1
-  assert capture.received_inputs[0] == {'result': 'Done processing.'}
+  assert capture.received_inputs[0] == 'Done processing.'
 
 
 @pytest.mark.asyncio
-async def test_wrapper_validates_input_schema_dict(
+async def test_valid_input_schema_passes_through(
     request: pytest.FixtureRequest,
 ):
-  """Wrapper validates dict node_input against input_schema."""
+  """Valid dict input matching input_schema is accepted."""
   agent = _make_task_agent(
       mode='task',
       input_schema=StoryInput,
@@ -340,10 +395,10 @@ async def test_wrapper_validates_input_schema_dict(
 
 
 @pytest.mark.asyncio
-async def test_wrapper_validates_input_schema_rejects_invalid(
+async def test_invalid_input_schema_raises_validation_error(
     request: pytest.FixtureRequest,
 ):
-  """Wrapper raises ValidationError for invalid input against schema."""
+  """Invalid input that doesn't match input_schema raises ValidationError."""
   agent = _make_task_agent(
       mode='task',
       input_schema=StoryInput,
@@ -355,9 +410,6 @@ async def test_wrapper_validates_input_schema_rejects_invalid(
       edges=[(START, wrapper)],
   )
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
-  # Manually set node_input to invalid data by providing it via a predecessor.
-  # Since we can't easily inject invalid input through the workflow,
-  # test the wrapper's run() directly with a real context.
   ic = ctx.model_copy(update={'branch': None})
   agent_ctx = Context(
       invocation_context=ic,
@@ -375,8 +427,8 @@ async def test_wrapper_validates_input_schema_rejects_invalid(
 
 
 @pytest.mark.asyncio
-async def test_wrapper_auto_wrap_in_workflow(request: pytest.FixtureRequest):
-  """WorkflowLlmAgent in task mode is auto-wrapped when used in edges."""
+async def test_auto_wrap_in_workflow_edges(request: pytest.FixtureRequest):
+  """LlmAgent used directly in Workflow edges is auto-wrapped."""
   agent = _make_task_agent(mode='task')
 
   capture = InputCapturingNode(name='capture')
@@ -400,10 +452,10 @@ async def test_wrapper_auto_wrap_in_workflow(request: pytest.FixtureRequest):
 
 
 @pytest.mark.asyncio
-async def test_wrapper_single_turn_event_output(
+async def test_single_turn_extracts_output_from_llm_response(
     request: pytest.FixtureRequest,
 ):
-  """Single_turn agents emit event.output directly; wrapper propagates it."""
+  """Single_turn wrapper extracts text output from final LLM response."""
   agent = _make_task_agent(mode='single_turn')
   wrapper = LlmAgentWrapper(agent=agent)
 
@@ -417,9 +469,7 @@ async def test_wrapper_single_turn_event_output(
   )
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
 
-  # Simulate single_turn: LlmAgent._extract_output sets event.output
-  # directly (no finish_task).
-  with _mock_agent_run(agent, event_output='LLM response text'):
+  with _mock_wrapper_run(wrapper, content_text='LLM response text'):
     events = [e async for e in wf.run_async(ctx)]
 
   assert len(capture.received_inputs) == 1
@@ -427,23 +477,25 @@ async def test_wrapper_single_turn_event_output(
 
 
 @pytest.mark.asyncio
-async def test_wrapper_sets_branch_for_isolation(
+async def test_single_turn_sets_branch_for_content_isolation(
     request: pytest.FixtureRequest,
 ):
-  """Wrapper sets a branch on IC for content isolation."""
+  """Single_turn wrapper isolates content via a branch on the context."""
   agent = _make_task_agent(mode='single_turn')
   wrapper = LlmAgentWrapper(agent=agent)
 
-  # Track the branch set on the context passed to the agent.
   captured_branches = []
+  target = wrapper._single if wrapper._single is not None else agent
 
   async def fake_run(*, ctx, node_input):
     captured_branches.append(ctx._invocation_context.branch)
-    yield Event(
+    event = Event(
         invocation_id='test_inv',
         author=agent.name,
         content=types.Content(parts=[types.Part(text='response')]),
     )
+    event.node_info.path = f'{ctx.node_path}/call_llm'
+    yield event
 
   wf = Workflow(
       name='test_wf',
@@ -451,24 +503,23 @@ async def test_wrapper_sets_branch_for_isolation(
   )
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
 
-  object.__setattr__(agent, 'run', fake_run)
+  original = target.run
+  object.__setattr__(target, 'run', fake_run)
   try:
     events = [e async for e in wf.run_async(ctx)]
   finally:
-    object.__setattr__(agent, 'run', agent.__class__.run)
+    object.__setattr__(target, 'run', original)
 
-  # The branch should start with 'node:' (not 'task:') and include
-  # the agent name.
   assert len(captured_branches) == 1
   assert captured_branches[0].startswith('node:')
   assert agent.name in captured_branches[0]
 
 
 @pytest.mark.asyncio
-async def test_wrapper_task_mode_no_branch(
+async def test_task_mode_does_not_set_branch(
     request: pytest.FixtureRequest,
 ):
-  """Task mode wrapper does NOT set a branch (needed for HITL)."""
+  """Task mode wrapper does not set a branch, preserving HITL visibility."""
   agent = _make_task_agent(mode='task')
   wrapper = LlmAgentWrapper(agent=agent)
 
@@ -496,33 +547,31 @@ async def test_wrapper_task_mode_no_branch(
   finally:
     object.__setattr__(agent, 'run', agent.__class__.run)
 
-  # Task mode should NOT set a branch — it needs to see unbranched
-  # user messages for HITL multi-turn interaction.
   assert len(captured_branches) == 1
   assert captured_branches[0] is None
 
 
 @pytest.mark.asyncio
-async def test_wrapper_passes_node_input_as_content(
+async def test_single_turn_converts_string_input_to_content(
     request: pytest.FixtureRequest,
 ):
-  """Wrapper converts string node_input to types.Content for the agent."""
+  """Single_turn wrapper converts string node_input to types.Content."""
   agent = _make_task_agent(mode='single_turn')
   wrapper = LlmAgentWrapper(agent=agent)
 
-  # Track the node_input passed to the agent.
   captured_inputs = []
+  target = wrapper._single if wrapper._single is not None else agent
 
   async def fake_run(*, ctx, node_input):
     captured_inputs.append(node_input)
-    yield Event(
+    event = Event(
         invocation_id='test_inv',
         author=agent.name,
         content=types.Content(parts=[types.Part(text='response')]),
     )
+    event.node_info.path = f'{ctx.node_path}/call_llm'
+    yield event
 
-  # Use a predecessor node that outputs a string, so the wrapper
-  # receives it as node_input and converts to Content.
   predecessor = TestingNode(name='predecessor', output='hello world')
   wf = Workflow(
       name='test_wf',
@@ -533,13 +582,13 @@ async def test_wrapper_passes_node_input_as_content(
   )
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
 
-  object.__setattr__(agent, 'run', fake_run)
+  original = target.run
+  object.__setattr__(target, 'run', fake_run)
   try:
     events = [e async for e in wf.run_async(ctx)]
   finally:
-    object.__setattr__(agent, 'run', agent.__class__.run)
+    object.__setattr__(target, 'run', original)
 
-  # node_input should be a types.Content (converted from string).
   assert len(captured_inputs) == 1
   assert isinstance(captured_inputs[0], types.Content)
   assert captured_inputs[0].parts[0].text == 'hello world'
@@ -549,14 +598,7 @@ async def test_wrapper_passes_node_input_as_content(
 async def test_single_turn_first_node_receives_user_content(
     request: pytest.FixtureRequest,
 ):
-  """Single_turn LlmAgent as first node sees user content in LLM request.
-
-  Regression test: the wrapper creates a branched context for content
-  isolation. Previously, _SingleLlmAgent skipped re-appending user
-  content under the branch because the identity check matched the
-  runner's original Content object, making it invisible to the
-  branch-filtered content processor.
-  """
+  """Single_turn LlmAgent as first node sees the user message in LLM request."""
   from google.adk.apps.app import App
 
   from . import testing_utils
