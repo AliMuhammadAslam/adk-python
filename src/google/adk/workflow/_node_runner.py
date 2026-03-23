@@ -135,6 +135,7 @@ def _schedule_dynamic_node(
     node_input: Any,
     *,
     node_name: str | None = None,
+    use_as_output: bool = False,
 ) -> asyncio.Future[Any]:
   """Schedules a dynamic node to run.
 
@@ -150,11 +151,20 @@ def _schedule_dynamic_node(
     execution_id: Unique identifier for this execution.
     node_input: Input data to pass to the node.
     node_name: Optional name for the node. Defaults to execution_id.
+    use_as_output: If True, this node's output is used as the parent
+        node's output. The parent's own output event is suppressed.
 
   Returns:
     A Future that will resolve with the node's output when complete.
   """
   node_name = node_name or execution_id
+
+  # Record which dynamic child's output should replace the parent's.
+  # Full paths as keys avoid name collisions.
+  if use_as_output:
+    parent_path = current_ctx.node_path
+    full_child_path = join_paths(run_state.node_path, node_name)
+    run_state.dynamic_output_node[parent_path] = full_child_path
 
   if node_name in run_state.dynamic_futures:
     return run_state.dynamic_futures[node_name]
@@ -350,6 +360,7 @@ async def _node_runner(
         node_input: Any,
         *,
         node_name: str | None = None,
+        use_as_output: bool = False,
     ) -> asyncio.Future[Any]:
       return _schedule_dynamic_node(
           run_state=run_state,
@@ -358,6 +369,7 @@ async def _node_runner(
           execution_id=execution_id,
           node_input=node_input,
           node_name=node_name,
+          use_as_output=use_as_output,
       )
 
     return schedule_dynamic_node_fn
@@ -365,6 +377,7 @@ async def _node_runner(
   try:
     timeout = getattr(node, 'timeout', None)
     data_event_count = 0
+    full_node_path = join_paths(run_state.node_path, node_name)
     async with asyncio.timeout(timeout):
       async for event in _execute_node(
           node=node,
@@ -379,11 +392,24 @@ async def _node_runner(
           schedule_dynamic_node=make_schedule_dynamic_node(),
           transfer_targets=run_state.transfer_targets,
       ):
-        # Enforce: a node can yield either one output or interrupts,
-        # not both. rerun_on_resume=False allows at most one interrupt.
+        # If the node delegates output via use_as_output=True,
+        # suppress its own output event so the child's output is used.
         is_direct = isinstance(event, Event) and is_direct_child(
             event.node_info.path, run_state.node_path
         )
+        if (
+            is_direct
+            and event.output is not None
+            and full_node_path in run_state.dynamic_output_node
+        ):
+          # Create a copy without output rather than mutating the
+          # original event. The child's output replaces the parent's.
+          event = event.model_copy(update={'output': None})
+          event.model_fields_set.discard('output')
+          has_output = True
+
+        # Enforce: a node can yield either one output or interrupts,
+        # not both. rerun_on_resume=False allows at most one interrupt.
         is_output = is_direct and event.output is not None
         is_interrupt = run_state.ctx.should_pause_invocation(event)
         if is_output and (data_event_count > 0 or node_interrupted):

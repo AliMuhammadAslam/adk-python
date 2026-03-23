@@ -68,6 +68,7 @@ class ScheduleDynamicNode(Protocol):
       node_input: Any,
       *,
       node_name: str | None = None,
+      use_as_output: bool = False,
   ) -> asyncio.Future[Any]:
     ...
 
@@ -316,7 +317,12 @@ class Context(ReadonlyContext):
     return f'{node_name}_{hashed_id}'
 
   async def run_node(
-      self, node: NodeLike, node_input: Any = None, *, name: str | None = None
+      self,
+      node: NodeLike,
+      node_input: Any = None,
+      *,
+      name: str | None = None,
+      use_as_output: bool = False,
   ) -> Any:
     """Executes a node dynamically.
 
@@ -334,6 +340,9 @@ class Context(ReadonlyContext):
         provided, a name will be generated based on the node's type and a unique
         identifier. This name is used for tracking and can be helpful for
         resuming workflows.
+      use_as_output: If True, the dynamic node's output is used as the
+        calling node's output. The calling node's own output event is
+        suppressed to avoid duplication.
 
     Returns:
       The output of the dynamically executed node, once it finishes executing.
@@ -365,6 +374,7 @@ class Context(ReadonlyContext):
         execution_id,
         node_input,
         node_name=name,
+        use_as_output=use_as_output,
     )
 
   # ============================================================================

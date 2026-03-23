@@ -120,6 +120,12 @@ class _WorkflowRunState:
   transfer_targets: list[_TransferTargetInfo]
   """Transfer targets to propagate to inner WorkflowContexts."""
 
+  dynamic_output_node: dict[str, str] = dataclasses.field(default_factory=dict)
+  """Maps a node's full path to the full path of the dynamic child
+  whose output should be used as the node's output (set by
+  ctx.run_node(use_as_output=True)). If a node is not in this dict,
+  its own output is used."""
+
   max_concurrency: int | None = None
   """Maximum number of parallel nodes to run."""
 

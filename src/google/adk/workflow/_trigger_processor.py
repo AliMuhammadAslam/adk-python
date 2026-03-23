@@ -154,15 +154,31 @@ def _process_triggers(
   # coerce the output here at read time.
   node = run_state.nodes_map.get(node_name)
 
-  # If the node is a Workflow, resolve its leaf-level terminal paths
-  # so _get_node_output_and_route can find output events from nested
-  # terminal nodes without requiring event mutation.
+  # Resolve terminal paths for output resolution. This includes:
+  # 1. Static terminal paths from Workflow graphs
+  # 2. Dynamic terminal paths from ctx.run_node(use_as_output=True)
   terminal_paths: set[str] | None = None
   if node is not None:
     from ._workflow import Workflow
 
     if isinstance(node, Workflow):
       terminal_paths = node._resolve_terminal_paths(full_node_path)
+
+  # Follow the use_as_output chain (A → B → C) to find the leaf node
+  # whose output should be used. Paths strictly increase in length,
+  # so the chain is guaranteed to terminate.
+  output_path = run_state.dynamic_output_node.get(full_node_path)
+  if output_path is not None:
+    while output_path in run_state.dynamic_output_node:
+      output_path = run_state.dynamic_output_node[output_path]
+    if terminal_paths is None:
+      terminal_paths = set()
+    leaf_node_name = output_path.rsplit('/', 1)[-1]
+    leaf_node = run_state.nodes_map.get(leaf_node_name)
+    if isinstance(leaf_node, Workflow) and leaf_node.graph:
+      terminal_paths |= leaf_node._resolve_terminal_paths(output_path)
+    else:
+      terminal_paths.add(output_path)
 
   output_data, routes_to_match = _get_node_output_and_route(
       ctx=ctx,
