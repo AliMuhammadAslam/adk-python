@@ -171,22 +171,18 @@ class Runner:
   ):
     """Initializes the Runner.
 
-    Developers should provide either an `app` instance or both `app_name` and
-    `agent`. When `app` is provided, `app_name` can optionally override the
-    app's name (useful for deployment scenarios like Agent Engine where the
-    resource name differs from the app's identifier). However, `agent` should
-    not be provided when `app` is provided. Providing `app` is the recommended
-    way to create a runner.
+    Exactly one of `app`, `agent`, or `node` must be provided. When `agent`
+    or `node` is provided, the Runner wraps it into an `App` internally.
+    Providing `app` is the recommended way to create a runner. When `app` is
+    provided, `app_name` can optionally override the app's name.
 
     Args:
-        app: An optional `App` instance. If provided, `agent` should not be
-          specified. `app_name` can optionally override `app.name`.
-        app_name: The application name of the runner. Required if `app` is not
-          provided. If `app` is provided, this can optionally override `app.name`
-          (e.g., for deployment scenarios where a resource name differs from the
-          app identifier).
-        agent: The root agent to run. Required if `app` is not provided. Should
-          not be provided when `app` is provided.
+        app: An `App` instance. Mutually exclusive with `agent` and `node`.
+        app_name: The application name. Required when `agent` is provided.
+          Optional override for `app.name` when `app` is provided. Defaults
+          to `node.name` when only `node` is provided.
+        agent: The root agent to run. Mutually exclusive with `app` and `node`.
+        node: The root node to run. Mutually exclusive with `app` and `agent`.
         plugins: Deprecated. A list of plugins for the runner. Please use the
           `app` argument to provide plugins instead.
         artifact_service: The artifact service for the runner.
@@ -199,45 +195,93 @@ class Runner:
           ValueError with a helpful message.
 
     Raises:
-        ValueError: If `app` is provided along with `agent` or `plugins`, or if
-          `app` is not provided but either `app_name` or `agent` is missing.
+        ValueError: If more than one of `app`, `agent`, or `node` is provided,
+          or if none is provided, or if `agent` is provided without `app_name`.
     """
+    app = self._resolve_app(app, app_name, agent, node, plugins)
+
+    # Extract from App — single code path.
     self.app = app
-    if node is not None:
-      # Node path — skip agent validation.
-      self.app_name = app_name or node.name
-      # TODO: Support context_cache_config, resumability_config, and
-      # plugins for the node runtime path.
-      self.agent = None
-      self.context_cache_config = None
-      self.resumability_config = None
-      plugins = None
-    else:
-      (
-          self.app_name,
-          self.agent,
-          self.context_cache_config,
-          self.resumability_config,
-          plugins,
-      ) = self._validate_runner_params(app, app_name, agent, plugins)
+    self.app_name = app_name or app.name
+    self.agent = app.root_agent
+    self.node = app.root_node
+    self.context_cache_config = app.context_cache_config
+    self.resumability_config = app.resumability_config
     self.artifact_service = artifact_service
     self.session_service = session_service
     self.memory_service = memory_service
     self.credential_service = credential_service
     self.plugin_manager = PluginManager(
-        plugins=plugins, close_timeout=plugin_close_timeout
+        plugins=app.plugins, close_timeout=plugin_close_timeout
     )
-    self.node = node
     self.auto_create_session = auto_create_session
-    (
-        self._agent_origin_app_name,
-        self._agent_origin_dir,
-    ) = self._infer_agent_origin(self.agent)
+    if self.agent is not None:
+      (
+          self._agent_origin_app_name,
+          self._agent_origin_dir,
+      ) = self._infer_agent_origin(self.agent)
+    else:
+      self._agent_origin_app_name = None
+      self._agent_origin_dir = None
     self._app_name_alignment_hint: Optional[str] = None
     self._enforce_app_name_alignment()
 
+  @staticmethod
+  def _resolve_app(
+      app: Optional[App],
+      app_name: Optional[str],
+      agent: Optional[BaseAgent],
+      node: Any,
+      plugins: Optional[List[BasePlugin]],
+  ) -> App:
+    """Validates inputs and normalizes to an App instance.
+
+    Exactly one of ``app``, ``agent``, or ``node`` must be provided.
+    When ``agent`` or ``node`` is given, it is wrapped in a new ``App``.
+
+    Returns:
+      The resolved ``App`` instance.
+
+    Raises:
+      ValueError: If the combination of arguments is invalid.
+    """
+    # Validate mutual exclusivity.
+    provided = sum(x is not None for x in (app, agent, node))
+    if provided > 1:
+      raise ValueError('Only one of app, agent, or node may be provided.')
+    if provided == 0:
+      raise ValueError('One of app, agent, or node must be provided.')
+
+    # Handle deprecated plugins argument.
+    if plugins is not None:
+      if app is not None:
+        raise ValueError(
+            'When app is provided, plugins should not be provided and should'
+            ' be provided in the app instead.'
+        )
+      warnings.warn(
+          'The `plugins` argument is deprecated. Please use the `app` argument'
+          ' to provide plugins instead.',
+          DeprecationWarning,
+      )
+
+    # Normalize to App — wrap bare agent or node.
+    if agent is not None:
+      if not app_name:
+        raise ValueError(
+            'app_name is required when agent is provided without app.'
+        )
+      return App(name=app_name, root_agent=agent, plugins=plugins or [])
+    if node is not None:
+      return App(
+          name=app_name or node.name,
+          root_node=node,
+          plugins=plugins or [],
+      )
+    return app
+
+  @staticmethod
   def _validate_runner_params(
-      self,
       app: Optional[App],
       app_name: Optional[str],
       agent: Optional[BaseAgent],
@@ -249,53 +293,15 @@ class Runner:
       Optional[ResumabilityConfig],
       Optional[List[BasePlugin]],
   ]:
-    """Validates and extracts runner parameters.
-
-    Args:
-        app: An optional `App` instance.
-        app_name: The application name of the runner. Can override app.name when
-          app is provided.
-        agent: The root agent to run.
-        plugins: A list of plugins for the runner.
-
-    Returns:
-        A tuple containing (app_name, agent, context_cache_config,
-        resumability_config, plugins).
-
-    Raises:
-        ValueError: If parameters are invalid.
-    """
-    if plugins is not None:
-      warnings.warn(
-          'The `plugins` argument is deprecated. Please use the `app` argument'
-          ' to provide plugins instead.',
-          DeprecationWarning,
-      )
-
-    if app:
-      if agent:
-        raise ValueError('When app is provided, agent should not be provided.')
-      if plugins:
-        raise ValueError(
-            'When app is provided, plugins should not be provided and should be'
-            ' provided in the app instead.'
-        )
-      # Allow app_name to override app.name (useful for deployment scenarios
-      # like Agent Engine where resource names differ from app identifiers)
-      app_name = app_name or app.name
-      agent = app.root_agent
-      plugins = app.plugins
-      context_cache_config = app.context_cache_config
-      resumability_config = app.resumability_config
-    elif not app_name or not agent:
-      raise ValueError(
-          'Either app or both app_name and agent must be provided.'
-      )
-    else:
-      context_cache_config = None
-      resumability_config = None
-
-    return app_name, agent, context_cache_config, resumability_config, plugins
+    """Deprecated: use _resolve_app instead."""
+    resolved = Runner._resolve_app(app, app_name, agent, None, plugins)
+    return (
+        app_name or resolved.name,
+        resolved.root_agent,
+        resolved.context_cache_config,
+        resolved.resumability_config,
+        plugins if app is None else resolved.plugins,
+    )
 
   def _infer_agent_origin(
       self, agent: BaseAgent

@@ -319,7 +319,9 @@ class AgentLoader(BaseAgentLoader):
 
     if isinstance(loaded, App):
       _attach_metadata(loaded)
-      _attach_metadata(loaded.root_agent)
+      root = loaded.root_agent or loaded.root_node
+      if root is not None:
+        _attach_metadata(root)
     else:
       _attach_metadata(loaded)
 
@@ -363,7 +365,7 @@ class AgentLoader(BaseAgentLoader):
       try:
         loaded = self.load_agent(agent_name)
         if isinstance(loaded, App):
-          agent = loaded.root_agent
+          agent = loaded.root_agent or loaded.root_node
         else:
           agent = loaded
 

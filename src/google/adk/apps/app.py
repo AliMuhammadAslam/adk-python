@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations
 
+from typing import Any
 from typing import Optional
 
 from pydantic import BaseModel
@@ -112,9 +113,11 @@ class App(BaseModel):
   """Represents an LLM-backed agentic application.
 
   An `App` is the top-level container for an agentic system powered by LLMs.
-  It manages a root agent (`root_agent`), which serves as the root of an agent
-  tree, enabling coordination and communication across all agents in the
-  hierarchy.
+  It manages either a root agent (`root_agent`) or a root node (`root_node`),
+  which serves as the entry point for execution.
+
+  Exactly one of `root_agent` or `root_node` must be provided.
+
   The `plugins` are application-wide components that provide shared capabilities
   and services to the entire system.
   """
@@ -127,8 +130,17 @@ class App(BaseModel):
   name: str
   """The name of the application."""
 
-  root_agent: BaseAgent
-  """The root agent in the application. One app can only have one root agent."""
+  root_agent: Optional[BaseAgent] = None
+  """The root agent in the application. Mutually exclusive with root_node."""
+
+  root_node: Any = None
+  """The root node (BaseNode) in the application.
+
+  Mutually exclusive with root_agent. Accepts any BaseNode subclass.
+
+  TODO: Change type from Any to BaseNode once Workflow no longer extends
+  BaseAgent (currently causes circular import).
+  """
 
   plugins: list[BasePlugin] = Field(default_factory=list)
   """The plugins in the application."""
@@ -146,6 +158,20 @@ class App(BaseModel):
   """
 
   @model_validator(mode="after")
-  def _validate_name(self) -> App:
+  def _validate(self) -> App:
     validate_app_name(self.name)
+    if self.root_agent is not None and self.root_node is not None:
+      raise ValueError(
+          "Only one of root_agent or root_node can be provided, not both."
+      )
+    if self.root_agent is None and self.root_node is None:
+      raise ValueError("Either root_agent or root_node must be provided.")
+    if self.root_node is not None:
+      from ..workflow._base_node import BaseNode
+
+      if not isinstance(self.root_node, BaseNode):
+        raise TypeError(
+            "root_node must be a BaseNode instance, got"
+            f" {type(self.root_node).__name__}"
+        )
     return self

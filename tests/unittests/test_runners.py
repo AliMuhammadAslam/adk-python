@@ -362,7 +362,7 @@ async def test_run_live_auto_create_session():
 @pytest.mark.asyncio
 async def test_runner_allows_nested_agent_directories(tmp_path, monkeypatch):
   project_root = tmp_path / "workspace"
-  agent_dir = project_root / "agents" / "examples" / "001_hello_world"
+  agent_dir = project_root / "agents" / "examples" / "hello_world"
   agent_dir.mkdir(parents=True)
   # Make package structure importable.
   for pkg_dir in [
@@ -402,13 +402,13 @@ async def test_runner_allows_nested_agent_directories(tmp_path, monkeypatch):
 
   monkeypatch.chdir(project_root)
   loader = AgentLoader(agents_dir="agents/examples")
-  loaded_agent = loader.load_agent("001_hello_world")
+  loaded_agent = loader.load_agent("hello_world")
 
   assert isinstance(loaded_agent, BaseAgent)
   session_service = InMemorySessionService()
   artifact_service = InMemoryArtifactService()
   runner = Runner(
-      app_name="001_hello_world",
+      app_name="hello_world",
       agent=loaded_agent,
       session_service=session_service,
       artifact_service=artifact_service,
@@ -416,7 +416,7 @@ async def test_runner_allows_nested_agent_directories(tmp_path, monkeypatch):
   assert runner._app_name_alignment_hint is None
 
   session = await session_service.create_session(
-      app_name="001_hello_world",
+      app_name="hello_world",
       user_id="user",
   )
   agen = runner.run_async(
@@ -777,7 +777,7 @@ class TestRunnerWithPlugins:
     """Test that ValueError is raised when app and agent are provided."""
     with pytest.raises(
         ValueError,
-        match="When app is provided, agent should not be provided.",
+        match="Only one of app, agent, or node may be provided.",
     ):
       Runner(
           app=App(name="test_app", root_agent=self.root_agent),
@@ -806,7 +806,10 @@ class TestRunnerWithPlugins:
     """Test ValueError is raised when app is not provided and app_name is missing."""
     with pytest.raises(
         ValueError,
-        match="Either app or both app_name and agent must be provided.",
+        match=(
+            "app_name is required when agent is provided|One of app, agent, or"
+            " node must be provided"
+        ),
     ):
       Runner(
           agent=self.root_agent,
@@ -818,7 +821,10 @@ class TestRunnerWithPlugins:
     """Test ValueError is raised when app is not provided and agent is missing."""
     with pytest.raises(
         ValueError,
-        match="Either app or both app_name and agent must be provided.",
+        match=(
+            "app_name is required when agent is provided|One of app, agent, or"
+            " node must be provided"
+        ),
     ):
       Runner(
           app_name="test_app",
@@ -1014,6 +1020,121 @@ class TestRunnerCacheConfig:
         "ContextCacheConfig(cache_intervals=30, ttl=14400s, min_tokens=4096)"
     )
     assert str(runner.context_cache_config) == expected_str
+
+
+class TestRunnerResolveApp:
+  """Tests for Runner._resolve_app and node support."""
+
+  def setup_method(self):
+    self.session_service = InMemorySessionService()
+    self.artifact_service = InMemoryArtifactService()
+    self.root_agent = MockLlmAgent("root_agent")
+
+  def test_resolve_app_with_agent_wraps_in_app(self):
+    """Test that a bare agent is wrapped into an App."""
+    runner = Runner(
+        app_name="test_app",
+        agent=self.root_agent,
+        session_service=self.session_service,
+        artifact_service=self.artifact_service,
+    )
+    assert runner.app is not None
+    assert runner.app.root_agent is self.root_agent
+    assert runner.app_name == "test_app"
+    assert runner.agent is self.root_agent
+    assert runner.node is None
+
+  def test_resolve_app_with_node_wraps_in_app(self):
+    """Test that a bare node is wrapped into an App."""
+    from google.adk.workflow._base_node import BaseNode
+
+    node = BaseNode(name="test_node")
+    runner = Runner(
+        node=node,
+        session_service=self.session_service,
+        artifact_service=self.artifact_service,
+    )
+    assert runner.app is not None
+    assert runner.app.root_node is node
+    assert runner.app_name == "test_node"
+    assert runner.agent is None
+    assert runner.node is node
+
+  def test_resolve_app_with_node_and_app_name(self):
+    """Test that app_name overrides node.name."""
+    from google.adk.workflow._base_node import BaseNode
+
+    node = BaseNode(name="node_name")
+    runner = Runner(
+        app_name="custom_name",
+        node=node,
+        session_service=self.session_service,
+        artifact_service=self.artifact_service,
+    )
+    assert runner.app_name == "custom_name"
+
+  def test_resolve_app_rejects_app_and_agent(self):
+    """Test that providing both app and agent raises."""
+    app = App(name="test_app", root_agent=self.root_agent)
+    with pytest.raises(ValueError, match="Only one of app, agent, or node"):
+      Runner(
+          app=app,
+          agent=self.root_agent,
+          session_service=self.session_service,
+      )
+
+  def test_resolve_app_rejects_app_and_node(self):
+    """Test that providing both app and node raises."""
+    from google.adk.workflow._base_node import BaseNode
+
+    app = App(name="test_app", root_agent=self.root_agent)
+    node = BaseNode(name="test_node")
+    with pytest.raises(ValueError, match="Only one of app, agent, or node"):
+      Runner(
+          app=app,
+          node=node,
+          session_service=self.session_service,
+      )
+
+  def test_resolve_app_rejects_agent_and_node(self):
+    """Test that providing both agent and node raises."""
+    from google.adk.workflow._base_node import BaseNode
+
+    node = BaseNode(name="test_node")
+    with pytest.raises(ValueError, match="Only one of app, agent, or node"):
+      Runner(
+          app_name="test_app",
+          agent=self.root_agent,
+          node=node,
+          session_service=self.session_service,
+      )
+
+  def test_resolve_app_rejects_none(self):
+    """Test that providing no app, agent, or node raises."""
+    with pytest.raises(
+        ValueError, match="One of app, agent, or node must be provided"
+    ):
+      Runner(
+          app_name="test_app",
+          session_service=self.session_service,
+      )
+
+  def test_resolve_app_extracts_node_from_app(self):
+    """Test that Runner extracts root_node from App."""
+    from google.adk.workflow._base_node import BaseNode
+
+    node = BaseNode(name="test_node")
+    app = App(name="test_app", root_node=node)
+    runner = Runner(
+        app=app,
+        session_service=self.session_service,
+        artifact_service=self.artifact_service,
+    )
+    assert runner.node is node
+    assert runner.agent is None
+    assert runner.app_name == "test_app"
+    assert runner.context_cache_config is None
+    assert runner.resumability_config is None
 
 
 class TestRunnerShouldAppendEvent:

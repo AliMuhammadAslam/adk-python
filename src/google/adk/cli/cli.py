@@ -51,6 +51,19 @@ class InputFile(BaseModel):
   queries: list[str]
 
 
+def _to_app(agent_or_app: Union[BaseAgent, App, Any], app_name: str) -> App:
+  """Wraps a BaseAgent or BaseNode in an App if not already one."""
+  if isinstance(agent_or_app, App):
+    return agent_or_app
+  from ..workflow._base_node import BaseNode
+
+  if isinstance(agent_or_app, BaseNode) and not isinstance(
+      agent_or_app, BaseAgent
+  ):
+    return App(name=app_name, root_node=agent_or_app)
+  return App(name=app_name, root_agent=agent_or_app)
+
+
 async def run_input_file(
     app_name: str,
     user_id: str,
@@ -61,32 +74,14 @@ async def run_input_file(
     input_path: str,
     memory_service: Optional[BaseMemoryService] = None,
 ) -> Session:
-  from ..workflow._base_node import BaseNode
-
-  if isinstance(agent_or_app, BaseNode) and not isinstance(
-      agent_or_app, BaseAgent
-  ):
-    runner = Runner(
-        app_name=app_name,
-        node=agent_or_app,
-        session_service=session_service,
-        artifact_service=artifact_service,
-        memory_service=memory_service,
-        credential_service=credential_service,
-    )
-  else:
-    app = (
-        agent_or_app
-        if isinstance(agent_or_app, App)
-        else App(name=app_name, root_agent=agent_or_app)
-    )
-    runner = Runner(
-        app=app,
-        artifact_service=artifact_service,
-        session_service=session_service,
-        memory_service=memory_service,
-        credential_service=credential_service,
-    )
+  app = _to_app(agent_or_app, app_name)
+  runner = Runner(
+      app=app,
+      artifact_service=artifact_service,
+      session_service=session_service,
+      memory_service=memory_service,
+      credential_service=credential_service,
+  )
   with open(input_path, 'r', encoding='utf-8') as f:
     input_file = InputFile.model_validate_json(f.read())
   input_file.state['_time'] = datetime.now().isoformat()
@@ -192,32 +187,14 @@ async def run_interactively(
     credential_service: BaseCredentialService,
     memory_service: Optional[BaseMemoryService] = None,
 ) -> None:
-  from ..workflow._base_node import BaseNode
-
-  if isinstance(root_agent_or_app, BaseNode) and not isinstance(
-      root_agent_or_app, BaseAgent
-  ):
-    runner = Runner(
-        app_name=session.app_name,
-        node=root_agent_or_app,
-        session_service=session_service,
-        artifact_service=artifact_service,
-        memory_service=memory_service,
-        credential_service=credential_service,
-    )
-  else:
-    app = (
-        root_agent_or_app
-        if isinstance(root_agent_or_app, App)
-        else App(name=session.app_name, root_agent=root_agent_or_app)
-    )
-    runner = Runner(
-        app=app,
-        artifact_service=artifact_service,
-        session_service=session_service,
-        memory_service=memory_service,
-        credential_service=credential_service,
-    )
+  app = _to_app(root_agent_or_app, session.app_name)
+  runner = Runner(
+      app=app,
+      artifact_service=artifact_service,
+      session_service=session_service,
+      memory_service=memory_service,
+      credential_service=credential_service,
+  )
 
   next_message = None
   resume_invocation_id = None

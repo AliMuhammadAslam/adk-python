@@ -91,6 +91,7 @@ from ..sessions.base_session_service import BaseSessionService
 from ..sessions.session import Session
 from ..utils.context_utils import Aclosing
 from ..version import __version__
+from ..workflow._node_status import NodeStatus
 from .cli_eval import EVAL_SESSION_ID_PREFIX
 from .utils import cleanup
 from .utils import common
@@ -99,7 +100,6 @@ from .utils import evals
 from .utils.base_agent_loader import BaseAgentLoader
 from .utils.graph_serialization import serialize_app_info
 from .utils.graph_visualization import plot_workflow_graph
-from ..workflow._node_status import NodeStatus
 from .utils.shared_value import SharedValue
 from .utils.state import create_empty_state
 
@@ -539,16 +539,23 @@ class AdkWebServer:
     # Instantiate extra plugins if configured
     extra_plugins_instances = self._instantiate_extra_plugins()
 
-    if isinstance(agent_or_app, BaseAgent):
+    if isinstance(agent_or_app, App):
+      # Combine existing plugins with extra plugins
+      agent_or_app.plugins = agent_or_app.plugins + extra_plugins_instances
+      agentic_app = agent_or_app
+    elif isinstance(agent_or_app, BaseAgent):
       agentic_app = App(
           name=app_name,
           root_agent=agent_or_app,
           plugins=extra_plugins_instances,
       )
     else:
-      # Combine existing plugins with extra plugins
-      agent_or_app.plugins = agent_or_app.plugins + extra_plugins_instances
-      agentic_app = agent_or_app
+      # BaseNode (non-agent)
+      agentic_app = App(
+          name=app_name,
+          root_node=agent_or_app,
+          plugins=extra_plugins_instances,
+      )
 
     runner = self._create_runner(agentic_app)
     self.runner_dict[app_name] = runner
@@ -1731,7 +1738,9 @@ class AdkWebServer:
           active_node = path_parts[-2]
 
       if active_node:
-        active_node_state["nodes"][active_node] = {"status": NodeStatus.RUNNING.value}
+        active_node_state["nodes"][active_node] = {
+            "status": NodeStatus.RUNNING.value
+        }
 
       root_agent_info = app_info.get("root_agent", {})
       is_workflow = bool(root_agent_info.get("graph"))

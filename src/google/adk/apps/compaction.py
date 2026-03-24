@@ -364,6 +364,8 @@ async def _run_compaction_for_token_threshold(
   If triggered, this compacts older raw events and keeps the last
   `event_retention_size` raw events un-compacted.
   """
+  if app.root_agent is None:
+    return None
   return await _run_compaction_for_token_threshold_config(
       config=app.events_compaction_config,
       session=session,
@@ -557,6 +559,8 @@ async def _run_compaction_for_sliding_window(
   if not events_to_compact:
     return None
 
+  if app.root_agent is None:
+    return None
   _ensure_compaction_summarizer(config=config, agent=app.root_agent)
   if config.summarizer is None:
     return None
