@@ -285,8 +285,18 @@ class Workflow(BaseNode):
         node_input: Any,
         *,
         node_name: str | None = None,
+        use_as_output: bool = False,
     ) -> NodeRunResult:
       # TODO: consider unify this across all orchestration nodes - LlmAgent, Workflow, etc.
+      if use_as_output:
+        if ctx._output_delegated:
+          raise ValueError(
+              f'Node {ctx.node_path} already has a use_as_output'
+              ' delegate. Only one use_as_output=True call is'
+              ' allowed per node execution.'
+          )
+        ctx._output_delegated = True
+
       name = node_name or f'{node.name}_{execution_id[:8]}'
       if name in loop_state.dynamic_pending_tasks:
         raise ValueError(f'Dynamic node {name} already exists.')
@@ -315,6 +325,7 @@ class Workflow(BaseNode):
         loop_state.interrupt_ids.update(result.interrupt_ids)
       else:
         node_state.status = NodeStatus.COMPLETED
+
       return result
 
     return _schedule

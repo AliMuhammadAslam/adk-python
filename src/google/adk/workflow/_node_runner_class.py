@@ -117,9 +117,18 @@ class NodeRunner:
     route = None
     interrupt_ids: list[str] = []
     async for event in self._node.run(ctx=ctx, node_input=node_input):
+      # Skip the parent's output event when output is delegated via
+      # use_as_output. The child already emitted this output. Check
+      # before _flush_deltas so pending deltas stay in ctx and are
+      # emitted by _emit_remaining_deltas.
+      if event.output is not None and ctx._output_delegated:
+        output = event.output
+        continue
+
       if not event.partial:
         self._flush_deltas(event, ctx)
       self._enrich_event(event, ctx)
+
       await ctx._invocation_context.enqueue_event(event)
 
       if event.output is not None:

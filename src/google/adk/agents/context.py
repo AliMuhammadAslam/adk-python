@@ -211,6 +211,7 @@ class Context(ReadonlyContext):
     self._local_events = local_events if local_events is not None else []
     self._transfer_targets = transfer_targets or []
     self._retry_count = retry_count
+    self._output_delegated = False
 
     # Use a session proxy when local_events are provided (workflow mode).
     if local_events is not None:
@@ -369,11 +370,25 @@ class Context(ReadonlyContext):
     from ..workflow.utils._workflow_graph_utils import build_node  # pylint: disable=g-import-not-at-top
 
     built_node = build_node(node)
+    execution_id = self.get_next_child_execution_id(built_node.name)
+
+    # Prefer the internal scheduler (new Workflow architecture) which
+    # returns NodeRunResult. Fall back to the legacy scheduler.
+    if self._schedule_dynamic_node_internal:
+      result = await self._schedule_dynamic_node_internal(
+          self,
+          built_node,
+          execution_id,
+          node_input,
+          node_name=name,
+          use_as_output=use_as_output,
+      )
+      return result.output
+
     if not self.schedule_dynamic_node:
       raise RuntimeError(
           f'Node {built_node.name} called outside of a workflow execution.'
       )
-    execution_id = self.get_next_child_execution_id(built_node.name)
     return await self.schedule_dynamic_node(
         self,
         built_node,

@@ -1179,3 +1179,198 @@ async def test_empty_workflow():
   events, _, _ = await _run_workflow(wf)
 
   assert _outputs(events) == []
+
+
+# ---------------------------------------------------------------------------
+# use_as_output=True (dynamic output delegation)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_function_to_function():
+  """Node A delegates output to dynamic child B via use_as_output=True.
+
+  B's output event appears; A's duplicate is suppressed.
+  """
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_b() -> str:
+    return 'from_b'
+
+  async def func_a(ctx: Context) -> str:
+    return await ctx.run_node(func_b, use_as_output=True)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  # func_b emits output; func_a's duplicate is suppressed.
+  assert ('func_b', 'from_b') in by_node
+  assert not any(name == 'func_a' for name, _ in by_node)
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_function_to_workflow():
+  """Node A delegates output to a nested Workflow via use_as_output=True.
+
+  The inner Workflow's terminal node output is used as A's output.
+  """
+  from google.adk.workflow._function_node import FunctionNode
+
+  def step_1() -> str:
+    return 'step_1_done'
+
+  def step_2(node_input: str) -> str:
+    return f'final:{node_input}'
+
+  inner_wf = Workflow(
+      name='inner_wf',
+      edges=[(START, step_1, step_2)],
+  )
+
+  async def func_a(ctx: Context):
+    return await ctx.run_node(inner_wf, use_as_output=True)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  # step_2 is the terminal; func_a's duplicate is suppressed.
+  assert ('step_2', 'final:step_1_done') in by_node
+  assert not any(name == 'func_a' for name, _ in by_node)
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_custom_node():
+  """Custom BaseNode delegates output via use_as_output."""
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_b() -> str:
+    return 'delegated_output'
+
+  class _Delegator(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      await ctx.run_node(func_b, use_as_output=True)
+      return
+      yield
+
+  wf = Workflow(name='wf', edges=[(START, _Delegator(name='delegator'))])
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  assert ('func_b', 'delegated_output') in by_node
+  assert not any(name == 'delegator' for name, _ in by_node)
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_nested_delegation():
+  """Chained delegation: A → B → C, all use_as_output=True.
+
+  Only C's output event should appear; A and B are suppressed.
+  """
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_c() -> str:
+    return 'from_c'
+
+  node_c = FunctionNode(func=func_c)
+
+  async def func_b(ctx: Context) -> str:
+    return await ctx.run_node(node_c, use_as_output=True)
+
+  node_b = FunctionNode(func=func_b, rerun_on_resume=True)
+
+  async def func_a(ctx: Context) -> str:
+    return await ctx.run_node(node_b, use_as_output=True)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  assert ('func_c', 'from_c') in by_node
+  assert not any(name in ('func_a', 'func_b') for name, _ in by_node)
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_with_downstream():
+  """Delegated output flows to downstream node via graph edge.
+
+  A delegates to B via use_as_output. downstream is after A and
+  receives B's output as node_input.
+  """
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_b() -> str:
+    return 'from_b'
+
+  async def func_a(ctx: Context) -> str:
+    return await ctx.run_node(func_b, use_as_output=True)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  downstream = _InputCapturingNode(name='downstream')
+
+  wf = Workflow(name='wf', edges=[(START, node_a, downstream)])
+  events, _, _ = await _run_workflow(wf)
+
+  assert downstream.received_inputs == ['from_b']
+
+
+@pytest.mark.asyncio
+async def test_use_as_output_duplicate_raises():
+  """Calling use_as_output=True twice in the same node raises ValueError."""
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_b() -> str:
+    return 'from_b'
+
+  def func_c() -> str:
+    return 'from_c'
+
+  async def func_a(ctx: Context):
+    await ctx.run_node(func_b, use_as_output=True)
+    await ctx.run_node(func_c, use_as_output=True)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+  events, _, _ = await _run_workflow(wf)
+
+  # The second use_as_output=True call causes func_a to fail.
+  # func_a never completes, so no output from func_a appears.
+  by_node = _output_by_node(events)
+  assert not any(name == 'func_a' for name, _ in by_node)
+
+
+@pytest.mark.asyncio
+async def test_without_use_as_output_parent_emits_duplicate():
+  """Without use_as_output, parent re-emits child's output (duplicate)."""
+  from google.adk.workflow._function_node import FunctionNode
+
+  def func_b() -> str:
+    return 'from_b'
+
+  node_b = FunctionNode(func=func_b)
+
+  async def func_a(ctx: Context) -> str:
+    return await ctx.run_node(node_b)
+
+  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
+
+  wf = Workflow(name='wf', edges=[(START, node_a)])
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  # Both func_b AND func_a emit output (duplicate).
+  assert ('func_b', 'from_b') in by_node
+  assert ('func_a', 'from_b') in by_node

@@ -37,5 +37,6 @@ class ScheduleDynamicNode(Protocol):
       node_input: Any,
       *,
       node_name: str | None = None,
+      use_as_output: bool = False,
   ) -> Awaitable[NodeRunResult]:
     ...
