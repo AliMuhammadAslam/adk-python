@@ -60,6 +60,7 @@ class SingleAgentReactNode(BaseNode):
       node_input: Any,
       *,
       node_name: str | None = None,
+      use_as_output: bool = False,
   ):
     """Schedule a child node via NodeRunner.
 
@@ -101,13 +102,16 @@ class SingleAgentReactNode(BaseNode):
       llm_node = LlmCallNode(agent=self.agent)
       llm_result = await ctx._run_node_internal(llm_node)
 
-      if not llm_result.output or not isinstance(
-          llm_result.output, LlmCallResult
-      ):
-        # LlmCallNode yields output only when the LLM returns function
-        # calls.  A pure text response has output=None — the text content
-        # event was already yielded (and enqueued) by LlmCallNode, so
-        # there is nothing more to do here.  We simply exit the loop.
+      if not isinstance(llm_result.output, LlmCallResult):
+        # LlmCallNode yields LlmCallResult only when the LLM returns
+        # function calls.  A pure text response sets output on the
+        # content event directly (already enqueued by the child
+        # NodeRunner).  Mark output as delegated so the parent
+        # NodeRunner suppresses this yield but still captures its
+        # value in NodeRunResult.output.
+        if llm_result.output is not None:
+          ctx._output_delegated = True
+          yield llm_result.output
         break
 
       # 2. Execute tools
@@ -128,7 +132,5 @@ class SingleAgentReactNode(BaseNode):
       ):
         break
 
-    # AsyncGenerator requires at least one yield.
-    # All meaningful events are yielded by child nodes via ctx.run_node.
     return
-    yield  # noqa: unreachable — makes this an async generator
+    yield  # noqa: unreachable — keeps this an async generator

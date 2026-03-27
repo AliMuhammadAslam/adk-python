@@ -55,8 +55,8 @@ def _make_agent(mock_model, tools=None, **kwargs):
 
 class TestLlmCallNode:
 
-  async def test_text_response_no_output(self):
-    """Text-only LLM response — no output event, text in content."""
+  async def test_text_response_yields_text_output(self):
+    """Text-only LLM response — yields final text as output."""
     mock_model = testing_utils.MockModel.create(responses=['Hello!'])
     agent = _make_agent(mock_model)
     ctx = await testing_utils.create_workflow_context(agent, user_content='Hi')
@@ -65,7 +65,9 @@ class TestLlmCallNode:
     events = await collect_events(node, ctx)
 
     assert 'Hello!' in text_parts(events)
-    assert output_events(events) == []
+    outputs = output_events(events)
+    assert len(outputs) == 1
+    assert outputs[0].output == 'Hello!'
 
   async def test_function_call_yields_output(self):
     """Function call response — yields LlmCallResult as output."""

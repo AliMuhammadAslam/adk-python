@@ -216,11 +216,27 @@ class LlmCallNode(BaseNode):
       )
       has_long_running = bool(finalized_event.long_running_tool_ids)
       finalized_event.long_running_tool_ids = None
-      if not has_long_running:
-        yield finalized_event
 
       # --- Route decision ---
       function_calls = finalized_event.get_function_calls()
+
+      # For text responses (no function calls), set output on the
+      # content event so parent orchestrators can capture it via
+      # NodeRunResult.output without a separate output event.
+      if (
+          not function_calls
+          and not finalized_event.partial
+          and finalized_event.content
+          and finalized_event.content.parts
+      ):
+        finalized_event.output = ''.join(
+            p.text
+            for p in finalized_event.content.parts
+            if p.text and not p.thought
+        )
+
+      if not has_long_running:
+        yield finalized_event
       if function_calls and not finalized_event.partial:
         yield LlmCallResult(
             function_calls=function_calls,
