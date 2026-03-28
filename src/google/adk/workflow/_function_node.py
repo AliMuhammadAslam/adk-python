@@ -21,6 +21,7 @@ import typing
 from typing import Any
 from typing import AsyncGenerator
 from typing import Callable
+from typing import Literal
 from typing import TYPE_CHECKING
 
 from google.genai import types
@@ -110,10 +111,21 @@ class FunctionNode(BaseNode):
   ``AuthHandler(auth_config).get_auth_response(ctx.state)``.
   """
 
+  parameter_binding: Literal['state', 'node_input'] = 'state'
+  """How function parameters are bound.
+
+  ``'state'`` (default) binds parameters from ``ctx.state``.
+  ``'node_input'`` binds parameters from ``node_input`` dict and infers
+  ``input_schema`` / ``output_schema`` from the function signature
+  (used when the node acts as an agent's tool).
+  """
+
   # Private attributes (won't be serialized)
   _func: Callable[..., Any] = PrivateAttr()
   _sig: inspect.Signature = PrivateAttr()
   _type_hints: dict[str, Any] = PrivateAttr()
+  _type_adapters: dict[str, TypeAdapter] = PrivateAttr()
+  _context_param_name: str | None = PrivateAttr(default=None)
 
   def __init__(
       self,
@@ -124,6 +136,7 @@ class FunctionNode(BaseNode):
       retry_config: RetryConfig | None = None,
       timeout: float | None = None,
       auth_config: AuthConfig | None = None,
+      parameter_binding: Literal['state', 'node_input'] = 'state',
   ):
     """Initializes FunctionNode.
 
@@ -143,6 +156,11 @@ class FunctionNode(BaseNode):
       auth_config: If provided, the framework requests user authentication
         before running the node. Requires rerun_on_resume=True (the node
         must rerun after credentials are provided).
+      parameter_binding: How function parameters are bound. ``'state'``
+        (default) binds parameters from ``ctx.state``. ``'node_input'``
+        binds parameters from ``node_input`` dict and infers
+        ``input_schema`` / ``output_schema`` from the function signature
+        (used when the node acts as an agent's tool).
     """
 
     if not callable(func):
@@ -168,6 +186,7 @@ class FunctionNode(BaseNode):
         retry_config=retry_config,
         timeout=timeout,
         auth_config=auth_config,
+        parameter_binding=parameter_binding,
     )
 
     sig = inspect.signature(func)
@@ -176,6 +195,39 @@ class FunctionNode(BaseNode):
     except Exception:
       type_hints = {}
 
+    # Detect the context parameter name (e.g. 'ctx', 'tool_context').
+    from ..utils.context_utils import find_context_parameter
+
+    self._context_param_name = find_context_parameter(func) or 'ctx'
+
+    # Set private attributes
+    self._func = func
+    self._sig = sig
+    self._type_hints = type_hints
+    self._type_adapters = {}
+    for name, hint in type_hints.items():
+      if name == 'return' or name == self._context_param_name:
+        continue
+      try:
+        self._type_adapters[name] = TypeAdapter(hint)
+      except Exception:
+        pass
+
+    # Infer schemas based on the parameter binding mode.
+    if parameter_binding == 'node_input':
+      self._infer_schemas_from_func_signature(func)
+    else:
+      self._infer_schemas_for_state_mode(type_hints)
+
+  def _infer_schemas_for_state_mode(
+      self, type_hints: dict[str, Any]
+  ) -> None:
+    """Infers schemas from type hints in state binding mode.
+
+    ``output_schema`` is inferred from the return type hint (unwrapping
+    generator types). ``input_schema`` is inferred from the ``node_input``
+    parameter type hint.
+    """
     # Infer output_schema from the return type hint.
     # For generators (Generator[T, ...] / AsyncGenerator[T, ...]),
     # extract the yield type T as the schema.
@@ -206,10 +258,80 @@ class FunctionNode(BaseNode):
     ):
       self.input_schema = input_hint
 
-    # Set private attributes
-    self._func = func
-    self._sig = sig
-    self._type_hints = type_hints
+  def _infer_schemas_from_func_signature(
+      self, func: Callable[..., Any]
+  ) -> None:
+    """Infers input/output schema from the function signature.
+
+    Used when ``parameter_binding='node_input'``. ``input_schema`` is
+    built from function parameters (excluding the context parameter),
+    ``output_schema`` from the return type hint.
+    """
+    from ..tools._function_tool_declarations import (
+        _build_parameters_json_schema,
+        _build_response_json_schema,
+    )
+
+    self.input_schema = _build_parameters_json_schema(
+        func, ignore_params=[self._context_param_name]
+    )
+    response_schema = _build_response_json_schema(func)
+    if response_schema is not None:
+      self.output_schema = response_schema
+
+  def _bind_parameters(
+      self, ctx: Context, node_input: Any
+  ) -> dict[str, Any]:
+    """Binds function parameters from the appropriate data source.
+
+    In ``'node_input'`` mode, non-context parameters are looked up in the
+    ``node_input`` dict.  In ``'state'`` mode, the ``node_input`` parameter
+    is passed through directly and all other non-context parameters are
+    looked up in ``ctx.state``.
+    """
+    input_bound = self.parameter_binding == 'node_input'
+    if input_bound:
+      source = node_input if isinstance(node_input, dict) else {}
+    else:
+      source = ctx.state
+    source_name = 'node_input' if input_bound else 'state'
+
+    kwargs: dict[str, Any] = {}
+    for param_name, param in self._sig.parameters.items():
+      if param_name == self._context_param_name:
+        kwargs[param_name] = ctx
+        continue
+
+      # In state mode, 'node_input' param is passed through directly.
+      if not input_bound and param_name == 'node_input':
+        value = node_input
+        if param_name in self._type_hints:
+          value = self._coerce_param(
+              param_name,
+              node_input,
+              self._type_hints[param_name],
+          )
+        kwargs[param_name] = value
+        continue
+
+      if param_name in source:
+        value = source[param_name]
+        if param_name in self._type_hints:
+          value = self._coerce_param(
+              param_name,
+              value,
+              self._type_hints[param_name],
+          )
+        kwargs[param_name] = value
+      elif param.default is not inspect.Parameter.empty:
+        kwargs[param_name] = param.default
+      else:
+        raise ValueError(
+            f'Missing value for parameter "{param_name}" of function'
+            f' "{self.name}". It was not found in {source_name} and has no'
+            ' default value.'
+        )
+    return kwargs
 
   def _to_event(self, ctx: Context, data: Any) -> Event | None:
     """Converts a function return value to an Event.
@@ -280,7 +402,10 @@ class FunctionNode(BaseNode):
     # Content → str auto-conversion (e.g. user content from START node).
     if isinstance(value, types.Content) and _expects_str(annotated_type):
       return _content_to_str(value, self.name, param_name)
-    return TypeAdapter(annotated_type).validate_python(value)
+    adapter = self._type_adapters.get(param_name)
+    if adapter is None:
+      adapter = TypeAdapter(annotated_type)
+    return adapter.validate_python(value)
 
   @override
   def model_copy(
@@ -314,6 +439,8 @@ class FunctionNode(BaseNode):
 
     copied._sig = self._sig
     copied._type_hints = self._type_hints
+    copied._type_adapters = self._type_adapters
+    copied._context_param_name = self._context_param_name
     return copied
 
   @override
@@ -333,39 +460,7 @@ class FunctionNode(BaseNode):
         yield create_auth_request_event(self.auth_config, interrupt_id)
         return
 
-    kwargs: dict[str, Any] = {}
-    for param_name, param in self._sig.parameters.items():
-      if param_name == 'ctx':
-        kwargs['ctx'] = ctx
-        continue
-      elif param_name == 'node_input':
-        if param_name in self._type_hints:
-          node_input = self._coerce_param(
-              param_name,
-              node_input,
-              self._type_hints[param_name],
-          )
-        kwargs[param_name] = node_input
-        continue
-
-      # Parameters other than ctx and node_input are sourced from state.
-      if param_name in ctx.state:
-        value = ctx.state[param_name]
-        if param_name in self._type_hints:
-          value = self._coerce_param(
-              param_name,
-              value,
-              self._type_hints[param_name],
-          )
-        kwargs[param_name] = value
-      elif param.default is not inspect.Parameter.empty:
-        kwargs[param_name] = param.default
-      else:
-        raise ValueError(
-            f'Missing value for parameter "{param_name}" of function'
-            f' "{self.name}". It was not found in state and has no default'
-            ' value.'
-        )
+    kwargs = self._bind_parameters(ctx, node_input)
 
     if inspect.isasyncgenfunction(self._func):
       items = self._func(**kwargs)

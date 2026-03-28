@@ -1616,3 +1616,182 @@ class TestAuthConfig:
         rerun_on_resume=True,
     )
     assert node.rerun_on_resume is True
+
+
+# ---------------------------------------------------------------------------
+# parameter_binding='node_input' tests
+# ---------------------------------------------------------------------------
+
+
+class TestParameterBindingNodeInput:
+  """Tests for FunctionNode with parameter_binding='node_input'."""
+
+  def test_schemas_inferred_from_signature(self):
+    """input_schema and output_schema are inferred from func signature."""
+
+    def add(x: int, y: int) -> int:
+      """Add two numbers."""
+      return x + y
+
+    node = FunctionNode(add, name='add', parameter_binding='node_input')
+
+    assert node.parameter_binding == 'node_input'
+    assert node.input_schema is not None
+    assert 'properties' in node.input_schema
+    assert 'x' in node.input_schema['properties']
+    assert 'y' in node.input_schema['properties']
+    assert node.output_schema == {'type': 'integer'}
+
+  def test_ctx_param_excluded_from_schema(self):
+    """Context parameter is excluded from input_schema."""
+
+    def greet(name: str, ctx: Context) -> str:
+      return f'Hello, {name}!'
+
+    node = FunctionNode(greet, name='greet', parameter_binding='node_input')
+
+    assert node.input_schema is not None
+    assert 'name' in node.input_schema['properties']
+    assert 'ctx' not in node.input_schema.get('properties', {})
+
+  @pytest.mark.asyncio
+  @pytest.mark.parametrize(
+      'producer_output, add_func, expected_output',
+      [
+          pytest.param(
+              {'x': 3, 'y': 4},
+              staticmethod(lambda x, y: x + y),
+              7,
+              id='all_params_provided',
+          ),
+          pytest.param(
+              {'x': 5},
+              None,  # uses default func defined below
+              15,
+              id='missing_param_uses_default',
+          ),
+      ],
+  )
+  async def test_bind_from_node_input(
+      self,
+      request: pytest.FixtureRequest,
+      producer_output: dict,
+      add_func,
+      expected_output: int,
+  ):
+    """Parameters are bound from node_input dict."""
+
+    if add_func is None:
+
+      def add_func(x: int, y: int = 10):
+        return x + y
+
+    def produce():
+      return producer_output
+
+    node = FunctionNode(
+        add_func, name='add', parameter_binding='node_input'
+    )
+
+    agent = Workflow(
+        name='test_bind_from_node_input',
+        edges=[
+            (START, produce),
+            (produce, node),
+        ],
+    )
+    ctx = await create_parent_invocation_context(
+        request.function.__name__, agent
+    )
+    events = [e async for e in agent.run_async(ctx)]
+    assert simplify_events_with_node(events) == [
+        (
+            'test_bind_from_node_input',
+            {'node_name': 'produce', 'output': producer_output},
+        ),
+        (
+            'test_bind_from_node_input',
+            {'node_name': 'add', 'output': expected_output},
+        ),
+    ]
+
+  @pytest.mark.asyncio
+  async def test_bind_from_node_input_missing_required(
+      self, request: pytest.FixtureRequest
+  ):
+    """Missing required param in node_input mode raises ValueError."""
+
+    def produce():
+      return {'x': 5}
+
+    def add(x: int, y: int):
+      return x + y
+
+    node = FunctionNode(add, name='add', parameter_binding='node_input')
+
+    agent = Workflow(
+        name='test_bind_node_input_missing',
+        edges=[
+            (START, produce),
+            (produce, node),
+        ],
+    )
+    ctx = await create_parent_invocation_context(
+        request.function.__name__, agent
+    )
+    with pytest.raises(ValueError, match='Missing value for parameter "y"'):
+      [e async for e in agent.run_async(ctx)]
+
+  @pytest.mark.asyncio
+  async def test_bind_from_node_input_with_ctx(
+      self, request: pytest.FixtureRequest
+  ):
+    """Context parameter is injected alongside node_input params."""
+    received_ctx = []
+
+    def produce():
+      return {'name': 'Alice'}
+
+    def greet(name: str, ctx: Context):
+      received_ctx.append(ctx)
+      return f'Hello, {name}!'
+
+    node = FunctionNode(greet, name='greet', parameter_binding='node_input')
+
+    agent = Workflow(
+        name='test_bind_node_input_ctx',
+        edges=[
+            (START, produce),
+            (produce, node),
+        ],
+    )
+    ctx = await create_parent_invocation_context(
+        request.function.__name__, agent
+    )
+    events = [e async for e in agent.run_async(ctx)]
+
+    assert len(received_ctx) == 1
+    assert isinstance(received_ctx[0], Context)
+    assert simplify_events_with_node(events) == [
+        (
+            'test_bind_node_input_ctx',
+            {'node_name': 'produce', 'output': {'name': 'Alice'}},
+        ),
+        (
+            'test_bind_node_input_ctx',
+            {'node_name': 'greet', 'output': 'Hello, Alice!'},
+        ),
+    ]
+
+  def test_model_copy_preserves_parameter_binding(self):
+    """model_copy preserves parameter_binding and input_schema."""
+
+    def add(x: int, y: int) -> int:
+      return x + y
+
+    node = FunctionNode(add, name='add', parameter_binding='node_input')
+    copied = node.model_copy(update={'name': 'add_copy'})
+
+    assert copied.parameter_binding == 'node_input'
+    assert copied.input_schema is not None
+    assert 'x' in copied.input_schema['properties']
