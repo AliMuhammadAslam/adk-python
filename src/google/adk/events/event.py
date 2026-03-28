@@ -119,15 +119,6 @@ class Event(LlmResponse):
   conversation history.
   """
 
-  _adk_internal: bool = PrivateAttr(default=False)
-  """When True, NodeRunner skips enqueueing this event to the session.
-
-  The event still flows through NodeRunner for capturing output,
-  route, and interrupt_ids in NodeRunResult, but is not persisted
-  or yielded to the caller. Used by workflow _finalize to avoid
-  duplicating child interrupt events at the workflow level.
-  """
-
   # The following are computed fields.
   # Do not assign the ID. It will be assigned by the session.
   id: str = ''

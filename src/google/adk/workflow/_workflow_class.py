@@ -46,7 +46,6 @@ from .utils._node_path_utils import is_direct_child
 if TYPE_CHECKING:
   from ..agents.context import Context
   from ..agents.context import ScheduleDynamicNode
-  from ._node_run_result import NodeRunResult
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -194,8 +193,9 @@ class Workflow(BaseNode):
     # NodeRunner skips creating a duplicate output event.
     if self._has_terminal_output(loop_state):
       ctx._output_delegated = True
-    async for item in self._finalize(loop_state):
-      yield item
+    self._finalize(loop_state, ctx)
+    return
+    yield  # required to keep _run_impl as async generator
 
   # --- LOOP ---
 
@@ -215,8 +215,8 @@ class Workflow(BaseNode):
       for task in done:
         name = self._pop_completed_task(loop_state, task)
         node = self._get_static_node_by_name(name)
-        result: NodeRunResult = task.result()
-        self._handle_completion(loop_state, name, node, result)
+        child_ctx: Context = task.result()
+        self._handle_completion(loop_state, name, node, child_ctx)
 
     # Await fire-and-forget dynamic tasks.
     # TODO: Handle dynamic task failures and interrupts here.
@@ -327,8 +327,7 @@ class Workflow(BaseNode):
         *,
         node_name: str | None = None,
         use_as_output: bool = False,
-    ) -> NodeRunResult:
-      # TODO: consider unify this across all orchestration nodes - LlmAgent, Workflow, etc.
+    ) -> Context:
       if use_as_output:
         if ctx._output_delegated:
           raise ValueError(
@@ -362,15 +361,15 @@ class Workflow(BaseNode):
 
       loop_state.dynamic_pending_tasks[name] = task
 
-      result = await task
-      if result.interrupt_ids:
+      child_ctx = await task
+      if child_ctx.interrupt_ids:
         node_state.status = NodeStatus.WAITING
-        node_state.interrupts = list(result.interrupt_ids)
-        loop_state.interrupt_ids.update(result.interrupt_ids)
+        node_state.interrupts = list(child_ctx.interrupt_ids)
+        loop_state.interrupt_ids.update(child_ctx.interrupt_ids)
       else:
         node_state.status = NodeStatus.COMPLETED
 
-      return result
+      return child_ctx
 
     return _schedule
 
@@ -381,28 +380,28 @@ class Workflow(BaseNode):
       loop_state: _LoopState,
       node_name: str,
       node: BaseNode,
-      result: NodeRunResult,
+      child_ctx: Context,
   ) -> None:
     """Update state and trigger downstream after node completes."""
     node_state = loop_state.nodes[node_name]
 
-    if result.interrupt_ids:
+    if child_ctx.interrupt_ids:
       node_state.status = NodeStatus.WAITING
-      node_state.interrupts = list(result.interrupt_ids)
-      loop_state.interrupt_ids.update(result.interrupt_ids)
+      node_state.interrupts = list(child_ctx.interrupt_ids)
+      loop_state.interrupt_ids.update(child_ctx.interrupt_ids)
       return
 
-    if node.wait_for_output and result.output is None:
+    if node.wait_for_output and child_ctx.output is None:
       node_state.status = NodeStatus.WAITING
       return
 
     node_state.status = NodeStatus.COMPLETED
-    if result.output is not None:
-      loop_state.node_outputs[node_name] = result.output
+    if child_ctx.output is not None:
+      loop_state.node_outputs[node_name] = child_ctx.output
 
     # Buffer downstream triggers.
     self._buffer_downstream_triggers(
-        loop_state, node_name, result.output, result.route
+        loop_state, node_name, child_ctx.output, child_ctx.route
     )
 
   def _buffer_downstream_triggers(
@@ -602,34 +601,27 @@ class Workflow(BaseNode):
 
   # --- FINALIZE ---
 
-  async def _finalize(
-      self, loop_state: _LoopState
-  ) -> AsyncGenerator[Any, None]:
-    """Yield interrupt event (internal, not persisted) or terminal output.
+  def _finalize(self, loop_state: _LoopState, ctx: Context) -> None:
+    """Set interrupt_ids or terminal output on ctx.
 
-    The interrupt event is marked _adk_internal so NodeRunner skips
-    persisting it. Child interrupt events are already in the session.
-    This event only propagates interrupt_ids via NodeRunResult.
+    If any child interrupted, propagate their interrupt IDs to ctx
+    so the parent orchestrator sees them. Otherwise, set the terminal
+    node's output on ctx so the parent can read it.
     """
-    from ..events.event import Event
-
     if loop_state.interrupt_ids:
-      event = Event(long_running_tool_ids=loop_state.interrupt_ids)
-      event._adk_internal = True
-      yield event
+      ctx._interrupt_ids = set(loop_state.interrupt_ids)
       return
 
-    # Yield terminal output so NodeRunResult.output is set.
-    # Needed for nested workflows — parent sees child's output
-    # via NodeRunResult. Terminal nodes = no outgoing edges.
-    # TODO: Replace structural terminal detection Event.output_for.
+    # Set terminal output on ctx so parent reads ctx.output.
+    # Terminal nodes = no outgoing edges.
+    # TODO: Replace structural terminal detection with Event.output_for.
     terminal_outputs = [
         loop_state.node_outputs[name]
         for name in self._graph._terminal_node_names
         if name in loop_state.node_outputs
     ]
     if len(terminal_outputs) == 1:
-      yield terminal_outputs[0]
+      ctx.output = terminal_outputs[0]
     elif terminal_outputs:
       raise ValueError(
           f'Workflow {self.name}: multiple terminal nodes produced'

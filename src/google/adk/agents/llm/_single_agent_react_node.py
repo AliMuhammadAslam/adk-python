@@ -100,30 +100,30 @@ class SingleAgentReactNode(BaseNode):
     while True:
       # 1. Call LLM
       llm_node = LlmCallNode(agent=self.agent)
-      llm_result = await ctx._run_node_internal(llm_node)
+      llm_ctx = await ctx._run_node_internal(llm_node)
 
-      if not isinstance(llm_result.output, LlmCallResult):
+      if not isinstance(llm_ctx.output, LlmCallResult):
         # LlmCallNode yields LlmCallResult only when the LLM returns
         # function calls.  A pure text response sets output on the
         # content event directly (already enqueued by the child
         # NodeRunner).  Mark output as delegated so the parent
         # NodeRunner suppresses this yield but still captures its
-        # value in NodeRunResult.output.
-        if llm_result.output is not None:
+        # value in ctx.output.
+        if llm_ctx.output is not None:
           ctx._output_delegated = True
-          yield llm_result.output
+          yield llm_ctx.output
         break
 
       # 2. Execute tools
       tool_node = ParallelToolCallNode(
-          tools_dict=llm_result.output.tools_dict,
+          tools_dict=llm_ctx.output.tools_dict,
       )
-      tool_run_result = await ctx._run_node_internal(
-          tool_node, node_input=llm_result.output.function_calls
+      tool_ctx = await ctx._run_node_internal(
+          tool_node, node_input=llm_ctx.output.function_calls
       )
 
       # 3. Check termination conditions
-      tool_result = tool_run_result.output
+      tool_result = tool_ctx.output
       if isinstance(tool_result, ParallelToolCallResult) and (
           tool_result.transfer_to_agent
           or tool_result.request_task

@@ -42,7 +42,7 @@ if TYPE_CHECKING:
   from ..tools.tool_confirmation import ToolConfirmation
   from ..workflow._base_node import BaseNode
   from ..workflow._definitions import NodeLike
-  from ..workflow._node_run_result import NodeRunResult
+  from ..workflow._definitions import RouteValue
   from ..workflow._schedule_dynamic_node import ScheduleDynamicNode as ScheduleDynamicNodeInternal
   from .invocation_context import InvocationContext
 
@@ -214,6 +214,10 @@ class Context(ReadonlyContext):
     self._transfer_targets = transfer_targets or []
     self._retry_count = retry_count
     self._output_delegated = False
+    self._output_value: Any = None
+    self._output_emitted: bool = False
+    self._route_value: RouteValue | list[RouteValue] | None = None
+    self._interrupt_ids: set[str] = set()
     self._output_for_ancestors: list[str] = output_for_ancestors or []
     """Ancestor node paths whose output this node's output also represents.
 
@@ -306,6 +310,53 @@ class Context(ReadonlyContext):
     return self._resume_inputs
 
   @property
+  def output(self) -> Any:
+    """The node's result value. Source of truth for node output.
+
+    Set once per execution. Also set by the framework when the node
+    yields Event(output=X) or yields a raw value. If the value was
+    set via yield, the output Event is already enqueued. If set
+    directly, the framework emits the output Event after _run_impl
+    returns.
+
+    Raises ValueError if:
+    - Set a second time (at most one output per execution).
+    - Set when interrupt_ids is non-empty (output and interrupt
+      are mutually exclusive).
+    """
+    return self._output_value
+
+  @output.setter
+  def output(self, value: Any) -> None:
+    if self._output_value is not None:
+      raise ValueError(
+          'Output already set. A node can produce at most one output.'
+      )
+    self._output_value = value
+
+  @property
+  def route(self) -> RouteValue | list[RouteValue] | None:
+    """Routing value for conditional edges.
+
+    Read by the orchestrator to decide which downstream edge to
+    follow. Can be set independently of output.
+    """
+    return self._route_value
+
+  @route.setter
+  def route(self, value: RouteValue | list[RouteValue]) -> None:
+    self._route_value = value
+
+  @property
+  def interrupt_ids(self) -> set[str]:
+    """Interrupt IDs accumulated during this execution. Read-only.
+
+    Set by the framework when the node yields an Event with
+    long_running_tool_ids.
+    """
+    return set(self._interrupt_ids)
+
+  @property
   def transfer_targets(self) -> list[Any]:
     """Returns the list of valid transfer targets for the current node."""
     return self._transfer_targets
@@ -396,9 +447,9 @@ class Context(ReadonlyContext):
     )
 
     # Prefer the internal scheduler (new Workflow architecture) which
-    # returns NodeRunResult. Fall back to the legacy scheduler.
+    # returns child Context. Fall back to the legacy scheduler.
     if self._schedule_dynamic_node_internal:
-      result = await self._schedule_dynamic_node_internal(
+      child_ctx = await self._schedule_dynamic_node_internal(
           self,
           built_node,
           execution_id,
@@ -406,7 +457,7 @@ class Context(ReadonlyContext):
           node_name=name,
           use_as_output=use_as_output,
       )
-      return result.output
+      return child_ctx.output
 
     if self.schedule_dynamic_node:
       return await self.schedule_dynamic_node(
@@ -428,11 +479,12 @@ class Context(ReadonlyContext):
 
   async def _run_node_internal(
       self, node: NodeLike, node_input: Any = None, *, name: str | None = None
-  ) -> NodeRunResult:
-    """Internal: run a node and return the full NodeRunResult.
+  ) -> Context:
+    """Internal: run a node and return its child Context.
 
     Unlike run_node() which returns just the output, this returns the
-    full NodeRunResult for orchestrators that need route/interrupt info.
+    child Context for orchestrators that need output, route, and
+    interrupt info.
     """
     from ..workflow.utils._workflow_graph_utils import build_node
 

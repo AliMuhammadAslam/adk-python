@@ -23,11 +23,10 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
   from ..agents.context import Context
-  from ._node_run_result import NodeRunResult
 
 
 class ScheduleDynamicNode(Protocol):
-  """Schedules a dynamic node and returns NodeRunResult."""
+  """Schedules a dynamic node and returns its child Context."""
 
   def __call__(
       self,
@@ -38,5 +37,5 @@ class ScheduleDynamicNode(Protocol):
       *,
       node_name: str | None = None,
       use_as_output: bool = False,
-  ) -> Awaitable[NodeRunResult]:
+  ) -> Awaitable[Context]:
     ...

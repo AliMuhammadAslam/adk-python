@@ -12,10 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for NodeRunner class.
+"""Tests for NodeRunner ↔ node integration.
 
-Verifies that NodeRunner correctly drives a node, captures its output,
-detects interrupts, and delivers events to the session.
+Verifies that NodeRunner correctly drives BaseNode.run(), enriches
+events, flushes state/artifact deltas, and delivers events to the
+session.
 """
 
 from typing import Any
@@ -183,7 +184,7 @@ async def test_node_output_returned_in_result():
   ctx, _ = _make_ctx()
   result = await NodeRunner(node=node, parent_ctx=ctx).run(node_input='hello')
   assert result.output == 'hello'
-  assert result.interrupt_ids == []
+  assert result.interrupt_ids == set()
 
 
 @pytest.mark.asyncio
@@ -193,7 +194,7 @@ async def test_no_output_returns_none():
   ctx, _ = _make_ctx()
   result = await NodeRunner(node=node, parent_ctx=ctx).run()
   assert result.output is None
-  assert result.interrupt_ids == []
+  assert result.interrupt_ids == set()
 
 
 @pytest.mark.asyncio

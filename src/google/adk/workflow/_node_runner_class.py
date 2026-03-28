@@ -15,10 +15,10 @@
 """NodeRunner — per-node executor class.
 
 Converts BaseNode.run() (async generator) into an awaitable that returns
-NodeRunResult. Used internally by orchestrators (WorkflowNode, MeshNode,
-LlmAgent) that need output, route, and interrupt info.
+the child Context with output, route, and interrupt_ids set. Used
+internally by orchestrators (Workflow, SingleLlmAgentReactNode, etc.).
 
-User-facing ctx.run_node() wraps this and returns just the output.
+User-facing ctx.run_node() wraps this and returns just ctx.output.
 """
 
 from __future__ import annotations
@@ -28,18 +28,16 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
   from ..agents.context import Context
-  from ..agents.context import ScheduleDynamicNode
-  from ..agents.invocation_context import InvocationContext
   from ..events.event import Event
   from ._base_node import BaseNode
-  from ._node_run_result import NodeRunResult
 
 
 class NodeRunner:
-  """Per-node executor. Drives BaseNode.run(), enriches events, returns result.
+  """Per-node executor. Drives BaseNode.run(), enriches events.
 
   Creates child Context, iterates node.run(), enqueues events to
-  ic.event_queue, detects interrupts, and returns NodeRunResult.
+  ic.event_queue, writes output/route/interrupt_ids to ctx, and
+  returns the child Context.
   """
 
   def __init__(
@@ -48,18 +46,49 @@ class NodeRunner:
       node: BaseNode,
       parent_ctx: Context,
       execution_id: str | None = None,
+      # Graph context
       triggered_by: str = '',
       in_nodes: set[str] | None = None,
+      # Output delegation (use_as_output)
       additional_output_for_ancestor: str | None = None,
+      # Resume state from a previous execution
+      prior_output: Any = None,
+      prior_interrupt_ids: set[str] | None = None,
   ) -> None:
+    """Initialize a NodeRunner.
+
+    Args:
+      node: The BaseNode to execute.
+      parent_ctx: The parent node's Context.
+      execution_id: Unique ID for this execution. Auto-generated
+        (UUID) if not provided.
+      triggered_by: Name of the node that triggered this execution.
+      in_nodes: Names of predecessor nodes in the graph.
+      additional_output_for_ancestor: Ancestor node path whose
+        output this node's output also represents (use_as_output).
+      prior_output: Output from a previous execution, carried
+        forward on resume when the node had both output and
+        interrupts.
+      prior_interrupt_ids: Unresolved interrupt IDs (set) from a
+        previous execution, carried forward on resume.
+    """
     from ..platform import uuid as platform_uuid
 
+    # Core
     self._node = node
     self._parent_ctx = parent_ctx
     self._execution_id = execution_id or platform_uuid.new_uuid()
+
+    # Graph context
     self._triggered_by = triggered_by
     self._in_nodes = in_nodes
+
+    # Output delegation
     self._additional_output_for_ancestor = additional_output_for_ancestor
+
+    # Resume state
+    self._prior_output = prior_output
+    self._prior_interrupt_ids = prior_interrupt_ids
 
   @property
   def execution_id(self) -> str:
@@ -71,20 +100,18 @@ class NodeRunner:
       node_input: Any = None,
       *,
       resume_inputs: dict[str, Any] | None = None,
-  ) -> NodeRunResult:
-    """Drive node.run(), enqueue events, return structured result."""
-    from ._node_run_result import NodeRunResult
+  ) -> Context:
+    """Drive node.run(), enqueue events, return child Context.
 
+    The caller reads ctx.output, ctx.route, and ctx.interrupt_ids
+    for the node's results.
+    """
     ctx = self._create_child_context(resume_inputs)
 
-    output, route, interrupt_ids = await self._execute_node(ctx, node_input)
-    await self._emit_remaining_deltas(ctx)
+    await self._execute_node(ctx, node_input)
+    await self._flush_output_and_deltas(ctx)
 
-    return NodeRunResult(
-        output=output,
-        route=route,
-        interrupt_ids=interrupt_ids,
-    )
+    return ctx
 
   def _build_node_path(self) -> str:
     """Construct this node's path from parent context."""
@@ -96,7 +123,12 @@ class NodeRunner:
       self,
       resume_inputs: dict[str, Any] | None,
   ) -> Context:
-    """Create a child Context for the node, inheriting from parent."""
+    """Create a child Context for the node, inheriting from parent.
+
+    If prior_output or prior_interrupt_ids were provided at
+    construction (resume scenario), pre-populates ctx with state
+    from the previous execution.
+    """
     from ..agents.context import Context
 
     if self._additional_output_for_ancestor:
@@ -106,93 +138,120 @@ class NodeRunner:
     else:
       ancestors = []
 
-    return Context(
+    ctx = Context(
         self._parent_ctx._invocation_context,
         node_path=self._build_node_path(),
         execution_id=self._execution_id,
         resume_inputs=resume_inputs,
-        schedule_dynamic_node_internal=self._parent_ctx._schedule_dynamic_node_internal,
+        schedule_dynamic_node_internal=(
+            self._parent_ctx._schedule_dynamic_node_internal
+        ),
         triggered_by=self._triggered_by,
         in_nodes=self._in_nodes,
         output_for_ancestors=ancestors,
     )
 
+    # Carry forward state from a previous run (resume scenario).
+    if self._prior_output is not None:
+      ctx._output_value = self._prior_output
+      ctx._output_emitted = True
+    if self._prior_interrupt_ids:
+      ctx._interrupt_ids.update(self._prior_interrupt_ids)
+
+    return ctx
+
   async def _execute_node(
       self,
       ctx: Context,
       node_input: Any,
-  ) -> tuple[Any, Any, list[str]]:
-    """Iterate node.run(), enqueue events, capture output/route/interrupts."""
-    output = None
-    route = None
-    interrupt_ids: list[str] = []
+  ) -> None:
+    """Iterate node.run(), enqueue events, write results to ctx."""
     async for event in self._node.run(ctx=ctx, node_input=node_input):
-      # Skip the parent's output event when output is delegated via
-      # use_as_output. The child already emitted this output. Check
-      # before _flush_deltas so pending deltas stay in ctx and are
-      # emitted by _emit_remaining_deltas.
-      if event.output is not None and ctx._output_delegated:
-        output = event.output
-        continue
+      self._track_event_in_context(event, ctx)
+      await self._enqueue_event(event, ctx)
 
-      self._enrich_event(event, ctx)
-      if not event._adk_internal:
-        if not event.partial:
-          self._flush_deltas(event, ctx)
-        await ctx._invocation_context.enqueue_event(event)
+  def _track_event_in_context(self, event: Event, ctx: Context) -> None:
+    """Write yielded event results to ctx (source of truth)."""
+    if event.output is not None:
+      ctx.output = event.output
+    if event.long_running_tool_ids is not None:
+      ctx._interrupt_ids.update(event.long_running_tool_ids)
+    if event.actions and event.actions.route is not None:
+      ctx.route = event.actions.route
 
-      if event.output is not None:
-        if output is not None:
-          raise ValueError(
-              f'Node {self._node.name} (node_path='
-              f'{ctx.node_path}): a node can yield at most one output.'
-          )
-        output = event.output
-      if event.actions and event.actions.route is not None:
-        route = event.actions.route
-      if event.long_running_tool_ids is not None:
-        interrupt_ids.extend(event.long_running_tool_ids)
+  async def _enqueue_event(self, event: Event, ctx: Context) -> None:
+    """Enrich and enqueue event to the session.
 
-    return output, route, interrupt_ids
+    Skips enqueueing if output is delegated via use_as_output —
+    the child already emitted it. Pending deltas stay in ctx for
+    _flush_output_and_deltas.
+    """
+    if event.output is not None and ctx._output_delegated:
+      return
 
-  async def _emit_remaining_deltas(self, ctx: Context) -> None:
-    """Emit any deltas that weren't flushed onto a yielded event."""
+    self._enrich_event(event, ctx)
+    if not event.partial:
+      self._flush_deltas(event, ctx)
+    await ctx._invocation_context.enqueue_event(event)
+
+    if event.output is not None:
+      ctx._output_emitted = True
+
+  async def _flush_output_and_deltas(self, ctx: Context) -> None:
+    """Emit deferred output and/or unflushed state/artifact deltas."""
     from ..events.event import Event
     from ..events.event_actions import EventActions
 
-    state = ctx.actions.state_delta
-    artifact = ctx.actions.artifact_delta
-    if not state and not artifact:
+    state_delta = ctx.actions.state_delta
+    artifact_delta = ctx.actions.artifact_delta
+    has_deferred_output = (
+        ctx._output_value is not None
+        and not ctx._output_emitted
+        and not ctx._output_delegated
+    )
+    has_deltas = bool(state_delta or artifact_delta)
+
+    if not has_deferred_output and not has_deltas:
       return
 
-    delta_event = Event(
-        actions=EventActions(
-            state_delta=dict(state),
-            artifact_delta=dict(artifact),
-        ),
+    # Build the event — output + deltas, or deltas only.
+    event = Event(
+        output=ctx._output_value if has_deferred_output else None,
     )
-    state.clear()
-    artifact.clear()
-    self._enrich_event(delta_event, ctx)
-    await ctx._invocation_context.enqueue_event(delta_event)
+    if has_deltas:
+      event.actions = EventActions(
+          state_delta=dict(state_delta),
+          artifact_delta=dict(artifact_delta),
+      )
+      state_delta.clear()
+      artifact_delta.clear()
+
+    self._enrich_event(event, ctx)
+    await ctx._invocation_context.enqueue_event(event)
+    if has_deferred_output:
+      ctx._output_emitted = True
 
   def _flush_deltas(self, event: Event, ctx: Context) -> None:
-    """Move pending state/artifact deltas from ctx onto the event."""
+    """Move pending state/artifact deltas from ctx onto the event.
+
+    TODO: Handle non-persisted states (e.g. `temp:` prefixed keys)
+    that should flow through ctx but not be written to session events.
+    """
     from ..events.event_actions import EventActions
 
-    state = ctx.actions.state_delta
-    artifact = ctx.actions.artifact_delta
-    if not state and not artifact:
+    state_delta = ctx.actions.state_delta
+    artifact_delta = ctx.actions.artifact_delta
+    if not state_delta and not artifact_delta:
       return
 
     if not event.actions:
       event.actions = EventActions()
-    if state:
-      event.actions.state_delta.update(state)
-      state.clear()
-    if artifact:
-      event.actions.artifact_delta.update(artifact)
-      artifact.clear()
+    if state_delta:
+      event.actions.state_delta.update(state_delta)
+      state_delta.clear()
+    if artifact_delta:
+      event.actions.artifact_delta.update(artifact_delta)
+      artifact_delta.clear()
 
   def _enrich_event(self, event: Event, ctx: Context) -> None:
     """Set author, node_info, invocation_id on the event."""
