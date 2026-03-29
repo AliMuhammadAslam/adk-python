@@ -14,8 +14,8 @@
 
 """Tests for Runner(node=...).
 
-Verifies that Runner can execute standalone BaseNode instances and
-produces the expected output events.
+Verifies that Runner can execute standalone BaseNode instances,
+persist events to session, handle resume (HITL), and yield events correctly.
 """
 
 from __future__ import annotations
@@ -23,19 +23,33 @@ from __future__ import annotations
 from typing import Any
 from typing import AsyncGenerator
 
-from google.adk.agents.llm._single_agent_react_node import SingleAgentReactNode
-from google.adk.agents.llm_agent import LlmAgent
+from google.adk.agents.context import Context
+from google.adk.events.event import Event
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow._base_node import BaseNode
+from google.adk.workflow._base_node import START
+from google.adk.workflow._workflow_class import Workflow
 from google.genai import types
 import pytest
 
-from .. import testing_utils
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
 
-async def _run_node(node, message='Hi'):
-  """Run a BaseNode via Runner(node=...) and return events."""
+class _EchoNode(BaseNode):
+
+  async def _run_impl(
+      self, *, ctx: Context, node_input: Any
+  ) -> AsyncGenerator[Any, None]:
+    text = node_input.parts[0].text if node_input else 'empty'
+    yield f'Echo: {text}'
+
+
+async def _run_node(node, message='hello'):
+  """Run a BaseNode via Runner(node=...) and return (events, ss, session)."""
   ss = InMemorySessionService()
   runner = Runner(app_name='test', node=node, session_service=ss)
   session = await ss.create_session(app_name='test', user_id='u')
@@ -45,60 +59,435 @@ async def _run_node(node, message='Hi'):
       user_id='u', session_id=session.id, new_message=msg
   ):
     events.append(event)
-  return events
+  return events, ss, session
+
+
+def _make_interrupt_event(fc_name='get_input', fc_id='fc-1'):
+  """Create an interrupt Event with a long-running function call."""
+  return Event(
+      content=types.Content(
+          parts=[
+              types.Part(
+                  function_call=types.FunctionCall(
+                      name=fc_name, args={}, id=fc_id
+                  )
+              )
+          ]
+      ),
+      long_running_tool_ids={fc_id},
+  )
+
+
+def _make_resume_message(fc_name='get_input', fc_id='fc-1', response=None):
+  """Create a user message with a function response for resuming."""
+  return types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name=fc_name,
+                  id=fc_id,
+                  response=response or {},
+              )
+          )
+      ],
+      role='user',
+  )
+
+
+async def _run_two_turns(node, msg1_text, resume_msg):
+  """Run a node for two turns: initial message then resume."""
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=node, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text=msg1_text)], role='user')
+  events1 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  events2 = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=resume_msg
+  ):
+    events2.append(event)
+
+  return events1, events2, runner, ss, session
+
+
+# ---------------------------------------------------------------------------
+# Basic execution
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_runner_executes_simple_node():
-  """Runner produces output from a simple BaseNode."""
+async def test_simple_node_output():
+  """Runner yields output from a simple BaseNode."""
+  events, _, _ = await _run_node(_EchoNode(name='echo'), message='hi')
 
-  class _EchoNode(BaseNode):
+  outputs = [e.output for e in events if e.output is not None]
+  assert outputs == ['Echo: hi']
+
+
+@pytest.mark.asyncio
+async def test_intermediate_events_yielded():
+  """Runner yields intermediate events (e.g. state), not just output."""
+
+  class _Node(BaseNode):
 
     async def _run_impl(
-        self, *, ctx: Any, node_input: Any
+        self, *, ctx: Context, node_input: Any
     ) -> AsyncGenerator[Any, None]:
-      yield 'echo'
+      yield Event(state={'step': 'processing'})
+      yield 'final_result'
 
-  events = await _run_node(_EchoNode(name='echo'))
+  events, _, _ = await _run_node(_Node(name='steps'))
 
-  output_events = [e for e in events if e.output is not None]
-  assert len(output_events) == 1
-  assert output_events[0].output == 'echo'
-
-
-@pytest.mark.asyncio
-async def test_react_node_text_response_produces_single_output():
-  """SingleAgentReactNode produces exactly one output event for text."""
-  mock_model = testing_utils.MockModel.create(responses=['Hello!'])
-  llm_agent = LlmAgent(name='llm', model=mock_model, tools=[])
-  react_node = SingleAgentReactNode(name='react', agent=llm_agent)
-
-  events = await _run_node(react_node)
-
-  output_events = [e for e in events if e.output is not None]
-  assert len(output_events) == 1
-  assert output_events[0].output == 'Hello!'
+  state_events = [e for e in events if e.actions and e.actions.state_delta]
+  assert len(state_events) >= 1
+  assert [e.output for e in events if e.output is not None] == ['final_result']
 
 
 @pytest.mark.asyncio
-async def test_react_node_tool_loop_produces_single_output():
-  """After a tool call loop, only one text output event appears."""
+async def test_event_author_defaults_to_node_name():
+  """Events are attributed to the node's name by default."""
+  events, _, _ = await _run_node(_EchoNode(name='my_node'), message='hi')
 
-  def add(x: int, y: int) -> int:
-    """Add two numbers."""
-    return x + y
+  output_events = [e for e in events if e.output is not None]
+  assert output_events[0].author == 'my_node'
 
-  fc = types.Part.from_function_call(name='add', args={'x': 1, 'y': 2})
-  mock_model = testing_utils.MockModel.create(responses=[fc, 'Result is 3.'])
-  llm_agent = LlmAgent(name='llm', model=mock_model, tools=[add])
-  react_node = SingleAgentReactNode(name='react', agent=llm_agent)
 
-  events = await _run_node(react_node, message='Add 1+2')
+@pytest.mark.asyncio
+async def test_node_error_completes_without_output():
+  """A node that raises completes the invocation with no output."""
 
-  text_outputs = [
-      e.output
-      for e in events
-      if e.output is not None and isinstance(e.output, str)
-  ]
-  assert len(text_outputs) == 1
-  assert 'Result is 3.' in text_outputs[0]
+  class _Node(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      raise RuntimeError('node failure')
+      yield  # pylint: disable=unreachable
+
+  events, _, _ = await _run_node(_Node(name='error'))
+
+  assert [e.output for e in events if e.output is not None] == []
+
+
+@pytest.mark.asyncio
+async def test_node_yielding_none_produces_no_output():
+  """A node that yields None produces no output event."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield None
+
+  events, _, _ = await _run_node(_Node(name='nil'))
+
+  assert [e.output for e in events if e.output is not None] == []
+
+
+@pytest.mark.asyncio
+async def test_workflow_node_output():
+  """Runner drives a Workflow and yields its terminal output."""
+
+  def upper(node_input: str) -> str:
+    return node_input.upper()
+
+  wf = Workflow(name='wf', edges=[(START, upper)])
+  events, _, _ = await _run_node(wf, message='hi')
+
+  outputs = [e.output for e in events if e.output is not None]
+  assert 'HI' in outputs
+
+
+# ---------------------------------------------------------------------------
+# Session persistence
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_events_persisted_to_session():
+  """Non-partial events are persisted to the session."""
+  _, ss, session = await _run_node(_EchoNode(name='echo'), message='hi')
+
+  updated = await ss.get_session(
+      app_name='test', user_id='u', session_id=session.id
+  )
+  session_outputs = [e.output for e in updated.events if e.output is not None]
+  assert 'Echo: hi' in session_outputs
+
+
+@pytest.mark.asyncio
+async def test_multiple_invocations_accumulate_events():
+  """Each invocation appends events; session accumulates across runs."""
+  node = _EchoNode(name='echo')
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=node, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  for msg_text in ['first', 'second', 'third']:
+    async for _ in runner.run_async(
+        user_id='u',
+        session_id=session.id,
+        new_message=types.Content(
+            parts=[types.Part(text=msg_text)], role='user'
+        ),
+    ):
+      pass
+
+  updated = await ss.get_session(
+      app_name='test', user_id='u', session_id=session.id
+  )
+  outputs = [e.output for e in updated.events if e.output is not None]
+  assert outputs == ['Echo: first', 'Echo: second', 'Echo: third']
+
+
+# ---------------------------------------------------------------------------
+# yield_user_message
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_yield_user_message_true():
+  """When yield_user_message=True, user event is yielded before node events."""
+  ss = InMemorySessionService()
+  runner = Runner(
+      app_name='test', node=_EchoNode(name='echo'), session_service=ss
+  )
+  session = await ss.create_session(app_name='test', user_id='u')
+  msg = types.Content(parts=[types.Part(text='hi')], role='user')
+
+  events: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u',
+      session_id=session.id,
+      new_message=msg,
+      yield_user_message=True,
+  ):
+    events.append(event)
+
+  user_events = [e for e in events if e.author == 'user']
+  assert len(user_events) == 1
+  assert user_events[0].content.parts[0].text == 'hi'
+  assert events[0].author == 'user'
+
+
+@pytest.mark.asyncio
+async def test_yield_user_message_false_by_default():
+  """By default, user event is not yielded to the caller."""
+  events, _, _ = await _run_node(_EchoNode(name='echo'), message='hi')
+
+  user_events = [e for e in events if e.author == 'user']
+  assert user_events == []
+
+
+# ---------------------------------------------------------------------------
+# Resume (HITL)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_standalone_node_resume():
+  """A standalone node resumes with resume_inputs from function response."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'result: {ctx.resume_inputs["fc-1"]["value"]}'
+        return
+      yield _make_interrupt_event()
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _Node(name='standalone'),
+      'go',
+      _make_resume_message(response={'value': 42}),
+  )
+
+  assert any(e.long_running_tool_ids for e in events1)
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'result: 42' in outputs
+
+
+@pytest.mark.asyncio
+async def test_resume_preserves_original_user_content():
+  """On resume, Runner passes the original text as node_input, not the FR."""
+
+  class _Node(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        text = (
+            node_input.parts[0].text
+            if node_input and hasattr(node_input, 'parts')
+            else str(node_input)
+        )
+        yield f'original:{text}'
+        return
+      yield _make_interrupt_event(fc_name='tool')
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _Node(name='node'),
+      'my original input',
+      _make_resume_message(fc_name='tool', response={'v': 1}),
+  )
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'original:my original input' in outputs
+
+
+@pytest.mark.asyncio
+async def test_plain_text_does_not_trigger_resume():
+  """Sending plain text (no FR) starts fresh, does not enter resume path."""
+  node = _EchoNode(name='echo')
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=node, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1
+  async for _ in runner.run_async(
+      user_id='u',
+      session_id=session.id,
+      new_message=types.Content(
+          parts=[types.Part(text='first')], role='user'
+      ),
+  ):
+    pass
+
+  # Run 2: plain text — should start fresh
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u',
+      session_id=session.id,
+      new_message=types.Content(
+          parts=[types.Part(text='second')], role='user'
+      ),
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert outputs == ['Echo: second']
+
+
+# ---------------------------------------------------------------------------
+# Resume validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_resume_raises_on_unmatched_fr():
+  """Runner raises when function response has no matching FC in session."""
+  ss = InMemorySessionService()
+  runner = Runner(
+      app_name='test', node=_EchoNode(name='echo'), session_service=ss
+  )
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = _make_resume_message(fc_name='unknown', fc_id='no-such-fc')
+
+  with pytest.raises(ValueError, match='Function call not found'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_resume_raises_on_multi_invocation_fr():
+  """Runner raises when FRs resolve to different invocations."""
+  call_count = [0]
+
+  class _InterruptNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      call_count[0] += 1
+      fc_id = f'fc-{call_count[0]}'
+      yield _make_interrupt_event(fc_name='tool', fc_id=fc_id)
+
+  wf = Workflow(
+      name='wf',
+      edges=[(START, _InterruptNode(name='ask'))],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: interrupts with fc-1
+  async for _ in runner.run_async(
+      user_id='u',
+      session_id=session.id,
+      new_message=types.Content(parts=[types.Part(text='go')], role='user'),
+  ):
+    pass
+
+  # Run 2: interrupts with fc-2 (different invocation)
+  async for _ in runner.run_async(
+      user_id='u',
+      session_id=session.id,
+      new_message=types.Content(
+          parts=[types.Part(text='go again')], role='user'
+      ),
+  ):
+    pass
+
+  # Run 3: send FRs for both fc-1 and fc-2 (different invocations)
+  msg3 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='tool', id='fc-1', response={'r': 1}
+              )
+          ),
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='tool', id='fc-2', response={'r': 2}
+              )
+          ),
+      ],
+      role='user',
+  )
+
+  with pytest.raises(ValueError, match='resolve to multiple invocations'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg3
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_mixed_fr_and_text_raises():
+  """Message with both function responses and text is rejected."""
+  ss = InMemorySessionService()
+  runner = Runner(
+      app_name='test', node=_EchoNode(name='echo'), session_service=ss
+  )
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(
+      parts=[
+          types.Part(text='some text'),
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='tool', id='fc-1', response={'v': 1}
+              )
+          ),
+      ],
+      role='user',
+  )
+
+  with pytest.raises(ValueError, match='cannot contain both'):
+    async for _ in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      pass
