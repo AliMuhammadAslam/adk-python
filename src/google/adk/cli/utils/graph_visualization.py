@@ -204,11 +204,14 @@ def plot_workflow_graph(
     type_display = node_type.title()
 
     if icon_data:
-        icon, color = icon_data
-        escaped_name = html.escape(node_name)
-        node_label = f'<<FONT COLOR="{color}" POINT-SIZE="14">{icon}</FONT> {escaped_name}>'
+      icon, color = icon_data
+      escaped_name = html.escape(node_name)
+      node_label = (
+          f'<<FONT COLOR="{color}" POINT-SIZE="14">{icon}</FONT>'
+          f" {escaped_name}>"
+      )
     else:
-        node_label = node_name
+      node_label = node_name
 
     if is_conditional:
       has_default = any(
@@ -220,7 +223,11 @@ def plot_workflow_graph(
         if icon_data:
           icon, color = icon_data
           escaped_name = html.escape(node_name)
-          node_label = f'<<FONT COLOR="{color}" POINT-SIZE="14">{icon}</FONT> {escaped_name}<br/><br/><FONT POINT-SIZE="10">⚠️ [NO DEFAULT]</FONT>>'
+          node_label = (
+              f'<<FONT COLOR="{color}" POINT-SIZE="14">{icon}</FONT>'
+              f' {escaped_name}<br/><br/><FONT POINT-SIZE="10">⚠️ [NO'
+              " DEFAULT]</FONT>>"
+          )
         else:
           escaped_label = html.escape(node_label)
           node_label = (
@@ -330,45 +337,6 @@ def plot_workflow_graph(
     )
     for t_node in terminal_nodes:
       dot.edge(t_node, "__END__")
-
-  # Add legend
-  legend_bgcolor = node_fillcolor
-  legend_border_color = node_color
-  legend_text_color = node_fontcolor
-  legend_label = f'''<
-    <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="4" BGCOLOR="{legend_bgcolor}" COLOR="{legend_border_color}">
-      <TR>
-        <TD COLSPAN="2"><FONT POINT-SIZE="10" COLOR="{legend_text_color}"><B>Legend</B></FONT></TD>
-      </TR>
-      <TR>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#42A5F5">✦</FONT></TD>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="9" COLOR="{legend_text_color}">Agent</FONT></TD>
-      </TR>
-      <TR>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#9333EA">⊷</FONT></TD>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="9" COLOR="{legend_text_color}">Workflow</FONT></TD>
-      </TR>
-      <TR>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#10B981">ƒ</FONT></TD>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="9" COLOR="{legend_text_color}">Function</FONT></TD>
-      </TR>
-      <TR>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#F59E0B">⌵</FONT></TD>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="9" COLOR="{legend_text_color}">Join</FONT></TD>
-      </TR>
-      <TR>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="11" COLOR="#6B7280">🔧</FONT></TD>
-        <TD ALIGN="LEFT"><FONT POINT-SIZE="9" COLOR="{legend_text_color}">Tool</FONT></TD>
-      </TR>
-    </TABLE>
-  >'''
-
-  dot.node(
-      "__LEGEND__",
-      legend_label,
-      shape="none",
-      margin="0"
-  )
 
   if format == "dot":
     return dot.source
