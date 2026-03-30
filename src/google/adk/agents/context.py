@@ -40,6 +40,7 @@ if TYPE_CHECKING:
   from ..sessions.session import Session
   from ..sessions.state import State
   from ..tools.tool_confirmation import ToolConfirmation
+  from ..workflow._base_node import BaseNode
   from ..workflow._definitions import NodeLike
   from ..workflow._node_run_result import NodeRunResult
   from ..workflow._schedule_dynamic_node import ScheduleDynamicNode as ScheduleDynamicNodeInternal
@@ -219,7 +220,6 @@ class Context(ReadonlyContext):
     E.g. ['wf/parent', 'wf/grandparent'] means this node's output event
     is also considered the output for those ancestor paths.
     """
-
     # Use a session proxy when local_events are provided (workflow mode).
     if local_events is not None:
       self._session_proxy = _SessionProxy(
@@ -358,6 +358,11 @@ class Context(ReadonlyContext):
     asynchronously wait for its result. The dynamically executed node becomes
     a child execution of the current node in the workflow.
 
+    IMPORTANT: Always ``await`` this method directly. Wrapping it in
+    ``asyncio.create_task()`` means the task runs unsupervised — errors
+    are silently swallowed and the task is not cancelled if the parent
+    node is interrupted (e.g. via HITL).
+
     Args:
       node: The node to be executed. This can be a BaseNode instance or a
         callable that can be built into a node.
@@ -373,10 +378,6 @@ class Context(ReadonlyContext):
 
     Returns:
       The output of the dynamically executed node, once it finishes executing.
-
-    Raises:
-      RuntimeError: If `run_node` is called outside the context of a workflow
-        execution where dynamic node scheduling is not available.
     """
 
     if not self._node_rerun_on_resume:
@@ -407,18 +408,23 @@ class Context(ReadonlyContext):
       )
       return result.output
 
-    if not self.schedule_dynamic_node:
-      raise RuntimeError(
-          f'Node {built_node.name} called outside of a workflow execution.'
+    if self.schedule_dynamic_node:
+      return await self.schedule_dynamic_node(
+          self,
+          built_node,
+          execution_id,
+          node_input,
+          node_name=name,
+          use_as_output=use_as_output,
       )
-    return await self.schedule_dynamic_node(
-        self,
+
+    # No orchestrator scheduler available — run the node directly.
+    result = await self._run_node_via_runner(
         built_node,
-        execution_id,
         node_input,
-        node_name=name,
         use_as_output=use_as_output,
     )
+    return result.output
 
   async def _run_node_internal(
       self, node: NodeLike, node_input: Any = None, *, name: str | None = None
@@ -431,20 +437,38 @@ class Context(ReadonlyContext):
     from ..workflow.utils._workflow_graph_utils import build_node
 
     built_node = build_node(node)
-    if not self._schedule_dynamic_node_internal:
-      raise RuntimeError(
-          f'Node {built_node.name}: no internal scheduler available.'
+    if self._schedule_dynamic_node_internal:
+      execution_id = self.get_next_child_execution_id(
+          name or built_node.name, is_static_name=name is not None
       )
-    execution_id = self.get_next_child_execution_id(
-        name or built_node.name, is_static_name=name is not None
+      return await self._schedule_dynamic_node_internal(
+          self,
+          built_node,
+          execution_id,
+          node_input,
+          node_name=name,
+      )
+
+    return await self._run_node_via_runner(built_node, node_input)
+
+  async def _run_node_via_runner(
+      self,
+      node: BaseNode,
+      node_input: Any,
+      *,
+      use_as_output: bool = False,
+  ) -> NodeRunResult:
+    """Run a node directly via NodeRunner without an orchestrator."""
+    from ..workflow._node_runner_class import NodeRunner
+
+    runner = NodeRunner(
+        node=node,
+        parent_ctx=self,
+        additional_output_for_ancestor=(
+            self.node_path if use_as_output else None
+        ),
     )
-    return await self._schedule_dynamic_node_internal(
-        self,
-        built_node,
-        execution_id,
-        node_input,
-        node_name=name,
-    )
+    return await runner.run(node_input=node_input)
 
   # ============================================================================
   # Artifact methods

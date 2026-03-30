@@ -33,7 +33,6 @@ from google.adk.workflow._workflow_class import Workflow
 from google.genai import types
 import pytest
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -357,9 +356,7 @@ async def test_plain_text_does_not_trigger_resume():
   async for _ in runner.run_async(
       user_id='u',
       session_id=session.id,
-      new_message=types.Content(
-          parts=[types.Part(text='first')], role='user'
-      ),
+      new_message=types.Content(parts=[types.Part(text='first')], role='user'),
   ):
     pass
 
@@ -368,9 +365,7 @@ async def test_plain_text_does_not_trigger_resume():
   async for event in runner.run_async(
       user_id='u',
       session_id=session.id,
-      new_message=types.Content(
-          parts=[types.Part(text='second')], role='user'
-      ),
+      new_message=types.Content(parts=[types.Part(text='second')], role='user'),
   ):
     events2.append(event)
 
@@ -491,3 +486,66 @@ async def test_mixed_fr_and_text_raises():
         user_id='u', session_id=session.id, new_message=msg
     ):
       pass
+
+
+# ---------------------------------------------------------------------------
+# Default scheduler & ctx.create_task cleanup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_run_node_works_without_workflow():
+  """ctx.run_node() works in a standalone BaseNode (default scheduler)."""
+
+  class _ChildNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield f'child got: {node_input}'
+
+  class _ParentNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      result = await ctx.run_node(_ChildNode(name='child'), 'hello')
+      yield f'parent got: {result}'
+
+  events, _, _ = await _run_node(_ParentNode(name='parent'), message='go')
+
+  outputs = [e.output for e in events if e.output is not None]
+  assert 'parent got: child got: hello' in outputs
+
+
+@pytest.mark.asyncio
+async def test_run_node_use_as_output_attributes_child_output_to_parent():
+  """Child output with use_as_output=True is attributed to the parent node."""
+
+  class _ChildNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield 'child result'
+
+  class _ParentNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      result = await ctx.run_node(
+          _ChildNode(name='child'), 'hello', use_as_output=True
+      )
+      yield f'parent got: {result}'
+
+  events, _, _ = await _run_node(_ParentNode(name='parent'), message='go')
+
+  # The child's output event should list the parent's path in output_for
+  child_output = next(e for e in events if e.output == 'child result')
+  parent_path = next(
+      e for e in events if e.output is not None and e.output != 'child result'
+  ).node_info.path
+  assert parent_path in child_output.node_info.output_for
+
+
