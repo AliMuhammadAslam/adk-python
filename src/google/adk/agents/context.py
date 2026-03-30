@@ -391,6 +391,21 @@ class Context(ReadonlyContext):
     )
     return ctx_with_proxy
 
+  def _next_child_name(self, base_name: str) -> str:
+    """Generate a deterministic child tracking name.
+
+    Currently returns ``base_name`` as-is. Callers that schedule
+    multiple children with the same base name must provide an
+    explicit ``name`` to ``ctx.run_node()`` to disambiguate.
+
+    TODO: Support a user-provided suffix for disambiguation
+    (e.g., ``ctx.run_node(node, suffix='step_1')``).
+
+    Args:
+      base_name: The original node definition name.
+    """
+    return base_name
+
   def get_next_child_execution_id(
       self, node_name: str, *, is_static_name: bool = False
   ) -> str:
@@ -462,34 +477,31 @@ class Context(ReadonlyContext):
     from ..workflow.utils._workflow_graph_utils import build_node  # pylint: disable=g-import-not-at-top
 
     built_node = build_node(node)
-    execution_id = self.get_next_child_execution_id(
-        name or built_node.name, is_static_name=name is not None
-    )
 
     # Prefer the internal scheduler (new Workflow architecture) which
     # returns child Context. Fall back to the legacy scheduler.
     if self._schedule_dynamic_node_internal:
+      from ..workflow._errors import NodeInterruptedError
+
+      # Generate deterministic tracking name.
+      # TODO: replace `name` with suffix.
+      node_name = name or self._next_child_name(built_node.name)
       child_ctx = await self._schedule_dynamic_node_internal(
           self,
           built_node,
-          execution_id,
+          node_name,  # tracking name, not execution_id
           node_input,
-          node_name=name,
+          node_name=node_name,
           use_as_output=use_as_output,
       )
+      if child_ctx.interrupt_ids:
+        # Propagate child's interrupt_ids to this node's ctx
+        # so NodeRunner sees them after catching the error.
+        self._interrupt_ids.update(child_ctx.interrupt_ids)
+        raise NodeInterruptedError()
       return child_ctx.output
 
-    if self.schedule_dynamic_node:
-      return await self.schedule_dynamic_node(
-          self,
-          built_node,
-          execution_id,
-          node_input,
-          node_name=name,
-          use_as_output=use_as_output,
-      )
-
-    # No orchestrator scheduler available — run the node directly.
+    # No orchestrator scheduler — run the node directly.
     result = await self._run_node_via_runner(
         built_node,
         node_input,
@@ -510,15 +522,13 @@ class Context(ReadonlyContext):
 
     built_node = build_node(node)
     if self._schedule_dynamic_node_internal:
-      execution_id = self.get_next_child_execution_id(
-          name or built_node.name, is_static_name=name is not None
-      )
+      node_name = name or self._next_child_name(built_node.name)
       return await self._schedule_dynamic_node_internal(
           self,
           built_node,
-          execution_id,
+          node_name,
           node_input,
-          node_name=name,
+          node_name=node_name,
       )
 
     return await self._run_node_via_runner(built_node, node_input)
@@ -529,7 +539,7 @@ class Context(ReadonlyContext):
       node_input: Any,
       *,
       use_as_output: bool = False,
-  ) -> NodeRunResult:
+  ) -> Context:
     """Run a node directly via NodeRunner without an orchestrator."""
     from ..workflow._node_runner_class import NodeRunner
 

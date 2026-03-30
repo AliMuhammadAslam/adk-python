@@ -181,7 +181,6 @@ async def test_dynamic_node_with_downstream_static():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_node_interrupted_resume():
   """Dynamic child interrupts, then resumes with FR on parent rerun.
 
@@ -236,7 +235,6 @@ async def test_dynamic_node_interrupted_resume():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_node_completed_dedup_on_resume():
   """Completed dynamic child returns cached output when parent reruns.
 
@@ -310,7 +308,6 @@ async def test_dynamic_node_completed_dedup_on_resume():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_node_sequential_interrupts():
   """Sequential dynamic children interrupt one at a time.
 
@@ -378,7 +375,6 @@ async def test_dynamic_node_sequential_interrupts():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_node_execution_id_reused_on_resume():
   """Resumed dynamic child reuses execution_id from original run.
 
@@ -443,7 +439,6 @@ async def test_dynamic_node_execution_id_reused_on_resume():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_nested_static_workflow_with_dynamic_interrupt():
   """Static sub-workflow's node schedules a dynamic node that interrupts.
 
@@ -504,7 +499,6 @@ async def test_nested_static_workflow_with_dynamic_interrupt():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_workflow_with_static_interrupt():
   """Dynamic child is a Workflow whose static node interrupts.
 
@@ -566,7 +560,6 @@ async def test_dynamic_workflow_with_static_interrupt():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_workflow_with_nested_dynamic_interrupt():
   """Dynamic Workflow's inner node schedules another dynamic node.
 
@@ -642,7 +635,6 @@ async def test_dynamic_workflow_with_nested_dynamic_interrupt():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_parallel_parents_same_named_dynamic_children():
   """Two static parents schedule dynamic children with the same name.
 
@@ -736,7 +728,6 @@ async def test_parallel_parents_same_named_dynamic_children():
 
 
 @pytest.mark.asyncio
-@pytest.mark.xfail(reason='Lazy scan dedup not implemented (doc 18)')
 async def test_dynamic_node_use_as_output_with_interrupt():
   """Dynamic child with use_as_output=True interrupts then resumes.
 
@@ -802,6 +793,102 @@ async def test_dynamic_node_use_as_output_with_interrupt():
       if e.node_info.path == 'wf/parent' and e.output is not None
   ]
   assert len(parent_outputs) == 0
+
+
+# =========================================================================
+# None-output completion after interrupt
+# =========================================================================
+
+
+@pytest.mark.asyncio
+@pytest.mark.xfail(
+    reason='No completion marker event for None output (event design flaw)'
+)
+async def test_dynamic_node_none_output_not_rerun():
+  """Dynamic child that completed with None output is not re-run.
+
+  Setup: Parent calls ctx.run_node(A) then ctx.run_node(B).
+    A interrupts. On resume, A completes with no output (None).
+    Parent continues to B, which also interrupts.
+  Action: Resume B.
+  Assert:
+    - On Run 3, A should NOT re-run (it already completed).
+    - A should return None (cached), B resumes.
+    - Currently fails because A's None completion leaves no
+      trace in session events — the lazy scan thinks A still
+      needs to re-run.
+  """
+  run_count_a = [0]
+
+  class _NodeA(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      run_count_a[0] += 1
+      if ctx.resume_inputs and 'fc-a' in ctx.resume_inputs:
+        # Complete with no output.
+        return
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='tool', args={}, id='fc-a'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-a'},
+      )
+
+  class _NodeB(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      if ctx.resume_inputs and 'fc-b' in ctx.resume_inputs:
+        yield f'b: {ctx.resume_inputs["fc-b"]["value"]}'
+        return
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='tool', args={}, id='fc-b'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-b'},
+      )
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      await ctx.run_node(_NodeA(name='a'))
+      result = await ctx.run_node(_NodeB(name='b'))
+      yield f'done: {result}'
+
+  wf = Workflow(name='wf', edges=[(START, _Parent(name='parent'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: A interrupts
+  events1 = await _run(runner, ss, session, 'go')
+  assert 'fc-a' in _interrupt_ids(events1)
+  assert run_count_a[0] == 1
+
+  # Run 2: resume A → A completes (None), parent reaches B → B interrupts
+  events2 = await _resume(runner, ss, session, 'fc-a', 'ok')
+  assert 'fc-b' in _interrupt_ids(events2)
+  assert run_count_a[0] == 2  # A re-ran once for resume
+
+  # Run 3: resume B → A should NOT re-run (already completed)
+  events3 = await _resume(runner, ss, session, 'fc-b', 'done')
+  assert run_count_a[0] == 2  # A should NOT have run again
+  outputs = _outputs(events3)
+  assert any('done:' in str(o) for o in outputs)
 
 
 # =========================================================================

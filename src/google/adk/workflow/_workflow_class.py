@@ -42,6 +42,7 @@ from ._workflow_graph import WorkflowGraph
 from .utils._node_path_utils import direct_child_name
 from .utils._node_path_utils import is_descendant
 from .utils._node_path_utils import is_direct_child
+from .utils._node_path_utils import join_paths
 from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response
 
 if TYPE_CHECKING:
@@ -77,28 +78,78 @@ class _ChildScanState:
 
 @dataclass
 class _LoopState:
-  """Mutable state for the orchestration loop."""
+  """Mutable, in-memory state for one Workflow execution.
 
-  node_outputs: dict[str, Any] = field(default_factory=dict)
-  """Collected outputs keyed by node name."""
+  Scoped to a single _run_impl invocation. Not persisted —
+  static node state is reconstructed from session events on
+  resume; dynamic node state is lazily scanned on demand.
+  Discarded when _run_impl returns.
+  """
 
-  pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
-  """Running asyncio tasks keyed by node name."""
-
-  dynamic_pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
-  """Tasks from ctx.run_node(), keyed by node name."""
-
-  interrupt_ids: set[str] = field(default_factory=set)
-  """Aggregated interrupt IDs from all WAITING nodes managed by this workflow and nested workflows."""
-
-  trigger_buffer: dict[str, list[Trigger]] = field(default_factory=dict)
-  """Pending triggers keyed by target node name."""
+  # --- Static graph nodes (keyed by node name) ---
 
   nodes: dict[str, NodeState] = field(default_factory=dict)
-  """Per-node state (status, input, interrupts, etc.) keyed by node name."""
+  """Static node states."""
+
+  node_outputs: dict[str, Any] = field(default_factory=dict)
+  """Cached static node outputs."""
+
+  pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+  """Running static node tasks."""
+
+  # --- Dynamic nodes (keyed by full node_path) ---
+
+  dynamic_nodes: dict[str, NodeState] = field(default_factory=dict)
+  """Dynamic node states. Populated lazily by the schedule
+  callback on first ctx.run_node() call per name."""
+
+  dynamic_outputs: dict[str, Any] = field(default_factory=dict)
+  """Cached dynamic node outputs."""
+
+  dynamic_pending_tasks: dict[str, asyncio.Task] = field(default_factory=dict)
+  """Running dynamic node tasks."""
+
+  # --- Shared (static + dynamic) ---
+
+  interrupt_ids: set[str] = field(default_factory=set)
+  """Union of all unresolved interrupt IDs across static and
+  dynamic child nodes.
+
+  Populated by:
+  - _restore_static_nodes_from_events: from WAITING static nodes
+  - _handle_completion: when a static node interrupts at runtime
+  - schedule callback: when a dynamic node interrupts
+
+  Read by _finalize to propagate to the Workflow's own ctx,
+  which the parent orchestrator checks after this Workflow
+  completes.
+  """
+
+  trigger_buffer: dict[str, list[Trigger]] = field(default_factory=dict)
+  """Queued triggers waiting to be dispatched, keyed by target node name.
+
+  Producers:
+  - _seed_start_triggers: initial triggers for START successors
+  - _buffer_downstream_triggers: when a node completes, triggers
+    its downstream successors
+  - _process_resume: seeds triggers for PENDING nodes on resume
+
+  Consumer:
+  - _schedule_ready_nodes: pops triggers, creates NodeRunners,
+    moves nodes to RUNNING
+  """
 
   schedule_dynamic_node: ScheduleDynamicNode | None = None
-  """schedule_dynamic_node closure for child Contexts."""
+  """Closure that handles ctx.run_node() calls from child nodes.
+
+  Tracks dynamic nodes in this Workflow's loop state
+  (dynamic_nodes, dynamic_outputs, dynamic_pending_tasks).
+  Handles dedup (cached output), resume (lazy scan + re-run),
+  and fresh execution.
+
+  Set on ctx at Workflow setup, propagated down to descendants
+  via NodeRunner until a nested orchestration node overrides it.
+  """
 
 
 # ---------------------------------------------------------------------------
@@ -225,7 +276,7 @@ class Workflow(BaseNode):
     # Await fire-and-forget dynamic tasks.
     # TODO: Handle dynamic task failures and interrupts here.
     # Currently, dynamic node completion is handled inline in the
-    # _schedule closure. But failures are not caught.
+    # _schedule_dynamic_node_callback closure. But failures are not caught.
     if loop_state.dynamic_pending_tasks:
       await asyncio.wait(loop_state.dynamic_pending_tasks.values())
 
@@ -323,10 +374,205 @@ class Workflow(BaseNode):
   def _make_schedule_dynamic_node(
       self, loop_state: _LoopState
   ) -> ScheduleDynamicNode:
-    """Create schedule_dynamic_node closure for child Contexts."""
+    """Create schedule_dynamic_node closure for child Contexts.
+
+    The callback handles three cases:
+    1. Fresh: no prior events → execute normally.
+    2. Completed: prior events show output → return cached.
+    3. Waiting: prior events show interrupt → resolve or propagate.
+    """
     from ._node_runner_class import NodeRunner
 
-    async def _schedule(
+    # ------ helpers (capture loop_state) ------
+
+    def _rehydrate_dynamic_node_from_events(
+        ctx: Context, node_path: str
+    ) -> None:
+      """Lazy scan: reconstruct dynamic node state from events."""
+      ic = ctx._invocation_context
+      invocation_id = ic.invocation_id
+      dynamic_child = _ChildScanState()
+      has_prior_events = False
+
+      for event in ic.session.events:
+        if event.invocation_id != invocation_id:
+          continue
+
+        # FR events resolve interrupts. FR events are user
+        # messages with no node_path — can't filter by path,
+        # so we match by interrupt ID instead.
+        if event.author == 'user' and event.content and event.content.parts:
+          for part in event.content.parts:
+            fr = part.function_response
+            if fr and fr.id and fr.id in dynamic_child.interrupt_ids:
+              # Safe: interrupt events always precede their FRs
+              # chronologically, so interrupt_ids is already populated.
+              dynamic_child.resolved_ids.add(fr.id)
+              dynamic_child.resolved_responses[fr.id] = _unwrap_fr_response(
+                  fr.response
+              )
+          continue
+
+        # Match events under this dynamic node's path.
+        event_path = event.node_info.path or ''
+        if not event_path.startswith(node_path):
+          continue
+
+        has_prior_events = True
+        dynamic_child.execution_id = (
+            event.node_info.execution_id or dynamic_child.execution_id
+        )
+
+        # Output: direct path or output_for delegation.
+        if event.output is not None:
+          if event_path == node_path:
+            dynamic_child.output = event.output
+          elif (
+              event.node_info.output_for
+              and node_path in event.node_info.output_for
+          ):
+            dynamic_child.output = event.output
+
+        # Interrupts from any descendant.
+        if event.long_running_tool_ids:
+          dynamic_child.interrupt_ids.update(event.long_running_tool_ids)
+
+      if not has_prior_events:
+        return  # No prior events → fresh execution.
+
+      # Derive NodeState from scan — same logic as static nodes.
+      unresolved_interrupt_ids = (
+          dynamic_child.interrupt_ids - dynamic_child.resolved_ids
+      )
+      existing_execution_id = dynamic_child.execution_id
+
+      if unresolved_interrupt_ids:
+        # Node still has unresolved interrupts.
+        loop_state.dynamic_nodes[node_path] = NodeState(
+            status=NodeStatus.WAITING,
+            interrupts=list(unresolved_interrupt_ids),
+            execution_id=existing_execution_id,
+        )
+      elif dynamic_child.interrupt_ids:
+        # Node had interrupts, all resolved → ready to re-run.
+        # TODO: If the node already re-ran and completed with
+        # None output, the scan can't tell — no events were
+        # emitted. This causes an unnecessary re-run. Fix by
+        # emitting a completion marker event from NodeRunner.
+        loop_state.dynamic_nodes[node_path] = NodeState(
+            status=NodeStatus.WAITING,
+            interrupts=[],
+            execution_id=existing_execution_id,
+            resume_inputs=dynamic_child.resolved_responses,
+        )
+      elif dynamic_child.output is not None:
+        # Node completed with output.
+        loop_state.dynamic_nodes[node_path] = NodeState(
+            status=NodeStatus.COMPLETED,
+            execution_id=existing_execution_id,
+        )
+        loop_state.dynamic_outputs[node_path] = dynamic_child.output
+
+    def _make_cached_ctx(
+        ctx: Context,
+        node_path: str,
+        state: NodeState,
+        interrupt_ids: set[str] | None = None,
+    ) -> Context:
+      """Build a Context with cached results (no execution)."""
+      from ..agents.context import Context as Ctx
+
+      child_ctx = Ctx(
+          ctx._invocation_context,
+          node_path=node_path,
+          execution_id=state.execution_id or '',
+          event_author=ctx.event_author,
+          schedule_dynamic_node_internal=ctx._schedule_dynamic_node_internal,
+      )
+      if node_path in loop_state.dynamic_outputs:
+        child_ctx._output_value = loop_state.dynamic_outputs[node_path]
+        child_ctx._output_emitted = True
+      if interrupt_ids:
+        child_ctx._interrupt_ids = set(interrupt_ids)
+      return child_ctx
+
+    async def _execute_fresh(
+        ctx: Context,
+        node: BaseNode,
+        name: str,
+        node_path: str,
+        node_input: Any,
+        use_as_output: bool,
+    ) -> Context:
+      """Run a dynamic node for the first time."""
+      runner = NodeRunner(
+          node=node.model_copy(update={'name': name}),
+          parent_ctx=ctx,
+          additional_output_for_ancestor=(
+              ctx.node_path if use_as_output else None
+          ),
+      )
+      state = NodeState(
+          status=NodeStatus.RUNNING,
+          input=node_input,
+          execution_id=runner.execution_id,
+          source_node_name=node.name,
+          parent_execution_id=ctx.execution_id,
+      )
+      loop_state.dynamic_nodes[node_path] = state
+      task = asyncio.create_task(runner.run(node_input=node_input))
+      loop_state.dynamic_pending_tasks[node_path] = task
+
+      child_ctx = await task
+      _record_dynamic_node_result(node_path, state, child_ctx)
+      return child_ctx
+
+    async def _resume_node(
+        ctx: Context,
+        node: BaseNode,
+        name: str,
+        node_path: str,
+        state: NodeState,
+        node_input: Any,
+        use_as_output: bool,
+    ) -> Context:
+      """Re-run a dynamic node with resume_inputs."""
+      runner = NodeRunner(
+          node=node.model_copy(update={'name': name}),
+          parent_ctx=ctx,
+          execution_id=state.execution_id,
+          additional_output_for_ancestor=(
+              ctx.node_path if use_as_output else None
+          ),
+      )
+      state.status = NodeStatus.RUNNING
+      task = asyncio.create_task(
+          runner.run(
+              node_input=node_input,
+              resume_inputs=dict(state.resume_inputs),
+          )
+      )
+      loop_state.dynamic_pending_tasks[node_path] = task
+
+      child_ctx = await task
+      _record_dynamic_node_result(node_path, state, child_ctx)
+      return child_ctx
+
+    def _record_dynamic_node_result(
+        node_path: str, state: NodeState, child_ctx: Context
+    ) -> None:
+      """Update dynamic node state after execution."""
+      if child_ctx.interrupt_ids:
+        state.status = NodeStatus.WAITING
+        state.interrupts = list(child_ctx.interrupt_ids)
+        loop_state.interrupt_ids.update(child_ctx.interrupt_ids)
+      else:
+        state.status = NodeStatus.COMPLETED
+        loop_state.dynamic_outputs[node_path] = child_ctx.output
+
+    # ------ main callback ------
+
+    async def _schedule_dynamic_node_callback(
         ctx: Context,
         node: BaseNode,
         execution_id: str,
@@ -335,50 +581,83 @@ class Workflow(BaseNode):
         node_name: str | None = None,
         use_as_output: bool = False,
     ) -> Context:
+      """Schedule a dynamic node: dedup, resume, or fresh run.
+
+      Args:
+        ctx: The calling node's Context.
+        node: The BaseNode to execute (original, before renaming).
+        execution_id: Unused. Kept for protocol compat; the
+          callback generates its own via NodeRunner.
+        node_input: Input data for the node.
+        node_name: Deterministic tracking name from ctx.run_node().
+          Always provided (user-specified or auto-generated).
+        use_as_output: If True, the child's output replaces the
+          calling node's output.
+
+      Returns:
+        Child Context with output, route, and interrupt_ids set.
+      """
+      # node_name is always provided by ctx.run_node() (either
+      # user-specified or auto-generated via _next_child_name).
+      name = node_name or node.name  # fallback for safety
+      node_path = join_paths(ctx.node_path, name)
+
+      # Handle use_as_output delegation.
       if use_as_output:
         if ctx._output_delegated:
           raise ValueError(
-              f'Node {ctx.node_path} already has a use_as_output'
-              ' delegate. Only one use_as_output=True call is'
-              ' allowed per node execution.'
+              f'Node {ctx.node_path} already has a use_as_output delegate.'
           )
         ctx._output_delegated = True
 
-      name = node_name or f'{node.name}_{execution_id[:8]}'
-      if name in loop_state.dynamic_pending_tasks:
-        raise ValueError(f'Dynamic node {name} already exists.')
+      # Phase 1: Lazy rehydration from session events.
+      if node_path not in loop_state.dynamic_nodes:
+        _rehydrate_dynamic_node_from_events(ctx, node_path)
 
-      node_state = NodeState(
-          status=NodeStatus.RUNNING,
-          input=node_input,
-          execution_id=execution_id,
-          source_node_name=node.name,
-          parent_execution_id=ctx.execution_id,
+      # Phase 2: Dedup — return cached or handle waiting.
+      if node_path in loop_state.dynamic_nodes:
+        state = loop_state.dynamic_nodes[node_path]
+
+        # Already completed → return cached output.
+        if state.status == NodeStatus.COMPLETED:
+          return _make_cached_ctx(ctx, node_path, state)
+
+        # Waiting with unresolved interrupts → propagate.
+        if state.status == NodeStatus.WAITING:
+          if state.interrupts:
+            loop_state.interrupt_ids.update(state.interrupts)
+            return _make_cached_ctx(
+                ctx,
+                node_path,
+                state,
+                interrupt_ids=set(state.interrupts),
+            )
+          # All resolved → re-run with resume_inputs.
+          return await _resume_node(
+              ctx,
+              node,
+              name,
+              node_path,
+              state,
+              node_input,
+              use_as_output,
+          )
+
+        # Running in this invocation — await existing task.
+        if node_path in loop_state.dynamic_pending_tasks:
+          return await loop_state.dynamic_pending_tasks[node_path]
+
+      # Phase 3: Fresh execution.
+      return await _execute_fresh(
+          ctx,
+          node,
+          name,
+          node_path,
+          node_input,
+          use_as_output,
       )
-      loop_state.nodes[name] = node_state
-      runner = NodeRunner(
-          node=node,
-          parent_ctx=ctx,
-          execution_id=execution_id,
-          additional_output_for_ancestor=(
-              ctx.node_path if use_as_output else None
-          ),
-      )
-      task = asyncio.create_task(runner.run(node_input=node_input))
 
-      loop_state.dynamic_pending_tasks[name] = task
-
-      child_ctx = await task
-      if child_ctx.interrupt_ids:
-        node_state.status = NodeStatus.WAITING
-        node_state.interrupts = list(child_ctx.interrupt_ids)
-        loop_state.interrupt_ids.update(child_ctx.interrupt_ids)
-      else:
-        node_state.status = NodeStatus.COMPLETED
-
-      return child_ctx
-
-    return _schedule
+    return _schedule_dynamic_node_callback
 
   # --- Completion handling ---
 

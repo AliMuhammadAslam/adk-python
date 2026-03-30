@@ -167,9 +167,18 @@ class NodeRunner:
       node_input: Any,
   ) -> None:
     """Iterate node.run(), enqueue events, write results to ctx."""
-    async for event in self._node.run(ctx=ctx, node_input=node_input):
-      self._track_event_in_context(event, ctx)
-      await self._enqueue_event(event, ctx)
+    from ._errors import NodeInterruptedError
+
+    try:
+      async for event in self._node.run(ctx=ctx, node_input=node_input):
+        self._track_event_in_context(event, ctx)
+        await self._enqueue_event(event, ctx)
+    except NodeInterruptedError:
+      # A dynamic child interrupted via ctx.run_node().
+      # The child's interrupt_ids are already on ctx
+      # (set by the schedule callback). Nothing more to do —
+      # the caller reads ctx.interrupt_ids.
+      pass
 
   def _track_event_in_context(self, event: Event, ctx: Context) -> None:
     """Write yielded event results to ctx (source of truth)."""

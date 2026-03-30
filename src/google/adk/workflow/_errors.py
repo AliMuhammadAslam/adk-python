@@ -18,9 +18,17 @@ from __future__ import annotations
 
 
 class NodeInterruptedError(BaseException):
-  """Raised when a node execution is interrupted.
+  """Internal: raised when a dynamic node interrupts (HITL).
 
-  This should only be raised by ADK and should not be caught by the user.
+  Used exclusively by ``ctx.run_node()`` to signal that the dynamic
+  child has unresolved interrupt IDs. The parent's NodeRunner catches
+  this and reads the interrupt IDs from the parent's ctx (set by
+  ``ctx.run_node()`` before raising).
+
+  This is a ``BaseException`` so user code cannot accidentally catch
+  it with ``except Exception``.
+
+  Internal to the framework — not part of the public API.
   """
 
 
