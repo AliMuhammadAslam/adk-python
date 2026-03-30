@@ -84,7 +84,8 @@ class ToolCallNode(BaseNode):
     ctx.function_call_id = function_call.id or str(uuid.uuid4())
 
     function_response = await self.tool.run_async(
-        args=function_args, tool_context=ctx,
+        args=function_args,
+        tool_context=ctx,
     )
 
     if self.tool.is_long_running and not function_response:
@@ -100,13 +101,18 @@ class ToolCallNode(BaseNode):
     # Yield as a non-Event value so BaseNode.run() wraps it as
     # Event(output=ToolCallResult(...)).  This separate output-only event
     # lets ctx.run_node() return the result to ParallelToolCallNode.
+    output = (
+        function_response
+        if isinstance(function_response, dict)
+        else {'result': function_response}
+    )
+    assert output is not None, (
+        f'Tool {self.tool.name} produced None output.'
+        ' Function responses must be dicts.'
+    )
     yield ToolCallResult(
         name=self.tool.name,
         function_call_id=ctx.function_call_id,
-        output=(
-            function_response
-            if isinstance(function_response, dict)
-            else {'result': function_response}
-        ),
+        output=output,
         actions=function_response_event.actions,
     )

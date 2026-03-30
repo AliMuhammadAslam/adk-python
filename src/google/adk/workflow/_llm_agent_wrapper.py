@@ -115,9 +115,7 @@ class _LlmAgentWrapper(BaseNode):
       from ..agents.llm._single_llm_agent import _SingleLlmAgent
 
       self._single = _SingleLlmAgent.from_base_llm_agent(self.agent)
-      self._react = SingleAgentReactNode(
-          name=self.agent.name, agent=self.agent
-      )
+      self._react = SingleAgentReactNode(name=self.agent.name, agent=self.agent)
 
     return self
 
@@ -180,6 +178,7 @@ class _LlmAgentWrapper(BaseNode):
         invocation_context=ic,
         node_path=ctx.node_path,
         run_id=ctx.run_id,
+        resume_inputs=ctx.resume_inputs,
     )
     return agent_ctx, agent_input
 
@@ -211,7 +210,9 @@ class _LlmAgentWrapper(BaseNode):
       # Inject input as user content in session, then run the react
       # loop. LlmCallNode events are enqueued to event_queue internally;
       # only the final text output comes through the generator.
-      if agent_input is not None:
+      if agent_input is not None and not ctx.resume_inputs:
+        # Only inject on first run — on resume, content is already
+        # in session from the first run.
         ic = agent_ctx._invocation_context
         ic.session.events.append(
             Event(
@@ -222,9 +223,7 @@ class _LlmAgentWrapper(BaseNode):
             )
         )
       output = None
-      async for event in self._react.run(
-          ctx=agent_ctx, node_input=None
-      ):
+      async for event in self._react.run(ctx=agent_ctx, node_input=None):
         if isinstance(event, Event) and event.output is not None:
           output = event.output
 

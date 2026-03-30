@@ -97,6 +97,20 @@ class SingleAgentReactNode(BaseNode):
     # TODO: make this a closure and track the created asyncio.Tasks
     ctx._schedule_dynamic_node_internal = self._schedule_node
 
+    # TODO: On resume, resume the tool node first before calling
+    # the LLM.  Currently the interrupted ParallelToolCallNode is
+    # never completed — on resume, the node restarts and calls the
+    # LLM directly, which only works for long-running tools (the FR
+    # is in session events).  For auth/confirmation interrupts, the
+    # tool must be re-executed with credentials/confirmation before
+    # the LLM can proceed.  The fix requires:
+    #   1. Extract last FCs from session events
+    #   2. Build tools_dict via _process_agent_tools
+    #   3. Run ParallelToolCallNode with resume_inputs (port resume
+    #      handling from execute_tools: _process_auth_resume,
+    #      _process_confirmation_resume, _process_long_running_resume)
+    #   4. Then continue to the ReAct loop
+
     # --- ReAct loop ---
     while True:
       # 1. Call LLM
@@ -104,12 +118,10 @@ class SingleAgentReactNode(BaseNode):
       llm_ctx = await ctx._run_node_internal(llm_node)
 
       if not isinstance(llm_ctx.output, LlmCallResult):
-        # LlmCallNode yields LlmCallResult only when the LLM returns
-        # function calls.  A pure text response sets output on the
-        # content event directly (already enqueued by the child
-        # NodeRunner).  Mark output as delegated so the parent
-        # NodeRunner suppresses this yield but still captures its
-        # value in ctx.output.
+        # Pure text response — done.  Set _output_delegated so the
+        # parent NodeRunner captures the value without enqueuing a
+        # separate output event (the LlmCallNode content event,
+        # already enqueued, carries the visible response).
         if llm_ctx.output is not None:
           ctx._output_delegated = True
           yield llm_ctx.output
@@ -123,7 +135,13 @@ class SingleAgentReactNode(BaseNode):
           tool_node, node_input=llm_ctx.output.function_calls
       )
 
-      # 3. Check termination conditions
+      # 3. No tool result — tools were interrupted (long-running,
+      # auth, etc.).  The interrupt event was already enqueued by
+      # ParallelToolCallNode.
+      if tool_ctx.output is None:
+        break
+
+      # 4. Check termination conditions
       tool_result = tool_ctx.output
       if isinstance(tool_result, ParallelToolCallResult) and (
           tool_result.transfer_to_agent

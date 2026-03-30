@@ -322,15 +322,11 @@ async def test_invalid_input_schema_raises(
   wf = Workflow(name='wf', edges=[(START, wrapper)])
   ctx = await create_parent_invocation_context(request.function.__name__, wf)
   ic = ctx.model_copy(update={'branch': None})
-  agent_ctx = Context(
-      invocation_context=ic, node_path='wf', run_id='exec'
-  )
+  agent_ctx = Context(invocation_context=ic, node_path='wf', run_id='exec')
 
   with _mock_agent_run(agent, finish_output={'result': 'ok'}):
     with pytest.raises(ValidationError):
-      async for _ in wrapper.run(
-          ctx=agent_ctx, node_input={'style': 'comedy'}
-      ):
+      async for _ in wrapper.run(ctx=agent_ctx, node_input={'style': 'comedy'}):
         pass
 
 
@@ -493,7 +489,9 @@ async def test_react_path_output_reaches_downstream(
 
   mock_model = testing_utils.MockModel.create(responses=['hello world'])
   agent = LlmAgent(
-      name='greeter', model=mock_model, instruction='Greet.',
+      name='greeter',
+      model=mock_model,
+      instruction='Greet.',
   )
   captured = []
 
@@ -582,7 +580,9 @@ async def test_react_path_predecessor_input_visible_to_llm(
 
   mock_model = testing_utils.MockModel.create(responses=['processed'])
   agent = LlmAgent(
-      name='processor', model=mock_model, instruction='Process.',
+      name='processor',
+      model=mock_model,
+      instruction='Process.',
   )
 
   def step_one(node_input: str) -> str:
@@ -602,3 +602,213 @@ async def test_react_path_predecessor_input_visible_to_llm(
       if p.text
   ]
   assert any('transformed data' in t for t in user_texts)
+
+
+# --- React path: interrupt and resume ---
+
+
+@pytest.mark.asyncio
+async def test_long_running_tool_interrupts_workflow(
+    request: pytest.FixtureRequest,
+):
+  """Long-running tool stops the workflow after one LLM call."""
+  from google.adk.tools.long_running_tool import LongRunningFunctionTool
+  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+
+  from . import testing_utils
+
+  def approve(request: str) -> None:
+    """Approve a request (long-running)."""
+    return None
+
+  fc = types.Part.from_function_call(name='approve', args={'request': 'deploy'})
+  mock_model = testing_utils.MockModel.create(responses=[fc])
+  agent = LlmAgent(
+      name='approver',
+      model=mock_model,
+      instruction='Get approval.',
+      tools=[LongRunningFunctionTool(approve)],
+  )
+  wf = NewWorkflow(name='wf', edges=[('START', agent)])
+
+  runner = _new_workflow_runner(wf, request.function.__name__)
+  events = await runner.run_async(testing_utils.get_user_content('deploy'))
+
+  assert len(mock_model.requests) == 1
+  assert any(e.long_running_tool_ids for e in events)
+
+
+@pytest.mark.asyncio
+async def test_resume_after_interrupt_completes_workflow(
+    request: pytest.FixtureRequest,
+):
+  """Resuming after interrupt calls the LLM once more to complete."""
+  from google.adk.apps.app import App
+  from google.adk.apps.app import ResumabilityConfig
+  from google.adk.tools.long_running_tool import LongRunningFunctionTool
+  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+
+  from . import testing_utils
+
+  def approve(request: str) -> None:
+    """Approve a request (long-running)."""
+    return None
+
+  fc = types.Part.from_function_call(name='approve', args={'request': 'deploy'})
+  mock_model = testing_utils.MockModel.create(
+      responses=[fc, 'Approved and deployed.']
+  )
+  agent = LlmAgent(
+      name='approver',
+      model=mock_model,
+      instruction='Get approval.',
+      tools=[LongRunningFunctionTool(approve)],
+  )
+  wf = NewWorkflow(name='wf', edges=[('START', agent)])
+
+  app = App(
+      name=request.function.__name__,
+      root_node=wf,
+      resumability_config=ResumabilityConfig(is_resumable=True),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: LLM → FC → interrupt
+  events1 = await runner.run_async(
+      testing_utils.get_user_content('deploy please')
+  )
+  invocation_id = events1[0].invocation_id
+  assert any(e.long_running_tool_ids for e in events1)
+
+  # Find the interrupt FC id
+  interrupt_event = next(e for e in events1 if e.long_running_tool_ids)
+  fc_id = list(interrupt_event.long_running_tool_ids)[0]
+
+  # Run 2: Resume with FR
+  resume_msg = types.Content(
+      role='user',
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve',
+                  id=fc_id,
+                  response={'result': 'yes'},
+              )
+          )
+      ],
+  )
+  events2 = await runner.run_async(
+      new_message=resume_msg,
+      invocation_id=invocation_id,
+  )
+
+  # Total LLM calls: 1 (first run) + 1 (resume) = 2.
+  assert len(mock_model.requests) == 2
+  # Verify resumed output reached completion.
+  content_texts = [
+      p.text
+      for e in events2
+      if e.content and e.content.parts
+      for p in e.content.parts
+      if p.text
+  ]
+  assert any('Approved and deployed.' in t for t in content_texts)
+
+
+@pytest.mark.asyncio
+async def test_multiple_sequential_interrupts_in_workflow(
+    request: pytest.FixtureRequest,
+):
+  """Two interrupts in sequence each resume and complete in a workflow."""
+  from google.adk.apps.app import App
+  from google.adk.apps.app import ResumabilityConfig
+  from google.adk.tools.long_running_tool import LongRunningFunctionTool
+  from google.adk.workflow._workflow_class import Workflow as NewWorkflow
+
+  from . import testing_utils
+
+  def step_one() -> None:
+    """First long-running step."""
+    return None
+
+  def step_two() -> None:
+    """Second long-running step."""
+    return None
+
+  fc1 = types.Part.from_function_call(name='step_one', args={})
+  fc2 = types.Part.from_function_call(name='step_two', args={})
+  mock_model = testing_utils.MockModel.create(responses=[fc1, fc2, 'All done.'])
+  agent = LlmAgent(
+      name='worker',
+      model=mock_model,
+      instruction='Do two steps.',
+      tools=[
+          LongRunningFunctionTool(step_one),
+          LongRunningFunctionTool(step_two),
+      ],
+  )
+  wf = NewWorkflow(name='wf', edges=[('START', agent)])
+
+  app = App(
+      name=request.function.__name__,
+      root_node=wf,
+      resumability_config=ResumabilityConfig(is_resumable=True),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: LLM → FC1 → interrupt
+  events1 = await runner.run_async(testing_utils.get_user_content('Start'))
+  assert any(e.long_running_tool_ids for e in events1)
+  invocation_id = events1[0].invocation_id
+  interrupt1 = next(e for e in events1 if e.long_running_tool_ids)
+  fc1_id = list(interrupt1.long_running_tool_ids)[0]
+
+  # Run 2: Resume FC1 → LLM → FC2 → interrupt again
+  events2 = await runner.run_async(
+      new_message=types.Content(
+          role='user',
+          parts=[
+              types.Part(
+                  function_response=types.FunctionResponse(
+                      name='step_one',
+                      id=fc1_id,
+                      response={'result': 'step1 done'},
+                  )
+              )
+          ],
+      ),
+      invocation_id=invocation_id,
+  )
+  assert any(e.long_running_tool_ids for e in events2)
+  assert len(mock_model.requests) == 2
+  interrupt2 = next(e for e in events2 if e.long_running_tool_ids)
+  fc2_id = list(interrupt2.long_running_tool_ids)[0]
+
+  # Run 3: Resume FC2 → LLM → text → done
+  invocation_id2 = events2[0].invocation_id
+  events3 = await runner.run_async(
+      new_message=types.Content(
+          role='user',
+          parts=[
+              types.Part(
+                  function_response=types.FunctionResponse(
+                      name='step_two',
+                      id=fc2_id,
+                      response={'result': 'step2 done'},
+                  )
+              )
+          ],
+      ),
+      invocation_id=invocation_id2,
+  )
+
+  # Total: 3 LLM calls (one per run).
+  assert len(mock_model.requests) == 3
+  content_texts = [
+      p.text
+      for e in events3
+      if e.content and e.content.parts
+      for p in e.content.parts
+      if p.text
+  ]
+  assert any('All done.' in t for t in content_texts)
