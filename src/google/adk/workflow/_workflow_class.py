@@ -482,16 +482,25 @@ class Workflow(BaseNode):
       existing_evt_run_id = child.run_id
 
       if unresolved:
-        # Node still has unresolved interrupts → stay WAITING.
-        # TODO: If the child has rerun_on_resume=True (e.g., nested
-        # Workflow), it should be re-run with partial resume_inputs
-        # so it can dispatch resolved grandchildren internally.
-        # Currently all children wait for full resolution.
-        nodes[child_name] = NodeState(
-            status=NodeStatus.WAITING,
-            interrupts=list(unresolved),
-            run_id=existing_evt_run_id,
-        )
+        node = self._get_static_node_by_name(child_name)
+        if node.rerun_on_resume and child.resolved_ids:
+          # Partial resume: child can handle partial resolution
+          # internally (e.g., nested Workflow dispatches resolved
+          # grandchildren). Re-run with resolved responses; the
+          # child will re-interrupt with the remaining IDs.
+          nodes[child_name] = NodeState(
+              status=NodeStatus.PENDING,
+              resume_inputs=child.resolved_responses,
+              run_id=existing_evt_run_id,
+          )
+        else:
+          # Child can't handle partial resume, or nothing resolved
+          # yet. Stay WAITING until all interrupts are resolved.
+          nodes[child_name] = NodeState(
+              status=NodeStatus.WAITING,
+              interrupts=list(unresolved),
+              run_id=existing_evt_run_id,
+          )
       elif child.output is not None:
         # Node's all interrupts are resolved and had output in previous run.
         nodes[child_name] = NodeState(

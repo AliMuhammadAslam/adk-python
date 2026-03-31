@@ -2043,3 +2043,122 @@ async def test_run_id_reused_on_resume():
   ]
   assert len(resumed_events) == 1
   assert resumed_events[0].node_info.run_id == original_run_id
+
+
+# --- Partial resume of nested Workflow ---
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_partial_resume():
+  """Partial FR re-runs nested Workflow, resolved child completes while unresolved stays interrupted.
+
+  Setup: outer_wf → inner_wf → (child_a, child_b) → join.
+    Both children interrupt on first run.
+  Act:
+    - Run 2: resolve only child_a's FR.
+    - Run 3: resolve child_b's FR.
+  Assert:
+    - Run 2: child_a produces output, invocation still interrupted.
+    - Run 3: child_b produces output, join completes, no interrupts.
+  """
+
+  class _InterruptOnce(BaseNode):
+    """Interrupts on first run, yields resume response on second."""
+
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = f'fc-{self.name}'
+      if ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        yield f'{self.name}:{ctx.resume_inputs[fc_id]}'
+        return
+      yield RequestInput(interrupt_id=fc_id)
+
+  child_a = _InterruptOnce(name='child_a')
+  child_b = _InterruptOnce(name='child_b')
+  join = JoinNode(name='join', wait_for_output=True)
+
+  inner_wf = Workflow(
+      name='inner_wf',
+      edges=[
+          (START, child_a),
+          (START, child_b),
+          (child_a, join),
+          (child_b, join),
+      ],
+  )
+
+  outer_wf = Workflow(
+      name='outer',
+      edges=[(START, inner_wf)],
+  )
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=outer_wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: both children interrupt
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  interrupt_ids = set()
+  for e in events1:
+    if e.long_running_tool_ids:
+      interrupt_ids.update(e.long_running_tool_ids)
+  assert 'fc-child_a' in interrupt_ids
+  assert 'fc-child_b' in interrupt_ids
+
+  # Run 2: resolve only child_a
+  msg2 = types.Content(
+      parts=[create_request_input_response('fc-child_a', {'v': 'a'})],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # child_a should have produced output
+  child_a_outputs = [
+      e.output
+      for e in events2
+      if e.node_info.path and 'child_a' in e.node_info.path and e.output
+  ]
+  assert any('child_a:' in str(o) for o in child_a_outputs)
+
+  # Invocation is still interrupted (child_b unresolved).
+  # No new interrupt *event* — child_b didn't re-run, its original
+  # interrupt event is already in the session from run 1.
+
+  # Run 3: resolve child_b → join completes, workflow finishes
+  msg3 = types.Content(
+      parts=[create_request_input_response('fc-child_b', {'v': 'b'})],
+      role='user',
+  )
+  events3: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg3
+  ):
+    events3.append(event)
+
+  # child_b should have produced output
+  child_b_outputs = [
+      e.output
+      for e in events3
+      if e.node_info.path and 'child_b' in e.node_info.path and e.output
+  ]
+  assert any('child_b:' in str(o) for o in child_b_outputs)
+
+  # join should have completed (no more interrupts)
+  final_interrupts = set()
+  for e in events3:
+    if e.long_running_tool_ids:
+      final_interrupts.update(e.long_running_tool_ids)
+  assert not final_interrupts

@@ -22,18 +22,33 @@ def test_retry_counter_incremented():
 def test_dict_getitem_raises():
 ```
 
-### 2. One-line docstring describes the expected behavior
+### 2. Docstring: one-line summary, then setup/act/assert
+
+The first line describes the expected behavior from the caller's
+perspective. For complex tests (multi-step, multi-invocation),
+follow with a structured breakdown of Setup, Act, and Assert.
 
 ```python
-# Good — what the caller observes
+# Good — simple test, one-liner is enough
 """Getting from an empty cache returns the default value."""
-"""Tasks added after shutdown are rejected."""
-"""Serializing a circular reference raises ValueError."""
+
+# Good — complex test with structured breakdown
+"""Partial FR re-runs nested Workflow, resolved child completes
+while unresolved stays interrupted.
+
+Setup: outer_wf → inner_wf → (child_a, child_b) → join.
+  Both children interrupt on first run.
+Act:
+  - Run 2: resolve only child_a's FR.
+  - Run 3: resolve child_b's FR.
+Assert:
+  - Run 2: child_a produces output, invocation still interrupted.
+  - Run 3: child_b produces output, join completes, no interrupts.
+"""
 
 # Bad — restates the implementation
 """LRUCache._store.get returns sentinel when key missing."""
 """ThreadPool._accept_tasks flag checked in submit()."""
-"""json.dumps calls _check_circular on each dict."""
 ```
 
 ### 3. Each test covers one behavior

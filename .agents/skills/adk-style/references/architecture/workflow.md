@@ -281,11 +281,13 @@ reconstructs static node states from session events:
      remaining IDs.
    - **Partial resume within a child:** if a single child emitted
      multiple interrupts (e.g., fc-1 and fc-2) and only fc-1 is
-     resolved, the child stays WAITING — it is not re-run until
-     all its interrupts are resolved. Known limitation: a child
-     with `rerun_on_resume=True` (e.g., nested Workflow) should
-     be re-run with partial `resume_inputs` so it can dispatch
-     resolved grandchildren internally. TODO in code.
+     resolved:
+     - `rerun_on_resume=True` (e.g., nested Workflow): re-run with
+       partial `resume_inputs` so it can dispatch resolved
+       grandchildren internally. Remaining interrupts propagate
+       back up.
+     - `rerun_on_resume=False`: stay WAITING until all interrupts
+       are resolved.
 3. **Seed triggers** — PENDING nodes get triggers so the loop
    re-executes them with `resume_inputs`.
 
