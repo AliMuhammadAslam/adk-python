@@ -483,6 +483,10 @@ class Workflow(BaseNode):
 
       if unresolved:
         # Node still has unresolved interrupts → stay WAITING.
+        # TODO: If the child has rerun_on_resume=True (e.g., nested
+        # Workflow), it should be re-run with partial resume_inputs
+        # so it can dispatch resolved grandchildren internally.
+        # Currently all children wait for full resolution.
         nodes[child_name] = NodeState(
             status=NodeStatus.WAITING,
             interrupts=list(unresolved),
