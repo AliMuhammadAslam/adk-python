@@ -959,3 +959,99 @@ async def test_dynamic_node_rerun_on_resume_false():
   # Parent receives the FR response as child's output.
   outputs = _outputs(events2)
   assert any('answer' in str(o) for o in outputs)
+
+
+# =========================================================================
+# Sequential run_id
+# =========================================================================
+
+
+@pytest.mark.asyncio
+async def test_dynamic_nodes_get_run_id_one():
+  """Each distinct dynamic child gets run_id '1' for its first run."""
+
+  class _Child(BaseNode):
+
+    async def _run_impl(self, *, ctx, node_input):
+      yield f'child: {node_input}'
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      a = await ctx.run_node(_Child(name='step_a'), node_input='x')
+      b = await ctx.run_node(_Child(name='step_b'), node_input='y')
+      yield f'{a},{b}'
+
+  wf = Workflow(name='wf', edges=[(START, _Parent(name='parent'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  events = await _run(runner, ss, session, 'go')
+
+  child_events = [
+      (e.node_name, e.node_info.run_id)
+      for e in events
+      if e.output is not None and '/parent/' in (e.node_info.path or '')
+  ]
+  # Each dynamic child is a distinct path, each gets run_id '1'.
+  assert child_events == [('step_a', '1'), ('step_b', '1')]
+
+
+@pytest.mark.asyncio
+async def test_dynamic_node_keeps_run_id_on_resume():
+  """A dynamic node that interrupts and resumes keeps the same run_id."""
+
+  class _Approver(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'approved: {ctx.resume_inputs["fc-1"]["answer"]}'
+        return
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='approve', args={}, id='fc-1'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-1'},
+      )
+
+  class _Parent(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(self, *, ctx, node_input):
+      result = await ctx.run_node(_Approver(name='approver'))
+      yield f'final: {result}'
+
+  wf = Workflow(name='wf', edges=[(START, _Parent(name='parent'))])
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Run 1: child interrupts.
+  events1 = await _run(runner, ss, session, 'go')
+  approver_run_ids_1 = [
+      e.node_info.run_id
+      for e in events1
+      if e.node_name == 'approver' and e.node_info.run_id
+  ]
+
+  # Run 2: resume with function response.
+  events2 = await _resume(runner, ss, session, 'fc-1', {'answer': 'yes'})
+  approver_run_ids_2 = [
+      e.node_info.run_id
+      for e in events2
+      if e.node_name == 'approver' and e.node_info.run_id
+  ]
+
+  # Same run_id across interrupt and resume.
+  assert approver_run_ids_1
+  assert approver_run_ids_2
+  assert approver_run_ids_1[0] == approver_run_ids_2[0]

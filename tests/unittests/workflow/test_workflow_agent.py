@@ -1503,17 +1503,18 @@ async def test_run_id_uniqueness_nested(request: pytest.FixtureRequest):
       and e.output is not None
       and is_descendant(outer_agent.name, e.node_info.path)
   ]
-  run_ids = []
+  path_run_id_pairs = []
   for e in node_output_events:
     if e.node_info.run_id:
-      run_ids.append(e.node_info.run_id)
+      path_run_id_pairs.append((e.node_info.path, e.node_info.run_id))
 
   # We expect 3 node output events:
   # - OuterNodeA (direct child)
   # - InnerNode (descendant via inner_agent)
   # - OuterNodeB (direct child)
   assert len(node_output_events) == 3
-  assert len(set(run_ids)) == 3
+  # run_ids are unique per node path (not globally)
+  assert len(set(path_run_id_pairs)) == 3
 
 
 @pytest.mark.asyncio

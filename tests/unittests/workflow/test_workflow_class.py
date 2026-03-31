@@ -991,12 +991,15 @@ async def test_run_id_unique_per_node():
   wf = Workflow(name='wf', edges=[(START, a, b)])
 
   events, _, _ = await _run_workflow(wf)
-  run_ids = [
-      e.node_info.run_id for e in events if e.node_info.run_id
+  path_run_id_pairs = [
+      (e.node_info.path, e.node_info.run_id)
+      for e in events
+      if e.node_info.run_id
   ]
 
-  assert len(run_ids) >= 2
-  assert len(set(run_ids)) >= 2
+  assert len(path_run_id_pairs) >= 2
+  # run_ids are unique per node path (not globally)
+  assert len(set(path_run_id_pairs)) >= 2
 
 
 # 32. test_run_id_uniqueness_nested
@@ -1013,11 +1016,53 @@ async def test_run_id_unique_nested():
   wf = Workflow(name='wf', edges=[(START, outer_a, inner)])
 
   events, _, _ = await _run_workflow(wf)
-  run_ids = [
-      e.node_info.run_id for e in events if e.node_info.run_id
+  path_run_id_pairs = [
+      (e.node_info.path, e.node_info.run_id)
+      for e in events
+      if e.node_info.run_id
   ]
 
-  assert len(set(run_ids)) >= 2
+  # run_ids are unique per node path (not globally)
+  assert len(set(path_run_id_pairs)) >= 2
+
+
+@pytest.mark.asyncio
+async def test_run_id_sequential_in_loop():
+  """Looping node gets sequential run_ids: 1, 2, 3."""
+  tracker = {'count': 0}
+
+  class _LoopNode(BaseNode):
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      tracker['count'] += 1
+      yield Event(
+          output=f'iter-{tracker["count"]}',
+          route='again' if tracker['count'] < 3 else 'done',
+      )
+
+  from google.adk.workflow._workflow_graph import Edge as GraphEdge
+
+  loop = _LoopNode(name='loop')
+  wf = Workflow(
+      name='wf',
+      edges=[
+          (START, loop),
+          GraphEdge(loop, loop, route='again'),
+      ],
+  )
+
+  events, _, _ = await _run_workflow(wf)
+
+  loop_run_ids = [
+      e.node_info.run_id
+      for e in events
+      if e.node_info.run_id and e.node_name == 'loop'
+  ]
+  assert loop_run_ids == ['1', '2', '3']
 
 
 # 33. test_resume_with_manual_state_verifies_input_persistence

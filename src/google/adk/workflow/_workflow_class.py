@@ -326,11 +326,22 @@ class Workflow(BaseNode):
       del loop_state.trigger_buffer[node_name]
     return trigger
 
+  @staticmethod
+  def _next_run_id(node_state: NodeState) -> str:
+    """Increment and return the next sequential run_id for a node."""
+    node_state.run_counter += 1
+    return str(node_state.run_counter)
+
   def _prepare_node_state(
       self, loop_state: _LoopState, node_name: str, trigger: Trigger
   ) -> None:
     """Create or reset NodeState for a node about to be scheduled."""
     node_state = loop_state.nodes.setdefault(node_name, NodeState())
+    # Resumed nodes (have resume_inputs) keep their run_id to
+    # continue the same logical run. Re-triggers (loop edges)
+    # clear run_id so a fresh sequential id is assigned.
+    if not node_state.resume_inputs:
+      node_state.run_id = None
     node_state.input = trigger.input
     node_state.triggered_by = trigger.triggered_by
     node_state.status = NodeStatus.RUNNING
@@ -349,12 +360,14 @@ class Workflow(BaseNode):
     is_terminal = node_name in self._graph._terminal_node_names
 
     node_state = loop_state.nodes[node_name]
+    # Reuse run_id on resume; assign a new sequential id for fresh runs.
+    run_id = node_state.run_id
+    if not run_id:
+      run_id = self._next_run_id(node_state)
     runner = NodeRunner(
         node=node,
         parent_ctx=ctx,
-        # Reuse run_id on resume so events appear as one
-        # continuous run. Fresh dispatches get a new UUID.
-        run_id=node_state.run_id,
+        run_id=run_id,
         triggered_by=trigger.triggered_by,
         in_nodes={  # TODO: move to WorkflowGraph and add tests.
             e.from_node.name
@@ -419,9 +432,7 @@ class Workflow(BaseNode):
           continue
 
         has_prior_events = True
-        dynamic_child.run_id = (
-            event.node_info.run_id or dynamic_child.run_id
-        )
+        dynamic_child.run_id = event.node_info.run_id or dynamic_child.run_id
 
         # Output: direct path or output_for delegation.
         if event.output is not None:
@@ -505,19 +516,21 @@ class Workflow(BaseNode):
         use_as_output: bool,
     ) -> Context:
       """Run a dynamic node for the first time."""
-      runner = NodeRunner(
-          node=node.model_copy(update={'name': name}),
-          parent_ctx=ctx,
-          additional_output_for_ancestor=(
-              ctx.node_path if use_as_output else None
-          ),
-      )
       state = NodeState(
           status=NodeStatus.RUNNING,
           input=node_input,
-          run_id=runner.run_id,
           source_node_name=node.name,
           parent_run_id=ctx.run_id,
+      )
+      run_id = Workflow._next_run_id(state)
+      state.run_id = run_id
+      runner = NodeRunner(
+          node=node.model_copy(update={'name': name}),
+          parent_ctx=ctx,
+          run_id=run_id,
+          additional_output_for_ancestor=(
+              ctx.node_path if use_as_output else None
+          ),
       )
       loop_state.dynamic_nodes[node_path] = state
       task = asyncio.create_task(runner.run(node_input=node_input))
@@ -615,6 +628,10 @@ class Workflow(BaseNode):
         _rehydrate_dynamic_node_from_events(ctx, node_path)
 
       # Phase 2: Dedup — return cached or handle waiting.
+      # TODO: When the parent node is re-triggered (e.g. loop edge),
+      # dynamic children keep their completed state and return stale
+      # cached output. To fix, scope dynamic node state by the
+      # parent's run_id so each parent iteration gets fresh children.
       if node_path in loop_state.dynamic_nodes:
         state = loop_state.dynamic_nodes[node_path]
 
@@ -786,6 +803,13 @@ class Workflow(BaseNode):
         if state.status == NodeStatus.WAITING
         for interrupt_id in state.interrupts
     }
+
+    # Restore run_counter from run_id so resumed nodes continue
+    # sequential ids. When NodeState is persisted (resumability=on),
+    # run_counter will already be correct from deserialization.
+    for state in nodes.values():
+      if state.run_id and state.run_id.isdigit():
+        state.run_counter = int(state.run_id)
 
   def _scan_child_events(self, ctx: Context) -> dict[str, _ChildScanState]:
     """Scan session events and collect per-child state.

@@ -60,8 +60,9 @@ class NodeRunner:
     Args:
       node: The BaseNode to execute.
       parent_ctx: The parent node's Context.
-      run_id: Unique ID for this run. Auto-generated
-        (UUID) if not provided.
+      run_id: Unique ID for this run. Should be a sequential
+        counter string ("1", "2", …) unique per node path.
+        Falls back to "1" if not provided.
       triggered_by: Name of the node that triggered this run.
       in_nodes: Names of predecessor nodes in the graph.
       additional_output_for_ancestor: Ancestor node path whose
@@ -72,12 +73,10 @@ class NodeRunner:
       prior_interrupt_ids: Unresolved interrupt IDs (set) from a
         previous run, carried forward on resume.
     """
-    from ..platform import uuid as platform_uuid
-
     # Core
     self._node = node
     self._parent_ctx = parent_ctx
-    self._run_id = run_id or platform_uuid.new_uuid()
+    self._run_id = run_id or '1'
 
     # Graph context
     self._triggered_by = triggered_by
