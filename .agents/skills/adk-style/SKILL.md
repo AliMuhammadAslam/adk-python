@@ -13,7 +13,7 @@ description: ADK development style guide — architecture patterns, testing best
 - [Context](references/architecture/context.md) — 1:1 node-context mapping, InvocationContext singleton, property reference
 - [NodeRunner](references/architecture/node-runner.md) — two communication channels, execution flow, output delegation
 - [Runner](references/architecture/runner.md) — Runner vs NodeRunner vs Workflow separation
-- [Checkpoint and Resume](references/architecture/checkpoint-resume.md) — HITL lifecycle, `rerun_on_resume`, `execution_id`
+- [Checkpoint and Resume](references/architecture/checkpoint-resume.md) — HITL lifecycle, `rerun_on_resume`, `run_id`
 - [Observability](references/architecture/observability.md) — span-on-Context design, NodeRunner integration, correlated logs, metrics
 
 ## Testing

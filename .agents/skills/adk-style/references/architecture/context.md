@@ -25,7 +25,7 @@ Root Context                      ← created by Runner from IC
 
 The Runner creates `root_ctx = Context(ic)` as the tree root and
 passes it as `parent_ctx` to `NodeRunner(node=self.node)`. The
-root Context has no node_path or execution_id — it exists solely
+root Context has no node_path or run_id — it exists solely
 as the parent for the Runner's root node. All Contexts in the tree
 share the same InvocationContext singleton.
 
@@ -48,7 +48,7 @@ via `_create_child_context()`. The child inherits:
 
 - `_invocation_context` — same singleton (shared session, services)
 - `node_path` — parent path + node name (e.g., `wf/child_a`)
-- `execution_id` — unique per execution (reused on resume)
+- `run_id` — unique per execution (reused on resume)
 - `event_author` — inherited from parent
 - `schedule_dynamic_node_internal` — inherited from parent
 
@@ -96,9 +96,9 @@ workflow metadata, and service methods. See property reference below.
 |---|---|
 | State & actions | `state` (mutable `State`), `actions` (EventActions) |
 | Node results | `output`, `route`, `interrupt_ids` (read-only) |
-| Workflow | `node_path`, `execution_id`, `triggered_by`, `in_nodes`, `resume_inputs`, `retry_count`, `event_author` |
+| Workflow | `node_path`, `run_id`, `triggered_by`, `in_nodes`, `resume_inputs`, `retry_count`, `event_author` |
 | Transfer | `transfer_targets` |
-| Methods | `run_node()`, `get_next_child_execution_id()` |
+| Methods | `run_node()`, `get_next_child_run_id()` |
 | Artifacts | `load_artifact()`, `save_artifact()`, `list_artifacts()` |
 | Memory | `search_memory()`, `add_session_to_memory()`, `add_events_to_memory()`, `add_memory()` |
 | Auth | `request_credential()`, `load_credential()`, `save_credential()` |

@@ -64,7 +64,7 @@ class Context(ReadonlyContext):
 1. Create child ctx
 2. Create span, parented to `parent_ctx._span`
 3. Store on `ctx._span`
-4. Set node attributes (name, path, execution_id, type)
+4. Set node attributes (name, path, run_id, type)
 5. Execute node
    - Node can add custom attributes to `ctx._span` during
      execution (e.g., SingleAgentReactNode adds
@@ -89,7 +89,7 @@ Set at span creation (available for sampling decisions):
 |---|---|---|
 | `node.name` | `self._node.name` | `"call_llm"` |
 | `node.path` | `ctx.node_path` | `"wf/child_a"` |
-| `node.execution_id` | `self._execution_id` | `"child_a_abc123"` |
+| `node.run_id` | `self._run_id` | `"child_a_abc123"` |
 | `node.type` | `type(self._node).__name__` | `"CallLlmNode"` |
 
 Set after execution (result attributes):
@@ -145,8 +145,8 @@ Use the `google_adk` logger namespace:
 logger = logging.getLogger("google_adk." + __name__)
 
 logger.debug(
-    'Node %s started (execution_id=%s, path=%s)',
-    node.name, execution_id, ctx.node_path,
+    'Node %s started (run_id=%s, path=%s)',
+    node.name, run_id, ctx.node_path,
 )
 ```
 

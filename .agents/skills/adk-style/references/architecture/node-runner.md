@@ -36,7 +36,7 @@ Orchestrator
 ```
 
 1. **Create child Context** — inherits `_invocation_context` (shared
-   singleton), builds `node_path` from parent, assigns `execution_id`.
+   singleton), builds `node_path` from parent, assigns `run_id`.
 
 2. **Iterate `node.run()`** — for each yielded Event:
 
@@ -47,7 +47,7 @@ Orchestrator
    - `event.author` — node name (or `event_author` override)
    - `event.invocation_id` — from InvocationContext
    - `event.node_info.path` — full path (e.g., `wf/child_a`)
-   - `event.node_info.execution_id` — unique per execution
+   - `event.node_info.run_id` — unique per execution
    - `event.node_info.output_for` — ancestor paths when
      `use_as_output=True`
 

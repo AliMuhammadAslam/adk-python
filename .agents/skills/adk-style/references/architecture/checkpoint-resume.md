@@ -13,13 +13,13 @@ HITL (Human-in-the-Loop) follows this pattern:
 4. **Continue**: The interrupted node receives the FR and continues
    execution. Downstream nodes receive the resumed node's output.
 
-## execution_id on resume
+## run_id on resume
 
-Resumed nodes reuse the same `execution_id` from the original
+Resumed nodes reuse the same `run_id` from the original
 execution. From the node's perspective, the execution never paused
-— events before and after the resume share the same execution_id.
+— events before and after the resume share the same run_id.
 
-Fresh dispatches (first run, loop re-trigger) get a new execution_id.
+Fresh dispatches (first run, loop re-trigger) get a new run_id.
 
 ## Resume behavior by `rerun_on_resume`
 
@@ -58,7 +58,7 @@ On resume:
 ```python
 runner = NodeRunner(
     node=node, parent_ctx=ctx,
-    execution_id=prior_execution_id,  # reuse
+    run_id=prior_run_id,  # reuse
     prior_output=cached_output,
     prior_interrupt_ids={'fc-2'},  # still unresolved
 )
