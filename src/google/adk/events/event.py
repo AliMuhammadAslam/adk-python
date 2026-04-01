@@ -68,7 +68,7 @@ class NodeInfo(BaseModel):
   ``wf/A``.
   """
 
-  message_as_output: bool = False
+  message_as_output: bool | None = None
   """When True, this event's content is the node's output.
 
   No separate output event is needed — the content event already
