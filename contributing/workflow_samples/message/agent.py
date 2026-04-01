@@ -37,7 +37,7 @@ def send_multimodal(node_input: Any = None):
           types.Part.from_text(
               text=(
                   "#2 Here is a multi-modal message with an inline image (red"
-                  " square):"
+                  " circle):"
               )
           ),
           types.Part.from_bytes(data=red_square_png, mime_type="image/png"),
