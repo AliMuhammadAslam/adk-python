@@ -558,7 +558,7 @@ async def test_run_node_use_as_output_attributes_child_output_to_parent():
 
 
 @pytest.mark.asyncio
-async def test_run_node_child_resume_via_child_tracker():
+async def test_run_node_child_resume_via_default_scheduler():
   """Completed children are cached on resume; interrupted child re-runs."""
 
   class _ChildA(BaseNode):
@@ -601,7 +601,7 @@ async def test_run_node_child_resume_via_child_tracker():
 
 
 @pytest.mark.asyncio
-async def test_run_node_child_tracker_caches_by_call_count():
+async def test_run_node_default_scheduler_caches_by_call_count():
   """Only interrupted children re-run; completed children are skipped."""
 
   call_counts = {'a': 0, 'b': 0, 'c': 0}
@@ -679,5 +679,60 @@ async def test_run_node_use_as_output_with_resume():
   assert any(e.long_running_tool_ids for e in events1)
   outputs = [e.output for e in events2 if e.output is not None]
   assert any('approved: True' in o for o in outputs)
+
+
+@pytest.mark.asyncio
+async def test_run_node_nested_ctx_run_node_resume():
+  """Nested ctx.run_node(): outer → middle → inner; inner interrupts and resumes."""
+
+  call_counts = {'outer': 0, 'middle': 0, 'inner': 0}
+
+  class _Inner(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      call_counts['inner'] += 1
+      if ctx.resume_inputs and 'fc-1' in ctx.resume_inputs:
+        yield f'inner_resumed:{ctx.resume_inputs["fc-1"]["v"]}'
+        return
+      yield _make_interrupt_event(fc_name='ask', fc_id='fc-1')
+
+  class _Middle(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      call_counts['middle'] += 1
+      inner_out = await ctx.run_node(_Inner(name='inner'), 'go')
+      yield f'middle({inner_out})'
+
+  class _Outer(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      call_counts['outer'] += 1
+      mid_out = await ctx.run_node(_Middle(name='middle'), 'start')
+      yield f'outer({mid_out})'
+
+  events1, events2, _, _, _ = await _run_two_turns(
+      _Outer(name='top'),
+      'go',
+      _make_resume_message(fc_name='ask', fc_id='fc-1', response={'v': 99}),
+  )
+
+  # Turn 1: inner interrupts, propagated through middle and outer.
+  assert any(e.long_running_tool_ids for e in events1)
+
+  # Turn 2: inner resumes, middle and outer produce final output.
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'outer(middle(inner_resumed:99))' in outputs
+
+  # Outer and middle re-run on resume; inner runs twice (interrupt + resume).
+  assert call_counts == {'outer': 2, 'middle': 2, 'inner': 2}
 
 

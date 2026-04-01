@@ -353,7 +353,7 @@ async def test_waiting_resolved_resumes_node():
 
 
 @pytest.mark.asyncio
-async def test_child_tracker_fresh_execution():
+async def test_default_scheduler_fresh_execution():
   """DefaultNodeScheduler runs a fresh node just like DynamicNodeScheduler."""
 
   class _Child(BaseNode):
@@ -376,7 +376,7 @@ async def test_child_tracker_fresh_execution():
 
 
 @pytest.mark.asyncio
-async def test_child_tracker_dedup_returns_cached():
+async def test_default_scheduler_dedup_returns_cached():
   """DefaultNodeScheduler returns cached output for completed nodes."""
   ctx, _ = _make_parent_ctx()
   tracker = DefaultNodeScheduler()
@@ -399,7 +399,7 @@ async def test_child_tracker_dedup_returns_cached():
 
 
 @pytest.mark.asyncio
-async def test_child_tracker_resume_with_resolved_interrupts():
+async def test_default_scheduler_resume_with_resolved_interrupts():
   """DefaultNodeScheduler re-runs nodes with resolved interrupts."""
 
   class _Resumable(BaseNode):
@@ -434,7 +434,7 @@ async def test_child_tracker_resume_with_resolved_interrupts():
 
 
 @pytest.mark.asyncio
-async def test_child_tracker_propagates_unresolved_interrupts():
+async def test_default_scheduler_propagates_unresolved_interrupts():
   """DefaultNodeScheduler propagates unresolved interrupts."""
   ctx, _ = _make_parent_ctx()
   tracker = DefaultNodeScheduler()
