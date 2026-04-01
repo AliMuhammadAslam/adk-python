@@ -16,7 +16,7 @@
 
 - Sets a branch for content isolation (single_turn mode only)
 - Converts node_input to user content (single_turn mode only)
-- Runs leaf single_turn agents via SingleAgentReactNode (new Workflow)
+- Runs leaf single_turn agents via SingleLlmAgentNode (new Workflow)
   or _SingleLlmAgent (old Workflow)
 - Re-emits finish_task output so the outer node_runner can route it
 """
@@ -60,7 +60,7 @@ class _LlmAgentWrapper(BaseNode):
 
   Output handling by mode:
     single_turn (leaf, no sub_agents, new Workflow): Runs the ReAct
-      loop via SingleAgentReactNode. LlmCallNode events are enqueued
+      loop via SingleLlmAgentNode. CallLlmNode events are enqueued
       internally; the wrapper post-processes the final text output
       (output_schema validation, output_key storage).
     single_turn (leaf, no sub_agents, old Workflow): Bypasses Mesh by
@@ -106,14 +106,14 @@ class _LlmAgentWrapper(BaseNode):
     # For leaf single_turn agents, prepare both execution paths.
     # The old Workflow (uses _node_runner.py, no event_queue) needs
     # _SingleLlmAgent. The new Workflow (_workflow_class.py, sets
-    # event_queue) uses SingleAgentReactNode. The choice is made at
+    # event_queue) uses SingleLlmAgentNode. The choice is made at
     # runtime in _run_impl based on event_queue presence.
     if self.agent.mode == 'single_turn' and not self.agent.sub_agents:
-      from ..agents.llm._single_agent_react_node import SingleAgentReactNode
       from ..agents.llm._single_llm_agent import _SingleLlmAgent
+      from ..agents.llm.new._single_llm_agent_node import SingleLlmAgentNode
 
       self._single = _SingleLlmAgent.from_base_llm_agent(self.agent)
-      self._react = SingleAgentReactNode(name=self.agent.name, agent=self.agent)
+      self._react = SingleLlmAgentNode(name=self.agent.name, agent=self.agent)
 
     return self
 
@@ -197,7 +197,7 @@ class _LlmAgentWrapper(BaseNode):
     return agent_ctx, agent_input
 
   def _use_react_path(self, ctx: Context) -> bool:
-    """Returns True if we should use SingleAgentReactNode (new Workflow).
+    """Returns True if we should use SingleLlmAgentNode (new Workflow).
 
     The new Workflow (_workflow_class.py) runs via Runner._run_node_async
     which sets ic.event_queue. The old Workflow (_workflow.py) runs via
@@ -220,9 +220,9 @@ class _LlmAgentWrapper(BaseNode):
     agent_ctx, agent_input = self._prepare_input(ctx, node_input)
 
     if self._use_react_path(ctx):
-      # New Workflow: leaf single_turn via SingleAgentReactNode.
+      # New Workflow: leaf single_turn via SingleLlmAgentNode.
       # Inject input as user content in session, then run the react
-      # loop. LlmCallNode events are enqueued to event_queue internally;
+      # loop. CallLlmNode events are enqueued to event_queue internally;
       # only the final text output comes through the generator.
       if agent_input is not None and not ctx.resume_inputs:
         # Only inject on first run — on resume, content is already
@@ -288,7 +288,7 @@ class _LlmAgentWrapper(BaseNode):
           output = validate_schema(self.agent.output_schema, output)
         if self.agent.output_key:
           ctx.actions.state_delta[self.agent.output_key] = output
-        # LlmCallNode's content event has message_as_output=True,
+        # CallLlmNode's content event has message_as_output=True,
         # which auto-sets _output_delegated via NodeRunner. No
         # separate output event will be enqueued.
         yield output

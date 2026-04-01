@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for SingleAgentReactNode.
+"""Tests for SingleLlmAgentNode.
 
-Runs SingleAgentReactNode directly via Runner(node=...) — no Workflow
-wrapper needed because SingleAgentReactNode creates its own
+Runs SingleLlmAgentNode directly via Runner(node=...) — no Workflow
+wrapper needed because SingleLlmAgentNode creates its own
 schedule_dynamic_node and sets ic.agent from its agent field.
 """
 
 from __future__ import annotations
 
-from google.adk.agents.llm._single_agent_react_node import SingleAgentReactNode
+from google.adk.agents.llm.new._single_llm_agent_node import SingleLlmAgentNode
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
@@ -29,12 +29,11 @@ from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.tools.tool_context import ToolContext
 from google.genai import types
 
+from tests.unittests import testing_utils
 from tests.unittests.agents.llm.event_utils import function_call_names
 from tests.unittests.agents.llm.event_utils import function_response_dicts
 from tests.unittests.agents.llm.event_utils import function_responses_by_name
 from tests.unittests.agents.llm.event_utils import text_parts
-
-from ... import testing_utils
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -45,14 +44,14 @@ _SESSION_ID = 'test_session'
 
 
 async def _run(mock_model, user_message, tools=None, **agent_kwargs):
-  """Run SingleAgentReactNode via Runner and return events."""
+  """Run SingleLlmAgentNode via Runner and return events."""
   llm_agent = LlmAgent(
       name='test_agent',
       model=mock_model,
       tools=tools or [],
       **agent_kwargs,
   )
-  react_node = SingleAgentReactNode(name='react', agent=llm_agent)
+  react_node = SingleLlmAgentNode(name='react', agent=llm_agent)
 
   session_service = InMemorySessionService()
   await session_service.create_session(
@@ -77,14 +76,14 @@ async def _run(mock_model, user_message, tools=None, **agent_kwargs):
 
 
 async def _setup_runner(mock_model, tools=None, **agent_kwargs):
-  """Create a Runner with SingleAgentReactNode for multi-turn tests."""
+  """Create a Runner with SingleLlmAgentNode for multi-turn tests."""
   llm_agent = LlmAgent(
       name='test_agent',
       model=mock_model,
       tools=tools or [],
       **agent_kwargs,
   )
-  react_node = SingleAgentReactNode(name='react', agent=llm_agent)
+  react_node = SingleLlmAgentNode(name='react', agent=llm_agent)
 
   session_service = InMemorySessionService()
   await session_service.create_session(

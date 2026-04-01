@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for ParallelToolCallNode in isolation.
+"""Unit tests for RunToolsNode in isolation.
 
-Tests call ``ParallelToolCallNode.run()`` directly with a hand-built
+Tests call ``RunToolsNode.run()`` directly with a hand-built
 Context and a scheduler wired up via NodeRunner, verifying that tool
 calls are executed in parallel and results are merged correctly.
 """
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import asyncio
 
-from google.adk.agents.llm._parallel_tool_call_node import ParallelToolCallNode
+from google.adk.agents.llm.new._run_tools_node import RunToolsNode
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.workflow._node_runner_class import NodeRunner
 from google.genai import types
@@ -89,7 +89,7 @@ async def _collect_events(node, ctx, node_input):
 # ---------------------------------------------------------------------------
 
 
-class TestParallelToolCallNode:
+class TestRunToolsNode:
 
   async def test_single_tool_call(self):
     """Single function call — executes and returns merged result."""
@@ -104,7 +104,7 @@ class TestParallelToolCallNode:
     _wire_scheduler(ctx)
 
     fc = types.FunctionCall(name='add', args={'x': 1, 'y': 2}, id='fc-1')
-    node = ParallelToolCallNode(tools_dict=tools_dict)
+    node = RunToolsNode(tools_dict=tools_dict)
 
     content = types.Content(role='model', parts=[types.Part(function_call=fc)])
     events = await _collect_events(node, ctx, content)
@@ -138,7 +138,7 @@ class TestParallelToolCallNode:
     fc_mul = types.FunctionCall(
         name='multiply', args={'x': 3, 'y': 4}, id='fc-mul'
     )
-    node = ParallelToolCallNode(tools_dict=tools_dict)
+    node = RunToolsNode(tools_dict=tools_dict)
 
     content = types.Content(
         role='model',
@@ -173,7 +173,7 @@ class TestParallelToolCallNode:
     _wire_scheduler(ctx)
 
     fc = types.FunctionCall(name='transfer_tool', args={}, id='fc-transfer')
-    node = ParallelToolCallNode(tools_dict=tools_dict)
+    node = RunToolsNode(tools_dict=tools_dict)
 
     content = types.Content(role='model', parts=[types.Part(function_call=fc)])
     events = await _collect_events(node, ctx, content)
@@ -201,7 +201,7 @@ class TestParallelToolCallNode:
 
     fc1 = types.FunctionCall(name='echo', args={'msg': 'a'}, id='fc-1')
     fc2 = types.FunctionCall(name='echo', args={'msg': 'b'}, id='fc-2')
-    node = ParallelToolCallNode(tools_dict=tools_dict)
+    node = RunToolsNode(tools_dict=tools_dict)
 
     content = types.Content(
         role='model',

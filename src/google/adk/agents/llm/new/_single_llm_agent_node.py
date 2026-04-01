@@ -22,22 +22,22 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from ...models.llm_request import LlmRequest
-from ...workflow._base_node import BaseNode
-from ..context import Context
-from ..llm_agent import LlmAgent
-from ._llm_call_node import _build_llm_request
-from ._llm_call_node import LlmCallNode
-from ._parallel_tool_call_node import ParallelToolCallNode
+from ....models.llm_request import LlmRequest
+from ....workflow._base_node import BaseNode
+from ...context import Context
+from ...llm_agent import LlmAgent
+from ._call_llm_node import _build_llm_request
+from ._call_llm_node import CallLlmNode
+from ._run_tools_node import RunToolsNode
 
 logger = logging.getLogger('google_adk.' + __name__)
 
 
-class SingleAgentReactNode(BaseNode):
+class SingleLlmAgentNode(BaseNode):
   """Orchestrates the LLM reason-act loop for an individual LlmAgent.
 
-  1. Call LLM via ``LlmCallNode``
-  2. If function calls returned, execute tools via ``ParallelToolCallNode``
+  1. Call LLM via ``CallLlmNode``
+  2. If function calls returned, execute tools via ``RunToolsNode``
   3. Check termination conditions, otherwise loop back to step 1
 
   The ``agent`` field must be set by the parent.  This avoids reading from
@@ -68,7 +68,7 @@ class SingleAgentReactNode(BaseNode):
     Matches the ``ScheduleDynamicNode`` protocol so that child nodes
     can use ``ctx._run_node_internal()``.
     """
-    from ...workflow._node_runner_class import NodeRunner
+    from ....workflow._node_runner_class import NodeRunner
 
     runner = NodeRunner(
         node=node,
@@ -93,13 +93,13 @@ class SingleAgentReactNode(BaseNode):
     ctx.event_author = self.agent.name
 
     # Always provide our own scheduler so child nodes
-    # (LlmCallNode, ParallelToolCallNode) are managed by this node,
+    # (CallLlmNode, RunToolsNode) are managed by this node,
     # not by an outer Workflow.
     # TODO: make this a closure and track the created asyncio.Tasks
     ctx._schedule_dynamic_node_internal = self._schedule_node
 
     # TODO: On resume, resume the tool node first before calling
-    # the LLM.  Currently the interrupted ParallelToolCallNode is
+    # the LLM.  Currently the interrupted RunToolsNode is
     # never completed — on resume, the node restarts and calls the
     # LLM directly, which only works for long-running tools (the FR
     # is in session events).  For auth/confirmation interrupts, the
@@ -107,7 +107,7 @@ class SingleAgentReactNode(BaseNode):
     # the LLM can proceed.  The fix requires:
     #   1. Extract last FCs from session events
     #   2. Build tools_dict via _process_agent_tools
-    #   3. Run ParallelToolCallNode with resume_inputs (port resume
+    #   3. Run RunToolsNode with resume_inputs (port resume
     #      handling from execute_tools: _process_auth_resume,
     #      _process_confirmation_resume, _process_long_running_resume)
     #   4. Then continue to the ReAct loop
@@ -124,7 +124,7 @@ class SingleAgentReactNode(BaseNode):
         break
 
       # 2. Call LLM
-      llm_node = LlmCallNode(agent=self.agent)
+      llm_node = CallLlmNode(agent=self.agent)
       content = await ctx.run_node(llm_node, node_input=llm_request)
 
       # 3. Check for text-only response to terminate ReAct loop
@@ -139,14 +139,14 @@ class SingleAgentReactNode(BaseNode):
         break
 
       # 4. Execute tools
-      tool_node = ParallelToolCallNode(
+      tool_node = RunToolsNode(
           tools_dict=llm_request.tools_dict,
       )
       tool_ctx = await ctx._run_node_internal(tool_node, node_input=content)
 
       # 3. No tool result — tools were interrupted (long-running,
       # auth, etc.).  The interrupt event was already enqueued by
-      # ParallelToolCallNode.
+      # RunToolsNode.
       if tool_ctx.output is None:
         break
 

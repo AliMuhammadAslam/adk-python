@@ -25,31 +25,31 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from . import _basic
-from . import _code_execution
-from . import _compaction
-from . import _context_cache_processor
-from . import _identity
-from . import _instructions
-from . import _interactions_processor
-from . import _nl_planning
-from . import _output_schema_processor
-from ...events.event import Event
-from ...models.llm_request import LlmRequest
-from ...tools.base_tool import BaseTool
-from ...workflow._base_node import BaseNode
-from ..context import Context
-from ..llm_agent import LlmAgent
-from ..run_config import StreamingMode
-from ._agent_transfer import inject_transfer_tools
-from ._reasoning import _create_response_processors
-from ._reasoning import _finalize_model_response_event
-from ._reasoning import _handle_after_model_callback
-from ._reasoning import _handle_before_model_callback
-from ._reasoning import _process_agent_tools
-from ._reasoning import _resolve_toolset_auth
-from ._reasoning import _run_and_handle_error
-from .task import _task_contents_processor
+from .. import _basic
+from .. import _code_execution
+from .. import _compaction
+from .. import _context_cache_processor
+from .. import _identity
+from .. import _instructions
+from .. import _interactions_processor
+from .. import _nl_planning
+from .. import _output_schema_processor
+from ....events.event import Event
+from ....models.llm_request import LlmRequest
+from ....tools.base_tool import BaseTool
+from ....workflow._base_node import BaseNode
+from ...context import Context
+from ...llm_agent import LlmAgent
+from ...run_config import StreamingMode
+from .._agent_transfer import inject_transfer_tools
+from .._reasoning import _create_response_processors
+from .._reasoning import _finalize_model_response_event
+from .._reasoning import _handle_after_model_callback
+from .._reasoning import _handle_before_model_callback
+from .._reasoning import _process_agent_tools
+from .._reasoning import _resolve_toolset_auth
+from .._reasoning import _run_and_handle_error
+from ..task import _task_contents_processor
 
 logger = logging.getLogger('google_adk.' + __name__)
 
@@ -57,11 +57,11 @@ _ADK_AGENT_NAME_LABEL_KEY = 'adk_agent_name'
 
 
 def _create_request_processors():
-  """Request processors for the LlmCallNode.
+  """Request processors for the CallLlmNode.
 
   Excludes ``auth_preprocessor`` and ``request_confirmation`` processors
   because auth and confirmation resume is handled natively by
-  ``ParallelToolCallNode`` via ``rerun_on_resume=True``.
+  ``RunToolsNode`` via ``rerun_on_resume=True``.
   """
   return [
       _basic.request_processor,
@@ -114,7 +114,7 @@ async def _build_llm_request(
     llm_request.config.labels[_ADK_AGENT_NAME_LABEL_KEY] = agent.name
 
 
-class LlmCallNode(BaseNode):
+class CallLlmNode(BaseNode):
   """Encapsulates a single LLM call cycle.
 
   It expects an ``LlmRequest`` as its input, calls the LLM, runs response
@@ -126,7 +126,7 @@ class LlmCallNode(BaseNode):
 
   model_config = ConfigDict(arbitrary_types_allowed=True)
 
-  name: str = 'llm_call'
+  name: str = 'call_llm'
 
   agent: LlmAgent = Field(...)
   """The LlmAgent whose model, tools, and callbacks drive the LLM call."""
@@ -212,7 +212,7 @@ class LlmCallNode(BaseNode):
       # --- Route decision ---
       if not finalized_event.partial:
         if finalized_event.node_info is None:
-          from ...events.event import NodeInfo
+          from ....events.event import NodeInfo
 
           finalized_event.node_info = NodeInfo()
         finalized_event.node_info.message_as_output = True

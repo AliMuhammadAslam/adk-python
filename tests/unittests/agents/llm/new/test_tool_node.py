@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for ToolCallNode in isolation.
+"""Unit tests for ToolNode in isolation.
 
-Tests call ``ToolCallNode.run()`` directly with a hand-built Context,
+Tests call ``ToolNode.run()`` directly with a hand-built Context,
 verifying that a single tool call produces the expected function response
 output.
 """
 
 from __future__ import annotations
 
-from google.adk.agents.llm._tool_call_node import ToolCallNode
+from google.adk.agents.llm.new._tool_node import ToolNode
 from google.adk.tools.function_tool import FunctionTool
 from google.genai import types
 
@@ -30,7 +30,7 @@ from tests.unittests.agents.llm.event_utils import output_events
 from tests.unittests.workflow import testing_utils
 
 
-class TestToolCallNode:
+class TestToolNode:
 
   async def test_simple_tool_call(self):
     """Tool call returns a value — yields normalized response dict."""
@@ -44,7 +44,7 @@ class TestToolCallNode:
     ctx = await testing_utils.create_workflow_context(agent)
 
     fc = types.FunctionCall(name='add', args={'x': 2, 'y': 3}, id='fc-1')
-    node = ToolCallNode(name='tool_call__fc-1', tool=tool)
+    node = ToolNode(name='tool_call__fc-1', tool=tool)
     events = await collect_events(node, ctx, fc)
 
     outputs = output_events(events)
@@ -63,7 +63,7 @@ class TestToolCallNode:
     ctx = await testing_utils.create_workflow_context(agent)
 
     fc = types.FunctionCall(name='lookup', args={'key': 'x'}, id='fc-2')
-    node = ToolCallNode(name='tool_call__fc-2', tool=tool)
+    node = ToolNode(name='tool_call__fc-2', tool=tool)
     events = await collect_events(node, ctx, fc)
 
     outputs = output_events(events)
@@ -82,7 +82,7 @@ class TestToolCallNode:
     ctx = await testing_utils.create_workflow_context(agent)
 
     fc = types.FunctionCall(name='get_time', args={}, id='fc-3')
-    node = ToolCallNode(name='tool_call__fc-3', tool=tool)
+    node = ToolNode(name='tool_call__fc-3', tool=tool)
     events = await collect_events(node, ctx, fc)
 
     outputs = output_events(events)
@@ -90,7 +90,7 @@ class TestToolCallNode:
     assert outputs[0].output == {'result': '12:00'}
 
   async def test_function_call_id_auto_generated(self):
-    """FunctionCall without id — ToolCallNode generates one."""
+    """FunctionCall without id — ToolNode generates one."""
 
     def noop() -> str:
       """No-op."""
@@ -101,7 +101,7 @@ class TestToolCallNode:
     ctx = await testing_utils.create_workflow_context(agent)
 
     fc = types.FunctionCall(name='noop', args={})  # no id
-    node = ToolCallNode(name='tool_call__0', tool=tool)
+    node = ToolNode(name='tool_call__0', tool=tool)
     events = await collect_events(node, ctx, fc)
 
     outputs = output_events(events)
@@ -122,10 +122,10 @@ class TestToolCallNode:
     ctx = await testing_utils.create_workflow_context(agent)
 
     fc = types.FunctionCall(name='transfer_tool', args={}, id='fc-t')
-    node = ToolCallNode(name='tool_call__fc-t', tool=tool)
+    node = ToolNode(name='tool_call__fc-t', tool=tool)
     events = await collect_events(node, ctx, fc)
 
     outputs = output_events(events)
     assert len(outputs) == 1
     assert outputs[0].output == {'result': 'transferring'}
-    # Actions are on the context, verified via ParallelToolCallNode tests.
+    # Actions are on the context, verified via RunToolsNode tests.

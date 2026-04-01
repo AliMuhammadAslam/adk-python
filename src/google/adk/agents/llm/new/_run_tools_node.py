@@ -24,16 +24,16 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from . import _output_schema_processor
-from ...events.event import Event
-from ...events.event_actions import EventActions
-from ...tools.base_tool import BaseTool
-from ...workflow._base_node import BaseNode
-from ..context import Context
-from ..invocation_context import InvocationContext
-from ._functions import _get_tool
-from ._functions import deep_merge_dicts
-from ._tool_call_node import ToolCallNode
+from .. import _output_schema_processor
+from ....events.event import Event
+from ....events.event_actions import EventActions
+from ....tools.base_tool import BaseTool
+from ....workflow._base_node import BaseNode
+from ...context import Context
+from ...invocation_context import InvocationContext
+from .._functions import _get_tool
+from .._functions import deep_merge_dicts
+from ._tool_node import ToolNode
 
 
 def _build_merged_event(
@@ -70,16 +70,16 @@ def _build_merged_event(
   )
 
 
-class ParallelToolCallNode(BaseNode):
+class RunToolsNode(BaseNode):
   """Executes multiple tool calls in parallel via ``ctx.run_node``.
 
-  For each ``FunctionCall``, creates a ``ToolCallNode`` and runs it
+  For each ``FunctionCall``, creates a ``ToolNode`` and runs it
   via ``ctx._run_node_internal`` in parallel using ``asyncio.create_task``.
   """
 
   model_config = ConfigDict(arbitrary_types_allowed=True)
 
-  name: str = 'parallel_tool_call'
+  name: str = 'run_tools'
   rerun_on_resume: bool = True
   tools_dict: dict[str, BaseTool] = Field(...)
 
@@ -97,19 +97,19 @@ class ParallelToolCallNode(BaseNode):
       ]
     invocation_context = ctx.get_invocation_context()
 
-    # Execute each function call in parallel via ToolCallNode.
+    # Execute each function call in parallel via ToolNode.
     tasks = []
     for i, fc in enumerate(function_calls):
       tool = _get_tool(fc, self.tools_dict)
-      tool_call_node = ToolCallNode(
+      tool_node = ToolNode(
           name=fc.name,
           tool=tool,
       )
       task = asyncio.create_task(
           ctx._run_node_internal(
-              tool_call_node,
+              tool_node,
               node_input=fc,
-              name=tool_call_node.name,
+              name=tool_node.name,
               run_id=fc.id or str(i),
           )
       )
@@ -163,14 +163,14 @@ class ParallelToolCallNode(BaseNode):
           invocation_context, json_response
       )
       if final_event.node_info is None:
-        from ...events.event import NodeInfo
+        from ....events.event import NodeInfo
 
         final_event.node_info = NodeInfo()
       final_event.node_info.message_as_output = True
       yield final_event.model_copy()
     else:
       if merged_event.node_info is None:
-        from ...events.event import NodeInfo
+        from ....events.event import NodeInfo
 
         merged_event.node_info = NodeInfo()
       merged_event.node_info.message_as_output = True

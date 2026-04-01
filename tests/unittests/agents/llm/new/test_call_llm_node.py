@@ -12,16 +12,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for LlmCallNode (BaseNode version) in isolation.
+"""Unit tests for CallLlmNode (BaseNode version) in isolation.
 
-Tests call ``LlmCallNode.run()`` directly with a hand-built Context,
+Tests call ``CallLlmNode.run()`` directly with a hand-built Context,
 verifying the output contract: text responses yield no output,
 function call responses yield the model response content event.
 """
 
 from __future__ import annotations
 
-from google.adk.agents.llm._llm_call_node import LlmCallNode
+from google.adk.agents.llm.new._call_llm_node import CallLlmNode
 from google.adk.agents.llm_agent import LlmAgent
 from google.adk.models.llm_request import LlmRequest
 from google.genai import types
@@ -52,7 +52,7 @@ def _make_agent(mock_model, tools=None, **kwargs):
 # ---------------------------------------------------------------------------
 
 
-class TestLlmCallNode:
+class TestCallLlmNode:
 
   async def test_text_response_yields_text_output(self):
     """Text-only LLM response — yields event with message_as_output=True."""
@@ -60,7 +60,7 @@ class TestLlmCallNode:
     agent = _make_agent(mock_model)
     ctx = await testing_utils.create_workflow_context(agent, user_content='Hi')
 
-    node = LlmCallNode(agent=agent)
+    node = CallLlmNode(agent=agent)
     llm_request = LlmRequest(model='mock', tools_dict={})
     events = await collect_events(node, ctx, node_input=llm_request)
 
@@ -84,7 +84,7 @@ class TestLlmCallNode:
         agent, user_content='Add 1+2'
     )
 
-    node = LlmCallNode(agent=agent)
+    node = CallLlmNode(agent=agent)
 
     tools = await agent.canonical_tools(ctx)
     tools_dict = {t.name: t for t in tools}

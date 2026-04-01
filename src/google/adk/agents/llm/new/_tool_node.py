@@ -24,20 +24,20 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from ...events.event import Event
-from ...tools.base_tool import BaseTool
-from ...workflow._base_node import BaseNode
-from ..context import Context
-from ._execute_tools_node import _long_running_interrupt_event
-from ._functions import generate_auth_event
-from ._functions import generate_request_confirmation_event
+from ....events.event import Event
+from ....tools.base_tool import BaseTool
+from ....workflow._base_node import BaseNode
+from ...context import Context
+from .._execute_tools_node import _long_running_interrupt_event
+from .._functions import generate_auth_event
+from .._functions import generate_request_confirmation_event
 
 
-class ToolCallNode(BaseNode):
+class ToolNode(BaseNode):
   """Executes a single tool call.
 
   Calls ``tool.run_async(tool_context=ctx)`` and yields the function
-  response value.  The parent ``ParallelToolCallNode`` reads the child
+  response value.  The parent ``RunToolsNode`` reads the child
   context's output and actions to build a merged function response event.
   """
 

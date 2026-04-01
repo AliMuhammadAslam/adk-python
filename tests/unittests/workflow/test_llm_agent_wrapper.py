@@ -436,7 +436,7 @@ async def test_single_turn_converts_input_to_content(
   assert captured_inputs[0].parts[0].text == 'hello world'
 
 
-# --- New workflow path (uses SingleAgentReactNode via _react) ---
+# --- New workflow path (uses SingleLlmAgentNode via _react) ---
 
 
 def _get_user_content():
