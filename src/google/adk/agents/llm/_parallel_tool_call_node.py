@@ -130,12 +130,15 @@ class ParallelToolCallNode(BaseNode):
     for i, fc in enumerate(function_calls):
       tool = _get_tool(fc, self.tools_dict)
       tool_call_node = ToolCallNode(
-          name=f'tool_call__{fc.id or i}',
+          name=fc.name,
           tool=tool,
       )
       task = asyncio.create_task(
           ctx._run_node_internal(
-              tool_call_node, node_input=fc, name=tool_call_node.name
+              tool_call_node,
+              node_input=fc,
+              name=tool_call_node.name,
+              run_id=fc.id or str(i),
           )
       )
       tasks.append(task)

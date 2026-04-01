@@ -533,7 +533,12 @@ class Context(ReadonlyContext):
     return result.output
 
   async def _run_node_internal(
-      self, node: NodeLike, node_input: Any = None, *, name: str | None = None
+      self,
+      node: NodeLike,
+      node_input: Any = None,
+      *,
+      name: str | None = None,
+      run_id: str | None = None,
   ) -> Context:
     """Internal: run a node and return its child Context.
 
@@ -546,15 +551,18 @@ class Context(ReadonlyContext):
     built_node = build_node(node)
     if self._schedule_dynamic_node_internal:
       node_name = name or self._next_child_name(built_node.name)
+      schedule_run_id = run_id or node_name
       return await self._schedule_dynamic_node_internal(
           self,
           built_node,
-          node_name,
+          schedule_run_id,
           node_input,
           node_name=node_name,
       )
 
-    return await self._run_node_via_runner(built_node, node_input)
+    return await self._run_node_via_runner(
+        built_node, node_input, run_id=run_id
+    )
 
   async def _run_node_via_runner(
       self,
@@ -562,6 +570,7 @@ class Context(ReadonlyContext):
       node_input: Any,
       *,
       use_as_output: bool = False,
+      run_id: str | None = None,
   ) -> Context:
     """Run a node directly via NodeRunner without an orchestrator."""
     from ..workflow._node_runner_class import NodeRunner
@@ -569,6 +578,7 @@ class Context(ReadonlyContext):
     runner = NodeRunner(
         node=node,
         parent_ctx=self,
+        run_id=run_id,
         additional_output_for_ancestor=(
             self.node_path if use_as_output else None
         ),
