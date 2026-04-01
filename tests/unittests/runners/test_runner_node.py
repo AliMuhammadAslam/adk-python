@@ -158,8 +158,8 @@ async def test_event_author_defaults_to_node_name():
 
 
 @pytest.mark.asyncio
-async def test_node_error_completes_without_output():
-  """A node that raises completes the invocation with no output."""
+async def test_node_error_propagates():
+  """A node that raises propagates the exception to the caller."""
 
   class _Node(BaseNode):
 
@@ -169,9 +169,8 @@ async def test_node_error_completes_without_output():
       raise RuntimeError('node failure')
       yield  # pylint: disable=unreachable
 
-  events, _, _ = await _run_node(_Node(name='error'))
-
-  assert [e.output for e in events if e.output is not None] == []
+  with pytest.raises(RuntimeError, match='node failure'):
+    await _run_node(_Node(name='error'))
 
 
 @pytest.mark.asyncio
@@ -506,6 +505,8 @@ async def test_run_node_works_without_workflow():
 
   class _ParentNode(BaseNode):
 
+    rerun_on_resume: bool = True
+
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
     ) -> AsyncGenerator[Any, None]:
@@ -530,6 +531,8 @@ async def test_run_node_use_as_output_attributes_child_output_to_parent():
       yield 'child result'
 
   class _ParentNode(BaseNode):
+
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
