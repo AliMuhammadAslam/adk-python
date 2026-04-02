@@ -32,7 +32,6 @@ class ScheduleDynamicNode(Protocol):
       self,
       ctx: Context,
       node: Any,
-      _node_name: str,
       node_input: Any,
       *,
       node_name: str | None = None,

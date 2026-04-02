@@ -56,7 +56,6 @@ class SingleLlmAgentNode(BaseNode):
   async def _schedule_node(
       current_ctx: Context,
       node: BaseNode,
-      _node_name: str,
       node_input: Any,
       *,
       node_name: str | None = None,  # noqa: ARG004

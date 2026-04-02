@@ -257,7 +257,6 @@ async def test_fresh_execution_runs_node():
   child_ctx = await scheduler(
       ctx,
       _Child(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='1',
@@ -285,7 +284,6 @@ async def test_completed_dedup_returns_cached():
   child_ctx = await scheduler(
       ctx,
       BaseNode(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',
@@ -313,7 +311,6 @@ async def test_waiting_unresolved_propagates_interrupts():
   child_ctx = await scheduler(
       ctx,
       BaseNode(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',
@@ -354,7 +351,6 @@ async def test_waiting_resolved_resumes_node():
   child_ctx = await scheduler(
       ctx,
       _Resumable(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',
@@ -383,7 +379,6 @@ async def test_default_scheduler_fresh_execution():
   child_ctx = await tracker(
       ctx,
       _Child(name='child'),
-      'unused',
       'data',
       node_name='child',
       run_id='1',
@@ -409,7 +404,6 @@ async def test_default_scheduler_dedup_returns_cached():
   child_ctx = await tracker(
       ctx,
       BaseNode(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',
@@ -449,7 +443,6 @@ async def test_default_scheduler_resume_with_resolved_interrupts():
   child_ctx = await tracker(
       ctx,
       _Resumable(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',
@@ -475,7 +468,6 @@ async def test_default_scheduler_propagates_unresolved_interrupts():
   child_ctx = await tracker(
       ctx,
       BaseNode(name='child'),
-      'unused',
       'input',
       node_name='child',
       run_id='r-1',

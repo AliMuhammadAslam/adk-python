@@ -56,14 +56,14 @@ def _wire_scheduler(ctx):
   ic.event_queue = asyncio.Queue()
 
   async def _schedule(
-      current_ctx, node, _node_name, node_input,
+      current_ctx, node, node_input,
       *, node_name=None, run_id=None,  # noqa: ARG001
       **_kwargs,
   ):
     runner = NodeRunner(
         node=node,
         parent_ctx=current_ctx,
-        run_id=run_id or _node_name,
+        run_id=run_id or node_name,
     )
     return await runner.run(node_input=node_input)
 

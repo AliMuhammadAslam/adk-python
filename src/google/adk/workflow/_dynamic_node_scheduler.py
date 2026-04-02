@@ -113,7 +113,6 @@ class DynamicNodeScheduler:
       self,
       ctx: Context,
       node: BaseNode,
-      _node_name: str,
       node_input: Any,
       *,
       node_name: str | None = None,
