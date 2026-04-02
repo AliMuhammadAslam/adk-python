@@ -37,6 +37,7 @@ from .._functions import generate_request_confirmation_event
 class ToolActions(BaseModel):
   skip_summarization: bool | None = None
   transfer_to_agent: Any = None
+  set_model_response: Any = None
 
 
 class ToolNodeOutput(BaseModel):
@@ -119,5 +120,6 @@ class ToolNode(BaseNode):
     tool_actions = ToolActions(
         skip_summarization=ctx.actions.skip_summarization,
         transfer_to_agent=ctx.actions.transfer_to_agent,
+        set_model_response=ctx.actions.set_model_response,
     )
     yield ToolNodeOutput(response=function_response, actions=tool_actions)

@@ -129,3 +129,6 @@ class EventActions(BaseModel):
 
   render_ui_widgets: Optional[list[UiWidget]] = None
   """List of UI widgets to be rendered by the UI."""
+
+  set_model_response: Optional[Any] = None
+  """The model response structured output."""

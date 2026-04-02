@@ -22,6 +22,7 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
+from .. import _output_schema_processor
 from ....models.llm_request import LlmRequest
 from ....workflow._base_node import BaseNode
 from ...context import Context
@@ -143,6 +144,15 @@ class SingleLlmAgentNode(BaseNode):
       tool_actions = await ctx.run_node(tool_node, node_input=content)
 
       # 5. Check termination conditions
+      if tool_actions.set_model_response is not None:
+        final_event = (
+            _output_schema_processor.create_final_model_response_event(
+                ctx.get_invocation_context(), tool_actions.set_model_response
+            )
+        )
+        yield final_event.model_copy()
+        break
+
       if tool_actions.transfer_to_agent or tool_actions.skip_summarization:
         break
 

@@ -87,6 +87,13 @@ def _merge_tool_actions(tool_actions_list: list[ToolActions]) -> ToolActions:
         )
       merged_tool_actions.transfer_to_agent = tool_actions.transfer_to_agent
 
+    if tool_actions.set_model_response is not None:
+      if merged_tool_actions.set_model_response is not None:
+        raise ValueError(
+            'set_model_response cannot be set by more than one tool.'
+        )
+      merged_tool_actions.set_model_response = tool_actions.set_model_response
+
     if tool_actions.skip_summarization is not True:
       all_skip_true = False
 
@@ -155,14 +162,5 @@ class RunToolsNode(BaseNode):
     tool_actions_list = [tool_output.actions for _, tool_output in completed]
     merged_tool_actions = _merge_tool_actions(tool_actions_list)
 
-    # Check for structured output.
-    json_response = _output_schema_processor.get_structured_model_response(
-        merged_event
-    )
-    if json_response:
-      yield merged_event.model_copy()
-      final_event = _output_schema_processor.create_final_model_response_event(
-          invocation_context, json_response
-      )
     merged_event.output = merged_tool_actions
     yield merged_event.model_copy()
