@@ -100,6 +100,7 @@ class TestResolveToolsetAuth:
   def mock_invocation_context(self):
     """Create a mock invocation context."""
     ctx = Mock(spec=InvocationContext)
+    ctx._state_schema = None
     ctx.invocation_id = "test-invocation-id"
     ctx.end_invocation = False
     ctx.branch = None
@@ -289,6 +290,7 @@ class TestCallbackContextGetAuthResponse:
   def mock_invocation_context(self):
     """Create a mock invocation context."""
     ctx = Mock(spec=InvocationContext)
+    ctx._state_schema = None
     ctx.session = Mock()
     ctx.session.state = {}
     return ctx
@@ -331,6 +333,7 @@ class TestBuildAuthRequestEvent:
   def mock_invocation_context(self):
     """Create a mock invocation context."""
     ctx = Mock(spec=InvocationContext)
+    ctx._state_schema = None
     ctx.invocation_id = "test-invocation-id"
     ctx.branch = None
     ctx.agent = Mock()
