@@ -266,21 +266,24 @@ class DynamicNodeScheduler:
           interrupts=list(unresolved),
           run_id=target_state.run_id,
       )
+    elif target_state.output is not None:
+      # Node had all interrupts resolved and completed with output.
+      # NOTE: We assume if a node has output, it is complete. If a node yields
+      # output and then interrupts (Output -> Interrupt), it is an invalid/
+      # unsupported use case in this engine.
+      state = NodeState(
+          status=NodeStatus.COMPLETED,
+          run_id=target_state.run_id,
+      )
+      output = target_state.output
     elif target_state.interrupt_ids:
-      # Node had interrupts, all resolved → ready to re-run.
+      # Node had interrupts, all resolved, and no output yet → ready to re-run.
       state = NodeState(
           status=NodeStatus.WAITING,
           interrupts=[],
           run_id=target_state.run_id,
           resume_inputs=target_state.resolved_responses,
       )
-    elif target_state.output is not None:
-      # Node completed with output.
-      state = NodeState(
-          status=NodeStatus.COMPLETED,
-          run_id=target_state.run_id,
-      )
-      output = target_state.output
 
     if state:
       self._state.runs[node_path] = DynamicNodeRun(state=state, output=output)
