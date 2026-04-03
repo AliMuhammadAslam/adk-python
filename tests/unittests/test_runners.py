@@ -1042,7 +1042,6 @@ class TestRunnerResolveApp:
     assert runner.app.root_agent is self.root_agent
     assert runner.app_name == "test_app"
     assert runner.agent is self.root_agent
-    assert runner.node is None
 
   def test_resolve_app_with_node_wraps_in_app(self):
     """Test that a bare node is wrapped into an App."""
@@ -1055,10 +1054,9 @@ class TestRunnerResolveApp:
         artifact_service=self.artifact_service,
     )
     assert runner.app is not None
-    assert runner.app.root_node is node
+    assert runner.app.root_agent is node
     assert runner.app_name == "test_node"
-    assert runner.agent is None
-    assert runner.node is node
+    assert runner.agent is node
 
   def test_resolve_app_with_node_and_app_name(self):
     """Test that app_name overrides node.name."""
@@ -1120,18 +1118,17 @@ class TestRunnerResolveApp:
       )
 
   def test_resolve_app_extracts_node_from_app(self):
-    """Test that Runner extracts root_node from App."""
+    """Test that Runner extracts node from App into agent field."""
     from google.adk.workflow._base_node import BaseNode
 
     node = BaseNode(name="test_node")
-    app = App(name="test_app", root_node=node)
+    app = App(name="test_app", root_agent=node)
     runner = Runner(
         app=app,
         session_service=self.session_service,
         artifact_service=self.artifact_service,
     )
-    assert runner.node is node
-    assert runner.agent is None
+    assert runner.agent is node
     assert runner.app_name == "test_app"
     assert runner.context_cache_config is None
     assert runner.resumability_config is None

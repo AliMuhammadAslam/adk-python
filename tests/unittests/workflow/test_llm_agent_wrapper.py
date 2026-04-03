@@ -124,12 +124,12 @@ def _mock_leaf_run(wrapper, content_text=None):
 
 
 def _new_workflow_runner(wf, test_name):
-  """Creates an InMemoryRunner for the new Workflow (root_node path)."""
+  """Creates an InMemoryRunner for the new Workflow (root_agent path)."""
   from google.adk.apps.app import App
 
   from . import testing_utils
 
-  app = App(name=test_name, root_node=wf)
+  app = App(name=test_name, root_agent=wf)
   return testing_utils.InMemoryRunner(app=app)
 
 
@@ -668,7 +668,7 @@ async def test_resume_after_interrupt_completes_workflow(
 
   app = App(
       name=request.function.__name__,
-      root_node=wf,
+      root_agent=wf,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -751,7 +751,7 @@ async def test_multiple_sequential_interrupts_in_workflow(
 
   app = App(
       name=request.function.__name__,
-      root_node=wf,
+      root_agent=wf,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)

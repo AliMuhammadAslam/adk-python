@@ -198,30 +198,22 @@ class TestApp:
 
 
 class TestAppRootNode:
-  """Tests for App.root_node support."""
+  """Tests for App.root_agent accepting BaseNode."""
 
   def test_app_with_root_node(self):
-    """Test App creation with root_node."""
+    """Test App creation with a BaseNode as root_agent."""
     node = BaseNode(name="test_node")
-    app = App(name="test_app", root_node=node)
-    assert app.root_node is node
-    assert app.root_agent is None
+    app = App(name="test_app", root_agent=node)
+    assert app.root_agent is node
 
-  def test_app_rejects_both_root_agent_and_root_node(self):
-    """Test that providing both root_agent and root_node raises."""
-    mock_agent = Mock(spec=BaseAgent)
-    node = BaseNode(name="test_node")
-    with pytest.raises(ValueError, match="Only one of root_agent or root_node"):
-      App(name="test_app", root_agent=mock_agent, root_node=node)
-
-  def test_app_rejects_neither_root_agent_nor_root_node(self):
-    """Test that providing neither root_agent nor root_node raises."""
-    with pytest.raises(
-        ValueError, match="Either root_agent or root_node must be provided"
-    ):
+  def test_app_rejects_none_root_agent(self):
+    """Test that not providing root_agent raises."""
+    with pytest.raises(ValueError, match="root_agent must be provided"):
       App(name="test_app")
 
-  def test_app_rejects_non_base_node_root_node(self):
-    """Test that root_node must be a BaseNode instance."""
-    with pytest.raises(TypeError, match="root_node must be a BaseNode"):
-      App(name="test_app", root_node="not_a_node")
+  def test_app_rejects_invalid_root_agent(self):
+    """Test that root_agent must be a BaseAgent or BaseNode instance."""
+    with pytest.raises(
+        TypeError, match="root_agent must be a BaseAgent or BaseNode"
+    ):
+      App(name="test_app", root_agent="not_a_node")

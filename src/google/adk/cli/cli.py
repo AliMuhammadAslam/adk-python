@@ -55,12 +55,6 @@ def _to_app(agent_or_app: Union[BaseAgent, App, Any], app_name: str) -> App:
   """Wraps a BaseAgent or BaseNode in an App if not already one."""
   if isinstance(agent_or_app, App):
     return agent_or_app
-  from ..workflow._base_node import BaseNode
-
-  if isinstance(agent_or_app, BaseNode) and not isinstance(
-      agent_or_app, BaseAgent
-  ):
-    return App(name=app_name, root_node=agent_or_app)
   return App(name=app_name, root_agent=agent_or_app)
 
 

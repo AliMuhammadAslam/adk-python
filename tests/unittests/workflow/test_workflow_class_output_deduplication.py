@@ -58,7 +58,7 @@ async def test_two_level_nesting_deduplicates(
   inner = Workflow(name='inner', edges=[('START', leaf)])
   outer = Workflow(name='outer', edges=[('START', inner)])
 
-  app = App(name=request.function.__name__, root_node=outer)
+  app = App(name=request.function.__name__, root_agent=outer)
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hi'))
   out_events = _output_events(events)
@@ -87,7 +87,7 @@ async def test_nested_with_output_schema_validates_at_read_time(
   )
   outer = Workflow(name='outer', edges=[('START', inner)])
 
-  app = App(name=request.function.__name__, root_node=outer)
+  app = App(name=request.function.__name__, root_agent=outer)
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hi'))
   out_events = _output_events(events)
@@ -117,7 +117,7 @@ async def test_multiple_terminals_in_nested_workflow_raises(
   )
   outer = Workflow(name='outer', edges=[('START', inner)])
 
-  app = App(name=request.function.__name__, root_node=outer)
+  app = App(name=request.function.__name__, root_agent=outer)
   runner = testing_utils.InMemoryRunner(app=app)
 
   with pytest.raises(ValueError, match='multiple terminal nodes'):
@@ -147,11 +147,15 @@ async def test_non_terminal_output_not_exposed_as_workflow_output(
 
   outer = Workflow(name='outer', edges=[('START', inner, consume)])
 
-  app = App(name=request.function.__name__, root_node=outer)
+  app = App(name=request.function.__name__, root_agent=outer)
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hi'))
   out_events = _output_events(events)
 
-  consume_events = [e for e in out_events if e.node_info.name and e.node_info.name.split('@')[0] == 'consume']
+  consume_events = [
+      e
+      for e in out_events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'consume'
+  ]
   assert len(consume_events) == 1
   assert consume_events[0].output == 'got: final'

@@ -68,7 +68,7 @@ async def test_dynamically_run_nodes_return_outputs_and_emit_events(
   )
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -120,7 +120,7 @@ async def test_dynamic_node_with_custom_name(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -174,7 +174,7 @@ async def test_dynamic_node_hitl_no_rerun_on_resume(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -253,7 +253,7 @@ async def test_dynamic_node_hitl_with_rerun_on_resume(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -332,7 +332,7 @@ async def test_nested_dynamic_node_hitl(request: pytest.FixtureRequest):
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -401,7 +401,7 @@ async def test_dynamic_node_parallel_execution(request: pytest.FixtureRequest):
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -479,7 +479,7 @@ async def test_dynamic_node_parallel_mixed_hitl(request: pytest.FixtureRequest):
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -584,7 +584,7 @@ async def test_dynamic_node_parallel_hitl_all_resume(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -681,7 +681,7 @@ async def test_dynamic_node_parallel_hitl_partial_resume(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -871,7 +871,7 @@ async def test_node_like_simple(request: pytest.FixtureRequest):
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -930,7 +930,7 @@ async def test_node_like_nested(request: pytest.FixtureRequest):
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=app.ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
@@ -984,7 +984,7 @@ async def test_dynamic_node_fails_if_caller_no_rerun(
 
   test_app = app.App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
 

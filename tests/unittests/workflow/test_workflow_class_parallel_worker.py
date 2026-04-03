@@ -118,7 +118,7 @@ async def test_parallel_worker_simple(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -167,7 +167,7 @@ async def test_parallel_worker_empty_input(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -212,7 +212,7 @@ async def test_parallel_worker_single_item_input(
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -269,7 +269,7 @@ async def test_parallel_worker_with_function(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -353,7 +353,7 @@ async def test_parallel_worker_with_failure(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -460,7 +460,7 @@ async def test_parallel_worker_hitl(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -583,7 +583,7 @@ async def test_parallel_worker_out_of_order(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -648,7 +648,7 @@ async def test_parallel_worker_nested_agent(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=outer_agent,
+      root_agent=outer_agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -718,7 +718,7 @@ async def test_workflow_agent_with_parallel_worker_flag(
 
   app = App(
       name=request.function.__name__,
-      root_node=outer_agent,
+      root_agent=outer_agent,
   )
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('start'))
@@ -782,7 +782,7 @@ async def test_parallel_worker_max_concurrency(request: pytest.FixtureRequest):
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)
@@ -942,7 +942,7 @@ async def test_parallel_worker_max_concurrency_with_hitl(
   )
   app = App(
       name=request.function.__name__,
-      root_node=agent,
+      root_agent=agent,
       resumability_config=ResumabilityConfig(is_resumable=True),
   )
   runner = testing_utils.InMemoryRunner(app=app)

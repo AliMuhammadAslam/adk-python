@@ -553,7 +553,7 @@ class AdkWebServer:
       # BaseNode (non-agent)
       agentic_app = App(
           name=app_name,
-          root_node=agent_or_app,
+          root_agent=agent_or_app,
           plugins=extra_plugins_instances,
       )
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from typing import Any
 from typing import Optional
+from typing import Union
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -130,16 +131,11 @@ class App(BaseModel):
   name: str
   """The name of the application."""
 
-  root_agent: Optional[BaseAgent] = None
-  """The root agent in the application. Mutually exclusive with root_node."""
-
-  root_node: Any = None
-  """The root node (BaseNode) in the application.
-
-  Mutually exclusive with root_agent. Accepts any BaseNode subclass.
-
-  TODO: Change type from Any to BaseNode once Workflow no longer extends
-  BaseAgent (currently causes circular import).
+  # Change to Union[BaseAgent, BaseNode, None] after dependency is fixed.
+  root_agent: Union[BaseAgent, Any, None] = None
+  """The root agent or node in the application.
+  
+  Accepts either a BaseAgent or a BaseNode instance.
   """
 
   plugins: list[BasePlugin] = Field(default_factory=list)
@@ -160,18 +156,14 @@ class App(BaseModel):
   @model_validator(mode="after")
   def _validate(self) -> App:
     validate_app_name(self.name)
-    if self.root_agent is not None and self.root_node is not None:
-      raise ValueError(
-          "Only one of root_agent or root_node can be provided, not both."
-      )
-    if self.root_agent is None and self.root_node is None:
-      raise ValueError("Either root_agent or root_node must be provided.")
-    if self.root_node is not None:
-      from ..workflow._base_node import BaseNode
+    if self.root_agent is None:
+      raise ValueError("root_agent must be provided.")
 
-      if not isinstance(self.root_node, BaseNode):
-        raise TypeError(
-            "root_node must be a BaseNode instance, got"
-            f" {type(self.root_node).__name__}"
-        )
+    from ..workflow._base_node import BaseNode
+
+    if not isinstance(self.root_agent, (BaseAgent, BaseNode)):
+      raise TypeError(
+          "root_agent must be a BaseAgent or BaseNode instance, got"
+          f" {type(self.root_agent).__name__}"
+      )
     return self

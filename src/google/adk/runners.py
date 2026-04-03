@@ -131,14 +131,8 @@ class Runner:
 
   app_name: str
   """The app name of the runner."""
-  agent: Optional[BaseAgent] = None
-  """The root agent to run."""
-  node: Any = None  # BaseNode
-  """The root node to run. Alternative to agent for node-based execution.
-
-  TODO: Change type to BaseNode once BaseAgent extends BaseNode.
-  Then agent field can be removed.
-  """
+  agent: Optional[BaseAgent | 'BaseNode'] = None
+  """The root agent or node to run."""
   artifact_service: Optional[BaseArtifactService] = None
   """The artifact service for the runner."""
   plugin_manager: PluginManager
@@ -204,7 +198,6 @@ class Runner:
     self.app = app
     self.app_name = app_name or app.name
     self.agent = app.root_agent
-    self.node = app.root_node
     self.context_cache_config = app.context_cache_config
     self.resumability_config = app.resumability_config
     self.artifact_service = artifact_service
@@ -275,7 +268,7 @@ class Runner:
     if node is not None:
       return App(
           name=app_name or node.name,
-          root_node=node,
+          root_agent=node,
           plugins=plugins or [],
       )
     return app
@@ -477,7 +470,7 @@ class Runner:
     from .agents.context import Context
 
     root_ctx = Context(ic)
-    root_node_runner = NodeRunner(node=self.node, parent_ctx=root_ctx)
+    root_node_runner = NodeRunner(node=self.agent, parent_ctx=root_ctx)
     done_sentinel = object()
 
     async def _drive_root_node():
@@ -496,7 +489,7 @@ class Runner:
       async for event in self._consume_event_queue(ic, done_sentinel):
         yield event
     finally:
-      await self._cleanup_root_task(task, self.node.name)
+      await self._cleanup_root_task(task, self.agent.name)
 
   def _extract_resume_inputs(
       self, message: Optional[types.Content]
@@ -778,7 +771,9 @@ class Runner:
     if new_message and not new_message.role:
       new_message.role = 'user'
 
-    if self.node is not None:
+    from .workflow._base_node import BaseNode
+
+    if isinstance(self.agent, BaseNode):
       async for event in self._run_node_async(
           user_id=user_id,
           session_id=session_id,
@@ -1708,7 +1703,7 @@ class Runner:
             self.app.events_compaction_config if self.app else None
         ),
         invocation_id=invocation_id,
-        agent=self.agent,
+        agent=self.agent if isinstance(self.agent, BaseAgent) else None,
         session=session,
         user_content=new_message,
         live_request_queue=live_request_queue,

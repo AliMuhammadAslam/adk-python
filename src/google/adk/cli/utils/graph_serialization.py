@@ -262,7 +262,7 @@ def serialize_agent(agent: BaseAgent) -> dict[str, Any]:
 
 def serialize_app_info(app: Any, readme: str | None = None) -> dict[str, Any]:
   """Serialize app information for the build_graph endpoint."""
-  root = app.root_agent or app.root_node
+  root = app.root_agent
   try:
     root_agent_data = serialize_agent(root)
   except Exception as e:
