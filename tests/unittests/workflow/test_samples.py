@@ -18,6 +18,8 @@ import json
 from pathlib import Path
 
 from google.adk.apps.app import App
+from google.adk.cli.agent_test_runner import make_sort_key
+from google.adk.cli.agent_test_runner import normalize_events
 from google.adk.cli.utils.agent_loader import AgentLoader
 from google.genai import types
 import pytest
@@ -41,92 +43,6 @@ def get_test_files():
       if tests_dir.exists() and tests_dir.is_dir():
         for test_file in tests_dir.glob("*.json"):
           yield sample_dir.name, test_file
-
-
-def normalize_events(events, is_json=False):
-  """Normalizes events to dicts, ignoring dynamic fields."""
-  normalized = []
-  from google.adk.events.event import Event
-
-  for e in events:
-    if is_json:
-      try:
-        # Load into Event to normalize and apply defaults
-        e_obj = Event.model_validate(e)
-        d = e_obj.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-            },
-            exclude_none=True,
-        )
-      except Exception:
-        # Fallback if validation fails, just remove keys manually
-        d = dict(e)
-        d.pop("id", None)
-        d.pop("timestamp", None)
-        d.pop("invocationId", None)
-    else:
-      # It's an Event object
-      # Re-validate to trigger path derivation if it was set after creation
-      try:
-        e_obj = Event.model_validate(e.model_dump())
-        d = e_obj.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-            },
-            exclude_none=True,
-        )
-      except Exception:
-        # Fallback if re-validation fails
-        d = e.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-            },
-            exclude_none=True,
-        )
-
-    # Filter out join state from stateDelta to handle parallel non-determinism
-    actions = d.get("actions", {})
-    state_delta = actions.get("stateDelta", {}) if actions else {}
-    if state_delta:
-      keys_to_remove = [k for k in state_delta if k.endswith("_join_state")]
-      for k in keys_to_remove:
-        del state_delta[k]
-
-    normalized.append(d)
-
-  return normalized
-
-
-def make_sort_key(d):
-  """Creates a sort key for deterministic event comparison."""
-  import json
-
-  node_path = d.get("nodeInfo", {}).get("path", "")
-  author = d.get("author", "")
-  # Fallback to full JSON string to make it deterministic
-  return (author, node_path, json.dumps(d, sort_keys=True))
 
 
 @pytest.mark.parametrize(

@@ -664,6 +664,52 @@ def cli_run(
   )
 
 
+@main.command("test", cls=HelpfulCommand)
+@click.argument(
+    "folder",
+    type=click.Path(
+        exists=True, dir_okay=True, file_okay=False, resolve_path=True
+    ),
+    default=".",
+)
+def cli_test(folder: str):
+  """Runs pytest on agent test JSON files under the specified folder.
+
+  FOLDER: The path to the folder containing agents and tests.
+  Defaults to the current directory if not specified.
+
+  Example:
+      adk test path/to/agents
+  """
+  import sys
+
+  import pytest
+
+  os.environ["ADK_TEST_FOLDER"] = folder
+
+  current_dir = Path(__file__).parent
+  test_runner_path = current_dir / "agent_test_runner.py"
+
+  if not test_runner_path.exists():
+    click.secho(
+        f"Error: Test runner not found at {test_runner_path}",
+        fg="red",
+        err=True,
+    )
+    sys.exit(1)
+
+  import subprocess
+
+  cmd = [".venv/bin/pytest", str(test_runner_path), "-v", "-s"]
+  click.echo(f"Running tests in {folder} using runner {test_runner_path}...")
+
+  result = subprocess.run(cmd, capture_output=True, text=True)
+  click.echo(result.stdout)
+  if result.stderr:
+    click.echo(result.stderr, err=True)
+  sys.exit(result.returncode)
+
+
 def eval_options():
   """Decorator to add common eval options to click commands."""
 
