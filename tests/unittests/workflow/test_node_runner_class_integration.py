@@ -289,9 +289,19 @@ async def test_events_enqueued_in_yield_order():
 async def test_node_exception_propagates():
   """A node that raises an error surfaces it to the caller."""
   node = _ErrorNode(name='error_node')
-  ctx, _ = _make_ctx()
-  with pytest.raises(RuntimeError, match='node failure'):
-    await NodeRunner(node=node, parent_ctx=ctx).run()
+  ctx, events = _make_ctx()
+  child_ctx = await NodeRunner(node=node, parent_ctx=ctx).run()
+
+  # Verify error is recorded on returned context
+  assert child_ctx.error is not None
+  assert isinstance(child_ctx.error, RuntimeError)
+  assert str(child_ctx.error) == 'node failure'
+
+  # Verify error event was enqueued
+  error_events = [e for e in events if e.error_code]
+  assert len(error_events) == 1
+  assert error_events[0].error_code == 'RuntimeError'
+  assert 'node failure' in error_events[0].error_message
 
 
 @pytest.mark.asyncio
@@ -377,9 +387,12 @@ class _MultiOutputNode(BaseNode):
 async def test_multiple_outputs_raises():
   """A node that produces more than one output is rejected."""
   node = _MultiOutputNode(name='multi_out')
-  ctx, _ = _make_ctx()
-  with pytest.raises(ValueError, match='at most one output'):
-    await NodeRunner(node=node, parent_ctx=ctx).run()
+  ctx, events = _make_ctx()
+  await NodeRunner(node=node, parent_ctx=ctx).run()
+  error_events = [e for e in events if e.error_code]
+  assert len(error_events) == 1
+  assert error_events[0].error_code == 'ValueError'
+  assert 'at most one output' in error_events[0].error_message
 
 
 @pytest.mark.asyncio

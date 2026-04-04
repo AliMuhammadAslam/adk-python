@@ -200,9 +200,12 @@ async def test_double_output_raises():
       ctx.output = 'second'
       yield  # noqa: unreachable
 
-  parent_ctx, _ = _make_ctx()
-  with pytest.raises(ValueError, match='already set'):
-    await NodeRunner(node=_Node(name='n'), parent_ctx=parent_ctx).run()
+  parent_ctx, events = _make_ctx()
+  await NodeRunner(node=_Node(name='n'), parent_ctx=parent_ctx).run()
+  error_events = [e for e in events if e.error_code]
+  assert len(error_events) == 1
+  assert error_events[0].error_code == 'ValueError'
+  assert 'already set' in error_events[0].error_message
 
 
 @pytest.mark.asyncio
@@ -215,9 +218,12 @@ async def test_yield_then_ctx_output_raises():
       yield 'first'
       ctx.output = 'second'
 
-  parent_ctx, _ = _make_ctx()
-  with pytest.raises(ValueError, match='already set'):
-    await NodeRunner(node=_Node(name='n'), parent_ctx=parent_ctx).run()
+  parent_ctx, events = _make_ctx()
+  await NodeRunner(node=_Node(name='n'), parent_ctx=parent_ctx).run()
+  error_events = [e for e in events if e.error_code]
+  assert len(error_events) == 1
+  assert error_events[0].error_code == 'ValueError'
+  assert 'already set' in error_events[0].error_message
 
 
 # --- ctx.route ---
