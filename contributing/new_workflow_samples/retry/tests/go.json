@@ -1,0 +1,139 @@
+{
+  "id": "c0e0c167-1e63-4e18-84b6-ad64ba59376f",
+  "appName": "retry",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Getting weather... attempt 0"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "errorCode": "HTTPError",
+      "errorMessage": "HTTP Error 500: Internal Server Error",
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-4"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Getting weather... attempt 1"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-5"
+    },
+    {
+      "errorCode": "HTTPError",
+      "errorMessage": "HTTP Error 500: Internal Server Error",
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-6"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Getting weather... attempt 2"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-7"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "sunny",
+      "nodeInfo": {
+        "path": "root_agent@1/get_weather@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/get_weather@1"
+        ]
+      },
+      "id": "e-8"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The weather is sunny"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "nodeInfo": {
+        "path": "root_agent@1/report_weather@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-9"
+    }
+  ]
+}
