@@ -1,0 +1,81 @@
+{
+  "id": "ba40366e-0563-469f-a4b2-09e007adf6ff",
+  "appName": "use_as_output",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "The provided text is the single word \"go\"."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "summarizer",
+      "nodeInfo": {
+        "path": "root_agent@1/orchestrate@1/summarizer@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/orchestrate@1/summarizer@1.summarizer",
+      "id": "e-5"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "The provided text is the single word \"go\".",
+      "nodeInfo": {
+        "path": "root_agent@1/orchestrate@1/summarizer@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/orchestrate@1/summarizer@1",
+          "root_agent@1/orchestrate@1"
+        ]
+      },
+      "id": "e-6"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "final: The provided text is the single word \"go\".",
+      "nodeInfo": {
+        "path": "root_agent@1/finalize@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/finalize@1",
+          "root_agent@1"
+        ]
+      },
+      "id": "e-8"
+    }
+  ]
+}

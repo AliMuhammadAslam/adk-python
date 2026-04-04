@@ -1,0 +1,143 @@
+{
+  "id": "f1ec33bf-99ef-49a5-b64a-e4d31f85db85",
+  "appName": "route",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "who are you"
+    },
+    "input": "who are you",
+    "category": {
+      "category": "question"
+    }
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "who are you"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {
+          "input": "who are you"
+        }
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/process_input@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-3"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "{\"category\":\"question\"}"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "classify_input",
+      "nodeInfo": {
+        "path": "root_agent@1/classify_input@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/classify_input@1.classify_input",
+      "id": "e-5"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "stateDelta": {
+          "category": {
+            "category": "question"
+          }
+        }
+      },
+      "output": {
+        "category": "question"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/classify_input@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/classify_input@1"
+        ]
+      },
+      "id": "e-6"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "actions": {
+        "route": "question"
+      },
+      "nodeInfo": {
+        "path": "root_agent@1/route_on_category@1",
+        "runId": "1",
+        "parentRunId": "1"
+      },
+      "id": "e-7"
+    },
+    {
+      "modelVersion": "gemini-2.5-flash",
+      "content": {
+        "parts": [
+          {
+            "text": "I am an agent. My internal name is \"answer_question\"."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "answer_question",
+      "nodeInfo": {
+        "path": "root_agent@1/answer_question@1/call_llm@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "messageAsOutput": true
+      },
+      "branch": "node:root_agent@1/answer_question@1.answer_question",
+      "id": "e-9"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "root_agent",
+      "output": "I am an agent. My internal name is \"answer_question\".",
+      "nodeInfo": {
+        "path": "root_agent@1/answer_question@1",
+        "runId": "1",
+        "parentRunId": "1",
+        "outputFor": [
+          "root_agent@1/answer_question@1",
+          "root_agent@1"
+        ]
+      },
+      "id": "e-10"
+    }
+  ]
+}
