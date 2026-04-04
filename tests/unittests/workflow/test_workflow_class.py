@@ -293,6 +293,7 @@ async def test_resume_after_interrupt():
   """
 
   class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
@@ -421,7 +422,9 @@ async def test_internal_interrupt_event_not_persisted():
   child_interrupt_events = [
       e
       for e in updated.events
-      if e.long_running_tool_ids and e.node_info.path and e.node_info.path.endswith('ask@1')
+      if e.long_running_tool_ids
+      and e.node_info.path
+      and e.node_info.path.endswith('ask@1')
   ]
   assert len(child_interrupt_events) == 1
 
@@ -989,11 +992,7 @@ async def test_run_id_unique_per_node():
   wf = Workflow(name='wf', edges=[(START, a, b)])
 
   events, _, _ = await _run_workflow(wf)
-  paths = [
-      e.node_info.path
-      for e in events
-      if e.node_info.path
-  ]
+  paths = [e.node_info.path for e in events if e.node_info.path]
 
   assert len(paths) >= 2
   # paths are unique per node run (because they contain @run_id)
@@ -1014,11 +1013,7 @@ async def test_run_id_unique_nested():
   wf = Workflow(name='wf', edges=[(START, outer_a, inner)])
 
   events, _, _ = await _run_workflow(wf)
-  paths = [
-      e.node_info.path
-      for e in events
-      if e.node_info.path
-  ]
+  paths = [e.node_info.path for e in events if e.node_info.path]
 
   # paths are unique per node run (because they contain @run_id)
   assert len(set(paths)) >= 2
@@ -1074,6 +1069,7 @@ async def test_resume_downstream_receives_output():
   """
 
   class _InterruptNode(BaseNode):
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
@@ -1440,7 +1436,9 @@ async def test_use_as_output_function_to_function():
 
   # output_for includes child, parent, and workflow paths.
   # func_a is terminal, so its output also represents the workflow's.
-  output_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_b'][0]
+  output_event = [
+      e for e in events if e.node_info.name.split('@')[0] == 'func_b'
+  ][0]
   assert output_event.node_info.output_for == [
       'wf@1/func_a@1/func_b@1',
       'wf@1/func_a@1',
@@ -1539,7 +1537,9 @@ async def test_use_as_output_nested_delegation():
 
   # output_for includes full ancestor chain plus workflow path.
   # func_a is terminal, so the chain extends to the workflow.
-  output_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_c'][0]
+  output_event = [
+      e for e in events if e.node_info.name.split('@')[0] == 'func_c'
+  ][0]
   assert output_event.node_info.output_for == [
       'wf@1/func_a@1/func_b@1/func_c@1',
       'wf@1/func_a@1/func_b@1',
@@ -1623,7 +1623,11 @@ async def test_without_use_as_output_parent_emits_duplicate():
   b_event = [e for e in events if e.node_info.name.split('@')[0] == 'func_b'][0]
   assert b_event.node_info.output_for == ['wf@1/func_a@1/func_b@1']
   # func_a is terminal, so its output_for includes the workflow path.
-  a_event = [e for e in events if e.node_info.name and e.node_info.name.split('@')[0] == 'func_a'][0]
+  a_event = [
+      e
+      for e in events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'func_a'
+  ][0]
   assert a_event.node_info.output_for == ['wf@1/func_a@1', 'wf@1']
 
 
@@ -1647,12 +1651,20 @@ async def test_terminal_node_output_dedup():
   output_events = [e for e in events if e.output is not None]
 
   # step_a is not terminal — its output_for is just its own path.
-  a_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'step_a']
+  a_events = [
+      e
+      for e in output_events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'step_a'
+  ]
   assert len(a_events) == 1
   assert a_events[0].node_info.output_for == ['wf@1/step_a@1']
 
   # step_b is terminal — its output_for includes the workflow path.
-  b_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'step_b']
+  b_events = [
+      e
+      for e in output_events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'step_b'
+  ]
   assert len(b_events) == 1
   assert b_events[0].node_info.output_for == ['wf@1/step_b@1', 'wf@1']
   assert b_events[0].output == 'final: HELLO'
@@ -1684,7 +1696,11 @@ async def test_terminal_node_output_dedup_nested():
   output_events = [e for e in events if e.output is not None]
 
   # inner_node is terminal in inner_wf — includes inner_wf path.
-  inner_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'inner_node']
+  inner_events = [
+      e
+      for e in output_events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'inner_node'
+  ]
   assert len(inner_events) == 1
   assert inner_events[0].node_info.output_for == [
       'outer@1/inner@1/inner_node@1',
@@ -1692,7 +1708,11 @@ async def test_terminal_node_output_dedup_nested():
   ]
 
   # outer_node is terminal in outer_wf — includes outer_wf path.
-  outer_events = [e for e in output_events if e.node_info.name and e.node_info.name.split('@')[0] == 'outer_node']
+  outer_events = [
+      e
+      for e in output_events
+      if e.node_info.name and e.node_info.name.split('@')[0] == 'outer_node'
+  ]
   assert len(outer_events) == 1
   assert outer_events[0].node_info.output_for == [
       'outer@1/outer_node@1',
@@ -1702,7 +1722,9 @@ async def test_terminal_node_output_dedup_nested():
 
   # No duplicate output events from the workflows themselves.
   wf_output_events = [
-      e for e in output_events if e.node_info.path in ('outer@1', 'outer@1/inner@1')
+      e
+      for e in output_events
+      if e.node_info.path in ('outer@1', 'outer@1/inner@1')
   ]
   assert len(wf_output_events) == 0
 
@@ -1757,7 +1779,9 @@ async def test_nested_workflow_event_author():
   # inner_node's events authored by inner_wf (nearest orchestrator),
   # NOT outer_wf.
   inner_events = [
-      e for e in events if e.node_info.path == 'outer_wf@1/inner_wf@1/inner_node@1'
+      e
+      for e in events
+      if e.node_info.path == 'outer_wf@1/inner_wf@1/inner_node@1'
   ]
   assert inner_events
   assert all(e.author == 'inner_wf' for e in inner_events)
@@ -1768,6 +1792,7 @@ async def test_nested_workflow_interrupt_and_resume():
   """Inner workflow child interrupts, outer resumes on FR."""
 
   class _InterruptNode(BaseNode):
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
@@ -1882,6 +1907,7 @@ async def test_wait_for_output_node_preserved_across_resume():
   """
 
   class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
@@ -1975,6 +2001,7 @@ async def test_run_id_reused_on_resume():
   """Resumed node reuses run_id from original interrupted run."""
 
   class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
 
     async def _run_impl(
         self, *, ctx: Context, node_input: Any
@@ -2029,7 +2056,9 @@ async def test_run_id_reused_on_resume():
   resumed_events = [
       e
       for e in events2
-      if e.node_info.path and e.node_info.path.endswith('ask@1') and e.output is not None
+      if e.node_info.path
+      and e.node_info.path.endswith('ask@1')
+      and e.output is not None
   ]
   assert len(resumed_events) == 1
   assert resumed_events[0].node_info.run_id == original_run_id
@@ -2158,6 +2187,7 @@ async def test_nested_workflow_partial_resume():
 async def test_scan_child_events_ignores_descendant_run_id_resets():
   """_scan_child_events only resets run_id from direct child events."""
   from unittest.mock import MagicMock
+
   from google.adk.events.event import Event
   from google.adk.events.event import NodeInfo
 

@@ -479,6 +479,7 @@ class Workflow(BaseNode):
 
     nodes: dict[str, NodeState] = {}
     node_outputs: dict[str, Any] = {}
+    nodes_to_trigger: list[tuple[str, Any]] = []
 
     for child_name, child in children.items():
       unresolved = child.interrupt_ids - child.resolved_ids
@@ -512,20 +513,34 @@ class Workflow(BaseNode):
         )
         node_outputs[child_name] = child.output
       elif child.interrupt_ids:
-        # Node had interrupts, all resolved, no output yet → PENDING for re-run.
-        # TODO handle rerun_on_resume=False in this case, which doesn't need to
-        # run, just forward resume_inputs to output.
-        nodes[child_name] = NodeState(
-            status=NodeStatus.PENDING,
-            resume_inputs=child.resolved_responses,
-            run_id=existing_evt_run_id,
-        )
+        # Node had interrupts, all resolved, no output yet.
+        node = self._get_static_node_by_name(child_name)
+        if not node.rerun_on_resume:
+          nodes[child_name] = NodeState(
+              status=NodeStatus.COMPLETED,
+              run_id=existing_evt_run_id,
+          )
+          node_outputs[child_name] = self._extract_resume_output(child, ctx)
+
+          # Mark that we need to trigger downstream for this node
+          nodes_to_trigger.append((child_name, node_outputs[child_name]))
+        else:
+          nodes[child_name] = NodeState(
+              status=NodeStatus.PENDING,
+              resume_inputs=child.resolved_responses,
+              run_id=existing_evt_run_id,
+          )
 
     # wait_for_output nodes that were triggered but produced no output
     self._add_wait_for_output_nodes(nodes, children)
 
     loop_state.nodes = nodes
     loop_state.node_outputs = node_outputs
+
+    # Trigger downstream for nodes that were completed during resume
+    for child_name, output in nodes_to_trigger:
+      self._buffer_downstream_triggers(loop_state, child_name, output, None)
+    # Gather all active interrupts from waiting nodes.
     loop_state.interrupt_ids = {
         interrupt_id
         for state in nodes.values()
@@ -539,6 +554,22 @@ class Workflow(BaseNode):
     for state in nodes.values():
       if state.run_id and state.run_id.isdigit():
         state.run_counter = int(state.run_id)
+
+  def _extract_resume_output(self, child: _ChildScanState, ctx: Context) -> Any:
+    """Extracts output from resume_inputs for a node that is not re-run."""
+    # Forward resume_inputs to output. If there is only one response,
+    # forward it directly instead of the dict, to match single-agent
+    # RequestInput behavior.
+    # Only forward responses from the current turn (in ctx.resume_inputs).
+    child_resume_inputs = {
+        k: _unwrap_fr_response(v)
+        for k, v in ctx.resume_inputs.items()
+        if k in child.interrupt_ids
+    }
+    if len(child_resume_inputs) == 1:
+      return list(child_resume_inputs.values())[0]
+    else:
+      return child_resume_inputs
 
   def _scan_child_events(self, ctx: Context) -> dict[str, _ChildScanState]:
     """Scan session events and collect per-child state.
@@ -582,6 +613,7 @@ class Workflow(BaseNode):
 
       child_name = direct_child_name(workflow_path, event.node_info.path)
       child_name = child_name.rsplit('@', 1)[0]
+
       if not child_name:
         continue
 
