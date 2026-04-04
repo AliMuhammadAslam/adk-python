@@ -371,7 +371,9 @@ class DynamicNodeScheduler:
   ) -> None:
     """Update dynamic node state after execution."""
     state = run.state
-    if child_ctx.interrupt_ids:
+    if child_ctx.error:
+      state.status = NodeStatus.FAILED
+    elif child_ctx.interrupt_ids:
       state.status = NodeStatus.WAITING
       state.interrupts = list(child_ctx.interrupt_ids)
       self._state.interrupt_ids.update(child_ctx.interrupt_ids)

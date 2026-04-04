@@ -117,11 +117,27 @@ class NodeRunner:
         await self._flush_output_and_deltas(ctx)
         return ctx
       except Exception as e:
-        if type(e).__name__ == "NodeInterruptedError":
-          raise
+        from ._errors import DynamicNodeFailError
+
+        if isinstance(e, DynamicNodeFailError):
+          # TODO: consider to retry upon dynamic node failures later. This may
+          # require thorough design to consider a workflow dynamic node and a
+          # normal node.
+          ctx.error = e.error
+          ctx.error_node_path = e.error_node_path
+          return ctx
 
         if not await self._attempt_retry(e, ctx, retry_count):
-          raise
+          from ..events.event import Event
+
+          error_event = Event(
+              error_code=type(e).__name__,
+              error_message=str(e),
+          )
+          await self._enqueue_event(error_event, ctx)
+          ctx.error = e
+          ctx.error_node_path = ctx.node_path
+          return ctx
         logger.warning(
             "Node %s failed and is being retried locally. Note: retry count is"
             " not persisted across resuming.",

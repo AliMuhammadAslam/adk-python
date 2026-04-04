@@ -96,6 +96,9 @@ class _LoopState(DynamicNodeState):
   nodes: dict[str, NodeState] = field(default_factory=dict)
   """Static node states."""
 
+  error_shut_down: bool = False
+  """Flag indicating that the workflow is shutting down due to an error."""
+
   node_outputs: dict[str, Any] = field(default_factory=dict)
   """Cached static node outputs."""
 
@@ -219,6 +222,9 @@ class Workflow(BaseNode):
     finally:
       await self._cleanup_all_tasks(loop_state)
 
+    if loop_state.error_shut_down:
+      return
+
     # Collect remaining interrupts from WAITING nodes
     self._collect_remaining_interrupts(loop_state)
 
@@ -251,6 +257,16 @@ class Workflow(BaseNode):
         name = self._pop_completed_task(loop_state, task)
         node = self._get_static_node_by_name(name)
         child_ctx: Context = task.result()
+        if child_ctx.error:
+          node_state = loop_state.nodes[name]
+          node_state.status = NodeStatus.FAILED
+
+          ctx.error = child_ctx.error
+          ctx.error_node_path = child_ctx.error_node_path
+
+          loop_state.error_shut_down = True
+          return
+
         self._handle_completion(loop_state, name, node, child_ctx)
 
     # TODO: Handle node failure and cascading cancellation for static nodes.
@@ -760,3 +776,15 @@ class Workflow(BaseNode):
         task.cancel()
     if all_tasks:
       await asyncio.gather(*all_tasks, return_exceptions=True)
+      for task in all_tasks:
+        if task.cancelled():
+          # Mark static nodes as CANCELLED
+          for name, t in loop_state.pending_tasks.items():
+            if t is task:
+              loop_state.nodes[name].status = NodeStatus.CANCELLED
+              break
+          # Mark dynamic nodes as CANCELLED
+          for node_path, run in loop_state.runs.items():
+            if run.task is task:
+              run.state.status = NodeStatus.CANCELLED
+              break

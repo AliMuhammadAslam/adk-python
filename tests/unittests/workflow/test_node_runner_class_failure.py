@@ -135,7 +135,7 @@ async def test_node_fails_immediately_on_unmatched_exception_string(
 
   Setup: Workflow with NodeA -> FlakyNode -> NodeC. FlakyNode fails with CustomNonRetryableError.
   Act: Run the workflow.
-  Assert: Execution raises CustomNonRetryableError immediately without retry.
+  Assert: Execution completes normally and emits CustomNonRetryableError event immediately without retry.
   """
 
   tracker = {'iteration_count': 0}
@@ -168,11 +168,21 @@ async def test_node_fails_immediately_on_unmatched_exception_string(
   session = await ss.create_session(app_name=agent.name, user_id='u')
   msg = types.Content(parts=[types.Part(text='start')], role='user')
   events = []
-  with pytest.raises(CustomNonRetryableError, match='Unexpected failure'):
-    async for event in runner.run_async(
-        user_id='u', session_id=session.id, new_message=msg
-    ):
-      events.append(event)
+
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  # Then the execution fails immediately with an error event
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomNonRetryableError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Unexpected failure'
 
   assert simplify_events_with_node(events) == [
       (
@@ -314,7 +324,7 @@ async def test_node_stops_retrying_after_max_attempts(
 
   Setup: Workflow with NodeA -> FlakyNode -> NodeC. FlakyNode fails persistently, max_attempts=3.
   Act: Run the workflow.
-  Assert: Fails with CustomRetryableError after 3 total attempts.
+  Assert: Execution completes normally and emits CustomRetryableError event after 3 total attempts.
   """
   tracker = {'iteration_count': 0}
   node_a = TestingNode(name='NodeA', output='Executing A')
@@ -351,11 +361,21 @@ async def test_node_stops_retrying_after_max_attempts(
   session = await ss.create_session(app_name=agent.name, user_id='u')
   msg = types.Content(parts=[types.Part(text='start')], role='user')
   events = []
-  with pytest.raises(CustomRetryableError, match='Persisted failure'):
-    async for event in runner.run_async(
-        user_id='u', session_id=session.id, new_message=msg
-    ):
-      events.append(event)
+
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  # Then the execution fails after max attempts with an error event
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomRetryableError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Persisted failure'
 
   results = simplify_events_with_node(events)
   filtered_results = [
@@ -383,7 +403,7 @@ async def test_node_fails_immediately_without_retry_config(
 
   Setup: Workflow with NodeA -> FlakyNode. FlakyNode has retry_config=None.
   Act: Run the workflow.
-  Assert: Execution raises ValueError immediately on first failure.
+  Assert: Execution completes normally and emits ValueError event immediately on first failure.
   """
   tracker = {'iteration_count': 0}
   node_a = TestingNode(name='NodeA', output='Executing A')
@@ -410,11 +430,19 @@ async def test_node_fails_immediately_without_retry_config(
   session = await ss.create_session(app_name=agent.name, user_id='u')
   msg = types.Content(parts=[types.Part(text='start')], role='user')
   events = []
-  with pytest.raises(ValueError, match='Any failure'):
-    async for event in runner.run_async(
-        user_id='u', session_id=session.id, new_message=msg
-    ):
-      events.append(event)
+
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  # Then the execution fails immediately with an error event
+  error_events = [
+      e for e in events if isinstance(e, Event) and e.error_code == 'ValueError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Any failure'
 
   results = simplify_events_with_node(events)
   filtered_results = [
@@ -859,7 +887,7 @@ async def test_node_fails_immediately_on_unmatched_exception_class(
 
   Setup: Workflow with NodeA -> FlakyNode. exceptions=[CustomRetryableError] (class).
   Act: Run the workflow. FlakyNode raises CustomNonRetryableError.
-  Assert: Execution raises CustomNonRetryableError immediately.
+  Assert: Execution completes normally and emits CustomNonRetryableError event immediately.
   """
 
   tracker = {'iteration_count': 0}
@@ -888,11 +916,22 @@ async def test_node_fails_immediately_on_unmatched_exception_class(
   runner = Runner(app_name=agent.name, node=agent, session_service=ss)
   session = await ss.create_session(app_name=agent.name, user_id='u')
   msg = types.Content(parts=[types.Part(text='start')], role='user')
-  with pytest.raises(CustomNonRetryableError, match='Unexpected failure'):
-    async for _ in runner.run_async(
-        user_id='u', session_id=session.id, new_message=msg
-    ):
-      pass
+  events = []
+
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  # Then the execution fails immediately with an error event
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomNonRetryableError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Unexpected failure'
 
   flaky_node_in_agent = next(
       n for n in agent.graph.nodes if n.name == 'FlakyNode'
@@ -912,12 +951,16 @@ def test_retry_config_normalizes_classes_to_strings():
   assert config.exceptions == ['ValueError', 'KeyError']
 
 
-@pytest.mark.xfail(reason='support error event for node later')
 @pytest.mark.asyncio
 async def test_error_event_emitted_on_failure(
     request: pytest.FixtureRequest,
 ):
-  """Tests that an error event is emitted when a node raises an exception."""
+  """Tests that an error event is emitted when a node raises an exception.
+
+  Setup: Workflow with NodeA -> FlakyNode. FlakyNode fails with ValueError.
+  Act: Run the workflow.
+  Assert: Execution completes normally and emits ValueError event.
+  """
   tracker = {'iteration_count': 0}
   node_a = TestingNode(name='NodeA', output='Executing A')
 
@@ -942,11 +985,12 @@ async def test_error_event_emitted_on_failure(
   session = await ss.create_session(app_name=agent.name, user_id='u')
   msg = types.Content(parts=[types.Part(text='start')], role='user')
   events = []
-  with pytest.raises(ValueError, match='Something went wrong'):
-    async for event in runner.run_async(
-        user_id='u', session_id=session.id, new_message=msg
-    ):
-      events.append(event)
+
+  # When the workflow is executed
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
 
   # Find the error event emitted by the failed node.
   error_events = [

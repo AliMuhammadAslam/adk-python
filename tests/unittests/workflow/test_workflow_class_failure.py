@@ -12,40 +12,114 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for Workflow class failure handling and cancellation."""
+"""Tests for Workflow error handling and graceful shutdown."""
 
 import asyncio
 
+from google.adk import Context
+from google.adk.events.event import Event
+from google.adk.runners import Runner
+from google.adk.sessions import InMemorySessionService
+from google.adk.workflow import Edge
 from google.adk.workflow import START
-from google.adk.workflow._node_status import NodeStatus
-from google.adk.workflow._workflow import WorkflowAgentState
+from google.adk.workflow._node import node
 from google.adk.workflow._workflow_class import Workflow
-from google.adk.workflow.utils._node_path_utils import join_paths
+from google.genai import types
 import pytest
 
-from .workflow_testing_utils import create_parent_invocation_context
+
+class CustomError(Exception):
+  """A custom error for testing."""
 
 
-@pytest.mark.xfail(
-    reason='reimplement after supporting workflow failure handling'
-)
+async def _run_workflow(wf, message='start'):
+  """Run a Workflow through Runner, return collected events."""
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+  msg = types.Content(parts=[types.Part(text=message)], role='user')
+  events = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+  return events, ss, session
+
+
 @pytest.mark.asyncio
-async def test_node_cancellation_on_sibling_failure(
-    request: pytest.FixtureRequest,
-):
-  """Tests that a node is marked as CANCELLED when a sibling node fails."""
+async def test_workflow_returns_normally_on_node_failure():
+  """Workflow returns normally when a node fails, without duplicate error events.
 
-  async def slow_node():
+  Setup: Workflow with a single node that raises CustomError.
+  Act: Run the workflow through Runner.
+  Assert:
+    - Collected events contain exactly one error event from the failing node.
+    - No duplicate error event is emitted for the workflow itself.
+  """
+
+  # Given a workflow with a failing node
+  @node()
+  def failing_node(ctx: Context):
+    raise CustomError('Node failed')
+    yield 'output'
+
+  wf = Workflow(
+      name='test_error_workflow',
+      edges=[
+          (START, failing_node),
+      ],
+  )
+
+  # When the workflow is executed
+  events, ss, session = await _run_workflow(wf)
+
+  # Then the result matches expectations
+  # Verify that we have an error event from the failing node
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Node failed'
+
+  # Verify that there is NO duplicate error event from the workflow itself
+  # The workflow event would have path "test_error_workflow@1"
+  workflow_error_events = [
+      e
+      for e in events
+      if isinstance(e, Event)
+      and e.error_code is not None
+      and e.node_info
+      and e.node_info.path == 'test_error_workflow@1'
+  ]
+  assert len(workflow_error_events) == 0
+
+
+@pytest.mark.asyncio
+async def test_node_cancellation_on_sibling_failure():
+  """Node is cancelled and does not produce output when a sibling node fails.
+
+  Setup: Workflow with a slow node and a node that fails quickly.
+  Act: Run the workflow through Runner.
+  Assert:
+    - Collected events contain an error event from the failing node.
+    - The slow node does not produce any output event.
+  """
+
+  # Given a workflow with a slow node and a failing node
+  @node()
+  async def slow_node(ctx: Context):
     await asyncio.sleep(10)
     yield 'Slow'
 
-  async def fail_node():
+  @node()
+  async def fail_node(ctx: Context):
     await asyncio.sleep(0.1)
-    if False:
-      yield
-    raise ValueError('Fail')
+    raise CustomError('Fail')
+    yield 'Fail'
 
-  agent = Workflow(
+  wf = Workflow(
       name='test_workflow_cancellation_sibling',
       edges=[
           (START, slow_node),
@@ -53,71 +127,85 @@ async def test_node_cancellation_on_sibling_failure(
       ],
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, agent, resumable=True
-  )
+  # When the workflow is executed
+  events, ss, session = await _run_workflow(wf)
 
-  with pytest.raises(ValueError, match='Fail'):
-    async for _ in agent.run_async(ctx):
-      pass
+  # Then the result matches expectations
+  # Verify that we have an error event from fail_node
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Fail'
 
-  # Check persistence
-  assert agent.name in ctx.agent_states
-  state = WorkflowAgentState.model_validate(ctx.agent_states[agent.name])
-  assert state.nodes['fail_node'].status == NodeStatus.FAILED
-  assert state.nodes['slow_node'].status == NodeStatus.CANCELLED
+  # Verify that slow_node did NOT produce output 'Slow'
+  slow_outputs = [
+      e
+      for e in events
+      if isinstance(e, Event) and hasattr(e, 'message') and e.message == 'Slow'
+  ]
+  assert len(slow_outputs) == 0
 
 
-@pytest.mark.xfail(
-    reason='reimplement after supporting workflow failure handling'
-)
 @pytest.mark.asyncio
-async def test_nested_workflow_cancellation_on_sibling_failure(
-    request: pytest.FixtureRequest,
-):
-  """Tests that a nested workflow and its internal nodes are cancelled."""
+async def test_nested_workflow_cancellation_on_sibling_failure():
+  """Nested workflow and its internal nodes are cancelled when a sibling fails.
 
-  async def inner_slow_node():
+  Setup: Outer workflow with an inner workflow and a failing node.
+  Act: Run the outer workflow through Runner.
+  Assert:
+    - Collected events contain an error event from the failing node.
+    - The inner workflow's slow node does not produce any output event.
+  """
+
+  # Given an outer workflow with an inner workflow and a failing node
+  @node()
+  async def inner_slow_node(ctx: Context):
     await asyncio.sleep(10)
     yield 'Inner Slow'
 
-  inner_agent = Workflow(
+  inner_wf = Workflow(
       name='inner_workflow',
       edges=[
           (START, inner_slow_node),
       ],
   )
 
-  async def fail_node():
+  @node()
+  async def fail_node(ctx: Context):
     await asyncio.sleep(0.1)
-    raise ValueError('Fail')
+    raise CustomError('Fail')
+    yield 'Fail'
 
-  outer_agent = Workflow(
+  outer_wf = Workflow(
       name='outer_workflow',
       edges=[
-          (START, inner_agent),
+          (START, inner_wf),
           (START, fail_node),
       ],
   )
 
-  ctx = await create_parent_invocation_context(
-      request.function.__name__, outer_agent, resumable=True
-  )
+  # When the outer workflow is executed
+  events, ss, session = await _run_workflow(outer_wf)
 
-  with pytest.raises(ValueError, match='Fail'):
-    async for _ in outer_agent.run_async(ctx):
-      pass
+  # Then the result matches expectations
+  # Verify that we have an error event from fail_node
+  error_events = [
+      e
+      for e in events
+      if isinstance(e, Event) and e.error_code == 'CustomError'
+  ]
+  assert len(error_events) == 1
+  assert error_events[0].error_message == 'Fail'
 
-  # Check outer persistence
-  assert outer_agent.name in ctx.agent_states
-  outer_state = WorkflowAgentState.model_validate(
-      ctx.agent_states[outer_agent.name]
-  )
-  assert outer_state.nodes['fail_node'].status == NodeStatus.FAILED
-  assert outer_state.nodes['inner_workflow'].status == NodeStatus.CANCELLED
-
-  # Check inner persistence
-  inner_path = join_paths(outer_agent.name, inner_agent.name)
-  assert inner_path in ctx.agent_states
-  inner_state = WorkflowAgentState.model_validate(ctx.agent_states[inner_path])
-  assert inner_state.nodes['inner_slow_node'].status == NodeStatus.CANCELLED
+  # Verify that inner_slow_node did NOT produce output 'Inner Slow'
+  slow_outputs = [
+      e
+      for e in events
+      if isinstance(e, Event)
+      and hasattr(e, 'message')
+      and e.message == 'Inner Slow'
+  ]
+  assert len(slow_outputs) == 0

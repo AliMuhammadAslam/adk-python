@@ -232,6 +232,8 @@ class Context(ReadonlyContext):
     E.g. ['wf/parent@1', 'wf/grandparent@1'] means this node's output event
     is also considered the output for those ancestor paths.
     """
+    self._error: Exception | None = None
+    self._error_node_path: str = ''
     # Use a session proxy when local_events are provided (workflow mode).
     if local_events is not None:
       self._session_proxy = _SessionProxy(
@@ -316,6 +318,24 @@ class Context(ReadonlyContext):
   def resume_inputs(self) -> dict[str, Any]:
     """Returns inputs for resuming node, keyed by interrupt id."""
     return self._resume_inputs
+
+  @property
+  def error(self) -> Exception | None:
+    """The exception raised by the node, if any."""
+    return self._error
+
+  @error.setter
+  def error(self, value: Exception | None) -> None:
+    self._error = value
+
+  @property
+  def error_node_path(self) -> str:
+    """The path of the node that failed."""
+    return self._error_node_path
+
+  @error_node_path.setter
+  def error_node_path(self, value: str) -> None:
+    self._error_node_path = value
 
   @property
   def output(self) -> Any:
@@ -524,6 +544,14 @@ class Context(ReadonlyContext):
           use_as_output=use_as_output,
           run_id=run_id,
       )
+      if child_ctx.error:
+        from ..workflow._errors import DynamicNodeFailError
+
+        raise DynamicNodeFailError(
+            f'Dynamic node {node_name} failed',
+            error=child_ctx.error,
+            error_node_path=child_ctx.error_node_path,
+        )
       if child_ctx.interrupt_ids:
         # Propagate child's interrupt_ids to this node's ctx
         # so NodeRunner sees them after catching the error.

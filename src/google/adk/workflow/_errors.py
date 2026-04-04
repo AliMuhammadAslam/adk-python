@@ -43,3 +43,17 @@ class NodeTimeoutError(Exception):
     self.node_name = node_name
     self.timeout = timeout
     super().__init__(f"Node '{node_name}' timed out after {timeout} seconds.")
+
+
+class DynamicNodeFailError(Exception):
+  """Raised when a dynamic node fails.
+
+  Caught by the parent node's NodeRunner to propagate the error.
+  """
+
+  def __init__(
+      self, message: str, error: Exception, error_node_path: str
+  ) -> None:
+    self.error = error
+    self.error_node_path = error_node_path
+    super().__init__(message)
