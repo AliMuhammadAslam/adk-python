@@ -23,7 +23,10 @@ User-facing ctx.run_node() wraps this and returns just ctx.output.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import sys
+from types import SimpleNamespace
 from typing import Any
 from typing import TYPE_CHECKING
 
@@ -150,9 +153,6 @@ class NodeRunner:
       self, e: Exception, ctx: Context, retry_count: int
   ) -> bool:
     """Checks if node should retry and sleeps if so."""
-    import asyncio
-    from types import SimpleNamespace
-
     from .utils._retry_utils import _get_retry_delay
     from .utils._retry_utils import _should_retry_node
 
@@ -232,26 +232,49 @@ class NodeRunner:
       node_input: Any,
   ) -> None:
     """Iterate node.run(), enqueue events, write results to ctx."""
-    import asyncio
-
     from ._errors import NodeInterruptedError
     from ._errors import NodeTimeoutError
 
-    timeout = getattr(self._node, 'timeout', None)
-
     try:
-      async with asyncio.timeout(timeout):
-        async for event in self._node.run(ctx=ctx, node_input=node_input):
-          self._track_event_in_context(event, ctx)
-          await self._enqueue_event(event, ctx)
-    except TimeoutError as e:
-      raise NodeTimeoutError(self._node.name, timeout) from e
+      timeout = self._node.timeout
+      if timeout is not None and sys.version_info >= (3, 11):
+        await self._run_node_loop_with_timeout(ctx, node_input, timeout)
+      else:
+        if timeout is not None:
+          self._log_timeout_not_supported_warning(timeout)
+        await self._run_node_loop(ctx, node_input)
     except NodeInterruptedError:
       # A dynamic child interrupted via ctx.run_node().
       # The child's interrupt_ids are already on ctx
       # (set by the schedule callback). Nothing more to do —
       # the caller reads ctx.interrupt_ids.
       pass
+
+  async def _run_node_loop(self, ctx: Context, node_input: Any) -> None:
+    """Iterate node.run(), track events in context, and enqueue them."""
+    async for event in self._node.run(ctx=ctx, node_input=node_input):
+      self._track_event_in_context(event, ctx)
+      await self._enqueue_event(event, ctx)
+
+  async def _run_node_loop_with_timeout(
+      self, ctx: Context, node_input: Any, timeout: float
+  ) -> None:
+    try:
+      async with asyncio.timeout(timeout):
+        await self._run_node_loop(ctx, node_input)
+    except asyncio.TimeoutError as e:
+      from ._errors import NodeTimeoutError
+
+      raise NodeTimeoutError(self._node.name, timeout) from e
+
+  def _log_timeout_not_supported_warning(self, timeout: float) -> None:
+    """Logs a warning when timeout is ignored due to Python version."""
+    logging.warning(
+        "Node %s: timeout %.2f seconds is ignored because Python version"
+        " is < 3.11",
+        self._node.name,
+        timeout,
+    )
 
   def _track_event_in_context(self, event: Event, ctx: Context) -> None:
     """Write yielded event results to ctx (source of truth)."""
