@@ -771,9 +771,14 @@ class Runner:
     if new_message and not new_message.role:
       new_message.role = 'user'
 
+    from .agents.llm_agent import LlmAgent
     from .workflow._base_node import BaseNode
 
-    if isinstance(self.agent, BaseNode):
+    # TODO: remove `not isinstance(self.agent, LlmAgent)` after LLM agent is
+    # refactored to inherit from BaseNode.
+    if isinstance(self.agent, BaseNode) and not isinstance(
+        self.agent, LlmAgent
+    ):
       async for event in self._run_node_async(
           user_id=user_id,
           session_id=session_id,
