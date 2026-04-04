@@ -30,13 +30,13 @@ def process_input(node_input: str):
     yield Event(message="Please provide a valid 4-digit year (e.g., 1955).")
     raise ValueError("Invalid year format.")
 
-  yield match.group(0)
+  yield Event(state={"year": match.group(0)})
 
 
 find_name = Agent(
     name="find_name",
     instruction="""
-    Find the name of one famous person who was born in the specified year.
+    Find the name of one famous person who was born in this year: {year}.
     Return ONLY their name, nothing else.
     """,
 )
@@ -60,7 +60,7 @@ find_famous_person = Workflow(
 find_historical_event = Agent(
     name="find_historical_event",
     instruction="""
-    Describe one highly significant historical event that occurred in the specified year.
+    Describe one highly significant historical event that occurred in this year: {year}.
     Keep the description to 2 sentences.
     """,
 )
@@ -68,17 +68,15 @@ find_historical_event = Agent(
 join_for_aggregation = JoinNode(name="join_for_aggregation")
 
 
-def aggregate_results(node_input: dict[str, str]):
+def aggregate_results(node_input: dict[str, str], year: str):
   """Combines the outputs from the parallel branches found in the context state."""
-  # Context state contains the outputs because we used 'output_key' on the agents.
-  person_bio = node_input.get("find_famous_person", "Bio not found")
-  historical_event = node_input.get("find_historical_event", "Event not found")
 
   combined_message = (
-      "--- Famous Person Bio ---\n\n"
-      f"{person_bio}\n\n"
-      "--- Historical Event ---\n\n"
-      f"{historical_event}"
+      f"# Year: {year}\n\n"
+      "## Famous Person Bio:\n\n"
+      f"{node_input['find_famous_person']}\n\n"
+      "## Historical Event:\n\n"
+      f"{node_input['find_historical_event']}"
   )
   yield Event(message=combined_message)
 

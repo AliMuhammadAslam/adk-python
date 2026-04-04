@@ -64,16 +64,11 @@ evaluate_headline = Agent(
 async def orchestrate(ctx: Context, node_input: str) -> str:
   yield Event(state={"topic": node_input})
 
-  i = 0
   while True:
-    headline = await ctx.run_node(generate_headline, name=f"generate_{i}")
+    headline = await ctx.run_node(generate_headline)
     feedback = Feedback.model_validate(
-        # TODO: replace with custom run_id later.
-        await ctx.run_node(
-            evaluate_headline, node_input=headline, name=f"evaluate_{i}"
-        )
+        await ctx.run_node(evaluate_headline, node_input=headline)
     )
-    i += 1
     if feedback.grade == "tech-related":
       yield headline
       break
