@@ -22,6 +22,7 @@ import hashlib
 import json
 import logging
 import os
+import sys
 from pathlib import Path
 import tempfile
 import textwrap
@@ -618,50 +619,105 @@ def adk_services_options(*, default_use_local_storage: bool = True):
     ),
     callback=validate_exclusive,
 )
+@click.option(
+    "--state",
+    type=str,
+    help="Optional. Initial state for the run as a JSON string.",
+)
+@click.option(
+    "--timeout",
+    type=str,
+    help="Optional. Timeout for a single turn or query (e.g., 30s, 5m).",
+)
+@click.option(
+    "--ephemeral",
+    is_flag=True,
+    help="Optional. Do not persist session data (use in-memory storage).",
+)
+@click.option(
+    "--jsonl",
+    is_flag=True,
+    help="Optional. Output structured JSONL instead of human-readable text.",
+)
 @click.argument(
     "agent",
     type=click.Path(
         exists=True, dir_okay=True, file_okay=False, resolve_path=True
     ),
 )
+@click.argument("query", type=str, required=False)
 def cli_run(
     agent: str,
+    query: Optional[str],
     save_session: bool,
     session_id: Optional[str],
     replay: Optional[str],
     resume: Optional[str],
+    state: Optional[str] = None,
+    timeout: Optional[str] = None,
+    ephemeral: bool = False,
+    jsonl: bool = False,
     session_service_uri: Optional[str] = None,
     artifact_service_uri: Optional[str] = None,
     memory_service_uri: Optional[str] = None,
     use_local_storage: bool = True,
 ):
-  """Runs an interactive CLI for a certain agent.
+  """Runs an agent. If no query is provided, enters interactive mode.
 
   AGENT: The path to the agent source code folder.
+  QUERY: Optional. The user message to send to the agent for a single-step run.
 
   Example:
 
     adk run path/to/my_agent
+    adk run path/to/my_agent "hello"
   """
   logs.log_to_tmp_folder()
 
   agent_parent_folder = os.path.dirname(agent)
   agent_folder_name = os.path.basename(agent)
 
-  asyncio.run(
-      run_cli(
-          agent_parent_dir=agent_parent_folder,
-          agent_folder_name=agent_folder_name,
-          input_file=replay,
-          saved_session_file=resume,
-          save_session=save_session,
-          session_id=session_id,
-          session_service_uri=session_service_uri,
-          artifact_service_uri=artifact_service_uri,
-          memory_service_uri=memory_service_uri,
-          use_local_storage=use_local_storage,
-      )
-  )
+  # If query is provided, we run in single-step mode (JSONL output)
+  if query is not None:
+    from .cli import run_once_cli
+
+    exit_code = asyncio.run(
+        run_once_cli(
+            agent_parent_dir=agent_parent_folder,
+            agent_folder_name=agent_folder_name,
+            query=query,
+            state_str=state,
+            session_id=session_id,
+            replay=replay,
+            timeout=timeout,
+            ephemeral=ephemeral,
+            jsonl=jsonl,
+            session_service_uri=session_service_uri,
+            artifact_service_uri=artifact_service_uri,
+            memory_service_uri=memory_service_uri,
+            use_local_storage=use_local_storage,
+        )
+    )
+    sys.exit(exit_code)
+  else:
+    # Legacy interactive mode
+    asyncio.run(
+        run_cli(
+            agent_parent_dir=agent_parent_folder,
+            agent_folder_name=agent_folder_name,
+            input_file=replay,
+            saved_session_file=resume,
+            save_session=save_session,
+            session_id=session_id,
+            state_str=state,
+            timeout=timeout,
+            jsonl=jsonl,
+            session_service_uri=session_service_uri,
+            artifact_service_uri=artifact_service_uri,
+            memory_service_uri=memory_service_uri,
+            use_local_storage=use_local_storage,
+        )
+    )
 
 
 @main.command(

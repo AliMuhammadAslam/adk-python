@@ -1834,8 +1834,9 @@ class Runner:
       for tool_union in agent.tools:
         if isinstance(tool_union, BaseToolset):
           toolsets.add(tool_union)
-    for sub_agent in agent.sub_agents:
-      toolsets.update(self._collect_toolset(sub_agent))
+    if hasattr(agent, 'sub_agents'):
+      for sub_agent in agent.sub_agents:
+        toolsets.update(self._collect_toolset(sub_agent))
     return toolsets
 
   async def _cleanup_toolsets(self, toolsets_to_close: set[BaseToolset]):
