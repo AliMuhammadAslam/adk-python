@@ -582,20 +582,12 @@ def rebuild_tests(path: str):
         print(f"No events in {test_file}, skipping.")
         continue
 
-      # Extract user messages (but not function responses!)
+      # Extract user messages
       user_messages = []
       for event in events_data:
         content = _extract_user_content(event)
         if content:
-          # Skip if it's a function response
-          is_func_resp = False
-          if content.parts:
-            for part in content.parts:
-              if part.function_response:
-                is_func_resp = True
-                break
-          if not is_func_resp:
-            user_messages.append(content)
+          user_messages.append(content)
 
       if not user_messages:
         print(f"No user messages found in {test_file}, skipping.")

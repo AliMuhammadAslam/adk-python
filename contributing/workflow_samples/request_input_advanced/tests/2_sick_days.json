@@ -30,41 +30,24 @@
       "id": "e-1"
     },
     {
-      "modelVersion": "gemini-2.5-flash",
       "content": {
         "parts": [
           {
-            "text": "{\"days\": 2, \"reason\": \"sick leave\"}"
+            "text": "{\"days\": 2, \"reason\": \"sick\"}"
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "process_request",
-      "nodeInfo": {
-        "path": "request_input_advanced@1/process_request@1/call_llm@1",
-        "runId": "1",
-        "parentRunId": "1",
-        "messageAsOutput": true
-      },
-      "branch": "node:request_input_advanced@1/process_request@1.process_request",
-      "id": "e-5"
-    },
-    {
-      "invocationId": "i-1",
       "author": "request_input_advanced",
       "actions": {
         "stateDelta": {
           "request": {
             "days": 2,
-            "reason": "sick leave"
+            "reason": "sick"
           }
         }
-      },
-      "output": {
-        "days": 2,
-        "reason": "sick leave"
       },
       "nodeInfo": {
         "path": "request_input_advanced@1/process_request@1",
@@ -72,9 +55,11 @@
         "parentRunId": "1",
         "outputFor": [
           "request_input_advanced@1/process_request@1"
-        ]
+        ],
+        "messageAsOutput": true
       },
-      "id": "e-6"
+      "branch": "node:request_input_advanced@1/process_request@1.process_request",
+      "id": "e-4"
     },
     {
       "content": {
@@ -86,7 +71,7 @@
                 "interrupt_id": "fc-1",
                 "payload": {
                   "days": 2,
-                  "reason": "sick leave"
+                  "reason": "sick"
                 },
                 "message": "Please review this time off request.",
                 "response_schema": {
@@ -133,7 +118,7 @@
       "longRunningToolIds": [
         "fc-1"
       ],
-      "id": "e-7"
+      "id": "e-6"
     },
     {
       "content": {
@@ -156,7 +141,7 @@
         "path": "",
         "runId": ""
       },
-      "id": "e-8"
+      "id": "e-7"
     },
     {
       "content": {
@@ -174,7 +159,7 @@
         "runId": "1",
         "parentRunId": "1"
       },
-      "id": "e-10"
+      "id": "e-9"
     }
   ]
 }
