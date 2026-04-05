@@ -303,6 +303,20 @@ class LlmAgent(BaseAgent):
   settings, etc.
   """
 
+  mode: Literal['chat', 'task', 'single_turn'] | None = None
+  """The delegation mode for this agent.
+
+  Options:
+    chat: Standard chat agent reachable via transfer_to_agent.
+    task: Task agent that chats with the user to accomplish a task.
+    single_turn: Agents that complete a task without chatting with the user.
+
+  Default value is chat as a sub-agent, single_turn as a node in a workflow.
+  """
+
+  parallel_worker: bool | None = None
+  """Whether to run the agent in parallel worker mode."""
+
   # LLM-based agent transfer configs - Start
   disallow_transfer_to_parent: bool = False
   """Disallows LLM-controlled transferring to the parent agent.

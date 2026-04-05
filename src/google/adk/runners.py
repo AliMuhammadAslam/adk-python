@@ -594,7 +594,11 @@ class Runner:
         break
       event: Event = event_or_done
       if not event.partial:
+        if event.node_info.message_as_output and event.content is not None:
+          event = event.model_copy()
+          event.output = None
         await self.session_service.append_event(session=ic.session, event=event)
+
       yield event
       if isinstance(processed_signal, asyncio.Event):
         processed_signal.set()
