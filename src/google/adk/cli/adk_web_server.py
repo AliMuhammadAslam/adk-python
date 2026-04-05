@@ -1,9 +1,3 @@
-      # Sanitize test_name to prevent directory traversal
-      test_name = os.path.basename(test_name)
-
-      # Sanitize test_name to prevent directory traversal
-      test_name = os.path.basename(test_name)
-
 # Copyright 2026 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
