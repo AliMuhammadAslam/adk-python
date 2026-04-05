@@ -48,7 +48,7 @@
               "id": "fc-1",
               "name": "generate_random_number",
               "response": {
-                "result": 2
+                "result": 1
               }
             }
           }
@@ -70,7 +70,7 @@
             "functionCall": {
               "id": "fc-2",
               "args": {
-                "number": 2
+                "number": 1
               },
               "name": "is_even"
             }
@@ -96,7 +96,7 @@
               "id": "fc-2",
               "name": "is_even",
               "response": {
-                "result": true
+                "result": false
               }
             }
           }
@@ -115,7 +115,7 @@
       "content": {
         "parts": [
           {
-            "text": "The random number is 2, and it is even."
+            "text": "The random number is 1.\nIs it even? False."
           }
         ],
         "role": "model"

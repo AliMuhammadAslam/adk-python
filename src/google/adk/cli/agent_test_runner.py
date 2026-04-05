@@ -312,6 +312,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
     random.seed(42)
 
     loader = AgentLoader(str(agent_dir.parent))
+    loader.remove_agent_from_cache(agent_dir.name)
     agent_or_app = loader.load_agent(agent_dir.name)
 
     root_agent = (
