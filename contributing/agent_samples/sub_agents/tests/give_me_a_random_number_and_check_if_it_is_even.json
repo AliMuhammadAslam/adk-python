@@ -1,0 +1,235 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "give me a random number and check if it is even"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "agent_name": "random_number_agent"
+              },
+              "name": "transfer_to_agent"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "sub_agents",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "transfer_to_agent",
+              "response": {
+                "result": null
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "sub_agents",
+      "actions": {
+        "transferToAgent": "random_number_agent"
+      },
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-5"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-2",
+              "args": {},
+              "name": "generate_random_number"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "random_number_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-9"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-2",
+              "name": "generate_random_number",
+              "response": {
+                "result": 1
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "random_number_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-12"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-3",
+              "args": {
+                "agent_name": "is_even_agent"
+              },
+              "name": "transfer_to_agent"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "random_number_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-17"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-3",
+              "name": "transfer_to_agent",
+              "response": {
+                "result": null
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "random_number_agent",
+      "actions": {
+        "transferToAgent": "is_even_agent"
+      },
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-20"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-4",
+              "args": {
+                "number": 1
+              },
+              "name": "is_even"
+            }
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "is_even_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "longRunningToolIds": [],
+      "id": "e-29"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-4",
+              "name": "is_even",
+              "response": {
+                "result": false
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "is_even_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-33"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The number 1 is not even."
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "is_even_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-43"
+    }
+  ]
+}

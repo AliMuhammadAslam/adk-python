@@ -1,0 +1,39 @@
+{
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "go"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Hello! I'm ready. How can I assist you today?"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "empty_agent",
+      "nodeInfo": {
+        "path": "",
+        "runId": ""
+      },
+      "id": "e-3"
+    }
+  ]
+}
