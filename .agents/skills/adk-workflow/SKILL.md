@@ -429,17 +429,44 @@ Sample queries:
 
 ## Testing Agents
 
-Test agents interactively with `adk run` or the web UI:
+Test agents interactively or via automated queries with `adk run`, or use the web UI:
 
 ```bash
 # Interactive CLI (reads from stdin)
 adk run path/to/my_agent
 
-# Pipe input for non-interactive testing
+# Automated query mode (single-turn)
+adk run path/to/my_agent "my test input"
+
+# Machine-consumable JSONL output (strips noise)
+adk run --jsonl path/to/my_agent "my test input"
+
+# Pipe input for non-interactive testing (legacy)
 echo "my test input" | adk run path/to/my_agent
 
 # Web UI at localhost:8000
 adk web path/to/agents_dir
+```
+
+### When to use automated query mode
+
+- **No Server Needed**: Fast testing without starting `adk web` server.
+- **CI/CD & Automation**: Perfect for non-interactive regression tests.
+- **Noise Reduction**: `--jsonl` strips empty payloads for machine parsing.
+- **Concurrency**: Use with `--in_memory` for multi-threaded testing (isolates session state).
+
+> [!TIP]
+> Always read the sample's `README.md` first to understand expected inputs and behaviors!
+
+### Exit Codes & Details
+
+- **Exit Code 0**: Success.
+- **Exit Code 1**: Error (e.g., API key missing, agent load failure).
+- **Exit Code 2**: Paused (Workflow is waiting for human input/HITL).
+
+For more options and flags, run:
+```bash
+adk run --help
 ```
 
 Use `adk run` to verify agents work end-to-end before deploying. It requires a configured API key (via `.env` or environment variables).
