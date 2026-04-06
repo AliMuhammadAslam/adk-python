@@ -128,6 +128,11 @@ def _collect_pending_function_calls(
   return pending
 
 
+def _is_positive_response(s: str) -> bool:
+  """Returns True if the string is a positive response."""
+  return s.strip().lower() in ('y', 'yes', 'true', 'confirm')
+
+
 def _prompt_for_function_call(
     fc_id: str, fc_name: str, args: dict[str, Any]
 ) -> types.Content:
@@ -152,7 +157,7 @@ def _prompt_for_function_call(
 
   # Build the FunctionResponse.
   if fc_name == _REQUEST_CONFIRMATION:
-    confirmed = user_input.strip().lower() in ('yes', 'y')
+    confirmed = _is_positive_response(user_input)
     response = {'confirmed': confirmed}
   else:
     # Try to parse as JSON, fall back to wrapping as {"result": value}.
@@ -631,10 +636,16 @@ async def run_once_cli(
     # active interrupt (Human-In-The-Loop suspension). If so, we automatically
     # map the user's text query to the required function response instead of
     # treating it as a new user message.
-    last_event = session.events[-1] if session.events else None
-    if last_event and last_event.long_running_tool_ids:
+    # Find the last event with active interrupts
+    interrupt_event = None
+    for e in reversed(session.events):
+      if e.long_running_tool_ids:
+        interrupt_event = e
+        break
+
+    if interrupt_event:
       # Assume the first active interrupt is the one we want to answer
-      interrupt_id = list(last_event.long_running_tool_ids)[0]
+      interrupt_id = list(interrupt_event.long_running_tool_ids)[0]
       if not jsonl:
         click.secho(
             f'Auto-resuming interrupt {interrupt_id} with input: {q}',
@@ -643,25 +654,47 @@ async def run_once_cli(
         )
 
       # Construct a FunctionResponse pointing back to the interrupt ID.
-      # We use 'adk_request_input' as the synthetic function name and
-      # wrap the user input in a 'result' field (ADK convention for unwrapping).
-      # TODO: Currently we only handle 'adk_request_input'.
-      # We also need to handle 'adk_request_credential' (auth) and tool
-      # confirmation.
+      # We check the synthetic function name to handle different interrupt types.
+      # TODO: We still need to handle 'adk_request_credential' (auth).
       # TODO: Support batch HITL or interactive selection when multiple
       # interrupts are active.
-      content = types.Content(
-          role='user',
-          parts=[
-              types.Part(
-                  function_response=types.FunctionResponse(
-                      id=interrupt_id,
-                      name='adk_request_input',
-                      response={'result': q},
-                  )
-              )
-          ],
+      fc = next(
+          (
+              c
+              for c in interrupt_event.get_function_calls()
+              if c.id == interrupt_id
+          ),
+          None,
       )
+
+      if fc and fc.name == 'adk_request_confirmation':
+        confirmed = _is_positive_response(q)
+        content = types.Content(
+            role='user',
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=interrupt_id,
+                        name='adk_request_confirmation',
+                        response={'confirmed': confirmed},
+                    )
+                )
+            ],
+        )
+      else:
+        # Fallback to adk_request_input or default behavior
+        content = types.Content(
+            role='user',
+            parts=[
+                types.Part(
+                    function_response=types.FunctionResponse(
+                        id=interrupt_id,
+                        name='adk_request_input',
+                        response={'result': q},
+                    )
+                )
+            ],
+        )
     else:
       # Standard flow: Treat the query as a new text message from the user
       content = types.Content(role='user', parts=[types.Part(text=q)])
