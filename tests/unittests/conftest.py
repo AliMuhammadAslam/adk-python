@@ -120,5 +120,10 @@ def pytest_collection_modifyitems(config, items):
           or 'tests/unittests/agents/llm_agent_workflow/' in fspath
           or 'tests/unittests/agents/llm/test_mesh.py' in fspath
           or 'tests/unittests/agents/llm/test_single_llm_agent.py' in fspath
+          or 'tests/unittests/agents/llm/test_agent_transfer.py' in fspath
+          or 'tests/unittests/agents/llm/test_functions_request_euc.py'
+          in fspath
+          or 'tests/unittests/agents/llm/test_model_callbacks.py' in fspath
+          or 'tests/unittests/agents/llm/test_tool_callbacks.py' in fspath
       ):
         item.add_marker(skip_v1)
