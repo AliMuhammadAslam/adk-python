@@ -44,6 +44,12 @@ def test_single_turn_does_not_set_wait_for_output():
   assert wrapper.wait_for_output is False
 
 
+def test_chat_mode_sets_wait_for_output():
+  agent = _make_v1_agent(mode='chat')
+  wrapper = _V1LlmAgentWrapper(agent=agent)
+  assert wrapper.wait_for_output is True
+
+
 @pytest.mark.asyncio
 async def test_task_mode_proceeds_on_finish_task():
   agent = _make_v1_agent(mode='task')
@@ -97,4 +103,33 @@ async def test_task_mode_does_not_proceed_without_finish_task():
     events.append(e)
 
   assert len(events) == 1
+  assert events[0].output is None
+
+
+@pytest.mark.asyncio
+async def test_chat_mode_yields_events_directly():
+  agent = _make_v1_agent(mode='chat')
+  wrapper = _V1LlmAgentWrapper(agent=agent)
+
+  async def mock_run_async(*args, **kwargs):
+    yield Event(
+        invocation_id='inv',
+        author='test_v1_agent',
+        content=types.Content(parts=[types.Part(text='Hello from chat')]),
+    )
+
+  object.__setattr__(agent, 'run_async', mock_run_async)
+
+  from unittest.mock import MagicMock
+
+  ctx = MagicMock(spec=Context)
+  ctx._invocation_context = MagicMock()
+  ctx.node_path = 'wf'
+
+  events = []
+  async for e in wrapper._run_impl(ctx=ctx, node_input='hello'):
+    events.append(e)
+
+  assert len(events) == 1
+  assert events[0].content.parts[0].text == 'Hello from chat'
   assert events[0].output is None

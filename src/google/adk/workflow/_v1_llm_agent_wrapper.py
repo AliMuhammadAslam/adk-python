@@ -70,13 +70,13 @@ class _V1LlmAgentWrapper(BaseNode):
     if self.agent.mode is None:
       self.agent.mode = 'single_turn'
 
-    if self.agent.mode not in ('task', 'single_turn'):
+    if self.agent.mode not in ('task', 'single_turn', 'chat'):
       raise ValueError(
-          f'_V1LlmAgentWrapper only supports task and single_turn mode,'
+          f'_V1LlmAgentWrapper only supports task, single_turn, and chat mode,'
           f" but agent '{self.agent.name}' has mode='{self.agent.mode}'."
       )
 
-    if self.agent.mode == 'task':
+    if self.agent.mode in ('task', 'chat'):
       self.wait_for_output = True
     return self
 
@@ -152,6 +152,9 @@ class _V1LlmAgentWrapper(BaseNode):
     if self.agent.mode == 'single_turn':
       async for event in run_iter:
         self._process_output(ctx, event)
+        yield event
+    elif self.agent.mode == 'chat':
+      async for event in run_iter:
         yield event
     else:
       # Task mode: finish_task output is inside event.actions, not

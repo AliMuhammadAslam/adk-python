@@ -418,6 +418,7 @@ class Runner:
       new_message: Optional[types.Content] = None,
       run_config: Optional[RunConfig] = None,
       yield_user_message: bool = False,
+      node: Optional['BaseNode'] = None,
   ) -> AsyncGenerator[Event, None]:
     """Run a BaseNode through NodeRunner.
 
@@ -460,17 +461,31 @@ class Runner:
       # Fresh: use user message as node_input
       node_input = new_message
 
+    # Run callbacks on user message
+    if new_message:
+      modified_user_message = (
+          await ic.plugin_manager.run_on_user_message_callback(
+              invocation_context=ic, user_message=new_message
+          )
+      )
+      if modified_user_message is not None:
+        new_message = modified_user_message
+        ic.user_content = new_message
+
     # Append user message to session for history
     if new_message:
       user_event = await self._append_user_event(ic, new_message)
       if yield_user_message and user_event:
         yield user_event
 
+    # Run before_run callbacks
+    await ic.plugin_manager.run_before_run_callback(invocation_context=ic)
+
     # 3. Start root node in background
     from .agents.context import Context
 
     root_ctx = Context(ic)
-    root_node_runner = NodeRunner(node=self.agent, parent_ctx=root_ctx)
+    root_node_runner = NodeRunner(node=node or self.agent, parent_ctx=root_ctx)
     done_sentinel = object()
 
     async def _drive_root_node():
@@ -599,7 +614,14 @@ class Runner:
           event.output = None
         await self.session_service.append_event(session=ic.session, event=event)
 
-      yield event
+      modified_event = await ic.plugin_manager.run_on_event_callback(
+          invocation_context=ic, event=event
+      )
+      if modified_event:
+        yield modified_event
+      else:
+        yield event
+
       if isinstance(processed_signal, asyncio.Event):
         processed_signal.set()
 
@@ -777,6 +799,24 @@ class Runner:
 
     from .agents.llm_agent import LlmAgent
     from .workflow._base_node import BaseNode
+
+    # Wrap LlmAgent with _V1LlmAgentWrapper if it's the root agent
+    if isinstance(self.agent, LlmAgent):
+      from .workflow._v1_llm_agent_wrapper import _V1LlmAgentWrapper
+
+      if self.agent.mode is None:
+        self.agent.mode = 'chat'
+      wrapped_agent = _V1LlmAgentWrapper(agent=self.agent)
+      async for event in self._run_node_async(
+          user_id=user_id,
+          session_id=session_id,
+          new_message=new_message,
+          run_config=run_config,
+          yield_user_message=yield_user_message,
+          node=wrapped_agent,
+      ):
+        yield event
+      return
 
     # TODO: remove `not isinstance(self.agent, LlmAgent)` after LLM agent is
     # refactored to inherit from BaseNode.

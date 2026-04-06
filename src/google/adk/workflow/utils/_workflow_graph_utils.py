@@ -77,13 +77,14 @@ def build_node(
   from ...features import is_feature_enabled
 
   if isinstance(node_like, LlmAgent):
-    # Reject explicit mode='chat' — it is not supported in workflows.
+    # Reject explicit mode='chat' if V1 is not enabled.
     if 'mode' in node_like.model_fields_set and node_like.mode == 'chat':
-      raise ValueError(
-          f"LlmAgent '{node_like.name}' has mode='chat' which is not"
-          " supported in workflows. Use mode='single_turn' or"
-          " mode='task', or omit mode to auto-default to single_turn."
-      )
+      if not is_feature_enabled(FeatureName.V1_LLM_AGENT):
+        raise ValueError(
+            f"LlmAgent '{node_like.name}' has mode='chat' which is not"
+            " supported in workflows. Use mode='single_turn' or"
+            " mode='task', or omit mode to auto-default to single_turn."
+        )
 
     if is_feature_enabled(FeatureName.V1_LLM_AGENT):
       from .._v1_llm_agent_wrapper import _V1LlmAgentWrapper
