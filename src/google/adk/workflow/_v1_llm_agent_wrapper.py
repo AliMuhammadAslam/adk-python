@@ -168,6 +168,13 @@ class _V1LlmAgentWrapper(BaseNode):
           if target_name != self.agent.name:
             target_agent = self.agent.root_agent.find_agent(target_name)
             if target_agent:
+              if ctx._invocation_context.is_resumable:
+                ctx._invocation_context.set_agent_state(
+                    self.agent.name, end_of_agent=True
+                )
+                yield self.agent._create_agent_state_event(
+                    ctx._invocation_context
+                )
               wrapped_target = _V1LlmAgentWrapper(agent=target_agent)
               await ctx.run_node(wrapped_target, node_input=None)
               break
