@@ -39,10 +39,13 @@ async def _run_workflow(wf, message='start'):
   session = await ss.create_session(app_name='test', user_id='u')
   msg = types.Content(parts=[types.Part(text=message)], role='user')
   events = []
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  try:
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
+  except CustomError:
+    pass
   return events, ss, session
 
 

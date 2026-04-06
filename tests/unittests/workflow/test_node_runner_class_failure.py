@@ -35,6 +35,7 @@ from google.adk.workflow._workflow import workflow_node_input
 from google.adk.workflow._workflow import WorkflowAgentState
 from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._workflow_graph import WorkflowGraph
+from google.adk.workflow._errors import NodeTimeoutError
 from google.adk.workflow.utils._node_path_utils import join_paths
 from google.genai import types
 from pydantic import ConfigDict
@@ -171,12 +172,13 @@ async def test_node_fails_immediately_on_unmatched_exception_string(
   events = []
 
   # When the workflow is executed
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  with pytest.raises(CustomNonRetryableError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
 
-  # Then the execution fails immediately with an error event
+  # Assert that the node error is persisted in session as an event
   error_events = [
       e
       for e in events
@@ -364,12 +366,13 @@ async def test_node_stops_retrying_after_max_attempts(
   events = []
 
   # When the workflow is executed
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  with pytest.raises(CustomRetryableError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
 
-  # Then the execution fails after max attempts with an error event
+  # Assert that the node error is persisted in session as an event after max attempts
   error_events = [
       e
       for e in events
@@ -434,12 +437,13 @@ async def test_node_fails_immediately_without_retry_config(
   events = []
 
   # When the workflow is executed
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  with pytest.raises(ValueError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
 
-  # Then the execution fails immediately with an error event
+  # Assert that the node error is persisted in session as an event
   error_events = [
       e for e in events if isinstance(e, Event) and e.error_code == 'ValueError'
   ]
@@ -921,12 +925,13 @@ async def test_node_fails_immediately_on_unmatched_exception_class(
   events = []
 
   # When the workflow is executed
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  with pytest.raises(CustomNonRetryableError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
 
-  # Then the execution fails immediately with an error event
+  # Assert that the node error is persisted in session as an event
   error_events = [
       e
       for e in events
@@ -989,10 +994,11 @@ async def test_error_event_emitted_on_failure(
   events = []
 
   # When the workflow is executed
-  async for event in runner.run_async(
-      user_id='u', session_id=session.id, new_message=msg
-  ):
-    events.append(event)
+  with pytest.raises(ValueError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      events.append(event)
 
   # Find the error event emitted by the failed node.
   error_events = [
@@ -1089,12 +1095,10 @@ async def test_node_runner_timeout():
   )
 
   # Workflow should yield a timeout error event
-  events, ss, session = await _run_workflow(agent)
-
-  timeout_events = [e for e in events if e.error_code == 'NodeTimeoutError']
-  assert len(timeout_events) == 1
-  assert 'SlowNode' in timeout_events[0].error_message
-  assert 'timed out' in timeout_events[0].error_message
+  with pytest.raises(NodeTimeoutError) as exc_info:
+    await _run_workflow(agent)
+  assert 'SlowNode' in str(exc_info.value)
+  assert 'timed out' in str(exc_info.value)
 
 
 @pytest.mark.skipif(

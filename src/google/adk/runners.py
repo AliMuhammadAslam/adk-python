@@ -490,10 +490,12 @@ class Runner:
 
     async def _drive_root_node():
       try:
-        await root_node_runner.run(
+        ctx = await root_node_runner.run(
             node_input=node_input,
             resume_inputs=resume_inputs,
         )
+        if ctx.error:
+          raise ctx.error
       finally:
         await ic.event_queue.put((done_sentinel, None))
 
