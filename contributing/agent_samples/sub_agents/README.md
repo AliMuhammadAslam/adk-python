@@ -2,24 +2,29 @@
 
 ## Overview
 
-This sample demonstrates how to create a hierarchical agent setup using sub-agents in the **ADK** framework.
+This sample demonstrates how to create a hierarchical agent setup using sub-agents in the **ADK** framework, and also showcases how to use tool confirmation.
 
-It defines a root `Agent` that coordinates two sub-agents: `random_number_agent` and `is_even_agent`. Each sub-agent is equipped with its own specific Python function tool. The root agent delegates tasks to these sub-agents based on the user's prompt. This sample illustrates how to modularize capabilities into separate agents instead of combining all tools on a single agent.
+It defines a root `Agent` named `sub_agents` that coordinates two sub-agents: `info_agent` and `close_agent`.
+
+- `info_agent` is equipped with a tool to check account status.
+- `close_agent` is equipped with a tool to close accounts, which requires user confirmation before execution.
+
+The root agent delegates tasks to these sub-agents based on the user's prompt. This sample illustrates how to modularize capabilities into separate agents instead of combining all tools on a single agent.
 
 ## Sample Prompts
 
-- `Give me a random number.`
-- `Give me a random number up to 50, and tell me if it's even.`
-- `Is 44 even?`
+- `Check the status of account ACC-123.`
+- `Close account ACC-123.`
+- `Check if account ACC-123 is active, and if so, close it.`
 
 ## Graph
 
 ```text
 Agent (name="sub_agents")
-├── Agent (name="random_number_agent")
-│   └── Tool (name="generate_random_number")
-└── Agent (name="is_even_agent")
-    └── Tool (name="is_even")
+├── Agent (name="info_agent")
+│   └── Tool (name="get_account_status")
+└── Agent (name="close_agent")
+    └── Tool (name="close_account", require_confirmation=True)
 ```
 
 ## How To
@@ -27,32 +32,31 @@ Agent (name="sub_agents")
 1. Define the specific tools for each sub-agent:
 
    ```python
-   import random
+   def get_account_status(account_id: str) -> str:
+       """Gets the status of a bank account."""
+       return f"Account {account_id} is active."
 
-   def generate_random_number(max_value: int = 100) -> int:
-       """Generates a random integer between 0 and max_value (inclusive). ..."""
-       return random.randint(0, max_value)
-
-   def is_even(number: int) -> bool:
-       """Checks if a given number is even. ..."""
-       return number % 2 == 0
+   def close_account(account_id: str) -> str:
+       """Closes a bank account."""
+       return f"Account {account_id} has been closed."
    ```
 
-1. Register tools to their respective sub-agents:
+1. Register tools to their respective sub-agents, using `FunctionTool` for confirmation:
 
    ```python
    from google.adk.agents import Agent
+   from google.adk.tools.function_tool import FunctionTool
 
-   random_number_agent = Agent(
-       name="random_number_agent",
-       description="An agent that can generate a random number.",
-       tools=[generate_random_number],
+   info_agent = Agent(
+       name="info_agent",
+       description="An agent that can check account status.",
+       tools=[get_account_status],
    )
 
-   is_even_agent = Agent(
-       name="is_even_agent",
-       description="An agent that can check if a given number is even.",
-       tools=[is_even],
+   close_agent = Agent(
+       name="close_agent",
+       description="An agent that can close accounts.",
+       tools=[FunctionTool(func=close_account, require_confirmation=True)],
    )
    ```
 
@@ -61,6 +65,6 @@ Agent (name="sub_agents")
    ```python
    root_agent = Agent(
        name="sub_agents",
-       sub_agents=[random_number_agent, is_even_agent],
+       sub_agents=[info_agent, close_agent],
    )
    ```

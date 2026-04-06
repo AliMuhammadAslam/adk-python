@@ -14,57 +14,51 @@
 
 from __future__ import annotations
 
-import os
-import random
-
 from google.adk.agents import Agent
-
-_counter = 0
-
-
-def generate_random_number(max_value: int = 100) -> int:
-  """Generates a random integer between 0 and max_value (inclusive).
-
-  Args:
-      max_value: The upper limit for the random number.
-
-  Returns:
-      A random integer between 0 and max_value.
-  """
-  if "PYTEST_CURRENT_TEST" in os.environ:
-    global _counter
-    _counter += 1
-    return _counter
-  return random.randint(0, max_value)
+from google.adk.tools.function_tool import FunctionTool
 
 
-def is_even(number: int) -> bool:
-  """Checks if a given number is even.
+def get_account_status(account_id: str) -> str:
+  """Gets the status of a bank account.
 
   Args:
-      number: The number to check.
+      account_id: The account ID to check.
 
   Returns:
-      True if the number is even, False otherwise.
+      The status of the account.
   """
-  return number % 2 == 0
+  return f"Account {account_id} is active."
 
 
-random_number_agent = Agent(
-    name="random_number_agent",
-    description="An agent that can generate a random number.",
-    tools=[generate_random_number],
+def close_account(account_id: str) -> str:
+  """Closes a bank account. This action requires user confirmation.
+
+  Args:
+      account_id: The account ID to close.
+
+  Returns:
+      A confirmation message.
+  """
+  return f"Account {account_id} has been closed."
+
+
+info_agent = Agent(
+    name="info_agent",
+    description="An agent that can check account status.",
+    tools=[get_account_status],
 )
 
-
-is_even_agent = Agent(
-    name="is_even_agent",
-    description="An agent that can check if a given number is even.",
-    tools=[is_even],
+close_agent = Agent(
+    name="close_agent",
+    description="An agent that can close accounts.",
+    tools=[FunctionTool(func=close_account, require_confirmation=True)],
 )
-
 
 root_agent = Agent(
     name="sub_agents",
-    sub_agents=[random_number_agent, is_even_agent],
+    description=(
+        "A root agent that can check accounts and close them by delegating to"
+        " sub-agents."
+    ),
+    sub_agents=[info_agent, close_agent],
 )

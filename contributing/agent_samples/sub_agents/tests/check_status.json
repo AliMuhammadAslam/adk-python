@@ -4,7 +4,7 @@
       "content": {
         "parts": [
           {
-            "text": "a random number"
+            "text": "Check the status of account ACC-123"
           }
         ],
         "role": "user"
@@ -24,7 +24,7 @@
             "functionCall": {
               "id": "fc-1",
               "args": {
-                "agent_name": "random_number_agent"
+                "agent_name": "info_agent"
               },
               "name": "transfer_to_agent"
             }
@@ -60,7 +60,7 @@
       "invocationId": "i-1",
       "author": "sub_agents",
       "actions": {
-        "transferToAgent": "random_number_agent"
+        "transferToAgent": "info_agent"
       },
       "nodeInfo": {
         "path": "sub_agents@1",
@@ -74,8 +74,10 @@
           {
             "functionCall": {
               "id": "fc-2",
-              "args": {},
-              "name": "generate_random_number"
+              "args": {
+                "account_id": "ACC-123"
+              },
+              "name": "get_account_status"
             }
           }
         ],
@@ -83,9 +85,9 @@
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "random_number_agent",
+      "author": "info_agent",
       "nodeInfo": {
-        "path": "sub_agents@1/random_number_agent@1",
+        "path": "sub_agents@1/info_agent@1",
         "runId": "1",
         "parentRunId": "1"
       },
@@ -98,9 +100,9 @@
           {
             "functionResponse": {
               "id": "fc-2",
-              "name": "generate_random_number",
+              "name": "get_account_status",
               "response": {
-                "result": 1
+                "result": "Account ACC-123 is active."
               }
             }
           }
@@ -108,9 +110,9 @@
         "role": "user"
       },
       "invocationId": "i-1",
-      "author": "random_number_agent",
+      "author": "info_agent",
       "nodeInfo": {
-        "path": "sub_agents@1/random_number_agent@1",
+        "path": "sub_agents@1/info_agent@1",
         "runId": "1",
         "parentRunId": "1"
       },
@@ -120,16 +122,16 @@
       "content": {
         "parts": [
           {
-            "text": "Here is a random number: 1\n"
+            "text": "Account ACC-123 is active."
           }
         ],
         "role": "model"
       },
       "finishReason": "STOP",
       "invocationId": "i-1",
-      "author": "random_number_agent",
+      "author": "info_agent",
       "nodeInfo": {
-        "path": "sub_agents@1/random_number_agent@1",
+        "path": "sub_agents@1/info_agent@1",
         "runId": "1",
         "parentRunId": "1"
       },
