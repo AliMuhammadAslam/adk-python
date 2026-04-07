@@ -39,7 +39,7 @@ class NodeTimeoutError(Exception):
   compatible with ``retry_config`` — a timed-out node can be retried.
   """
 
-  def __init__(self, node_name: str, timeout: float) -> None:
+  def __init__(self, *, node_name: str, timeout: float) -> None:
     self.node_name = node_name
     self.timeout = timeout
     super().__init__(f"Node '{node_name}' timed out after {timeout} seconds.")
@@ -52,7 +52,7 @@ class DynamicNodeFailError(Exception):
   """
 
   def __init__(
-      self, message: str, error: Exception, error_node_path: str
+      self, *, message: str, error: Exception, error_node_path: str
   ) -> None:
     self.error = error
     self.error_node_path = error_node_path

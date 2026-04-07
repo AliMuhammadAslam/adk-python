@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger('google_adk.' + __name__)
 
 
-@dataclass
+@dataclass(kw_only=True)
 class DynamicNodeRun:
   """Combines state, output, and running task for a single node execution."""
 
@@ -56,7 +56,7 @@ class DynamicNodeRun:
   """The running asyncio Task for this node execution."""
 
 
-@dataclass
+@dataclass(kw_only=True)
 class DynamicNodeState:
   """State for tracking dynamic nodes scheduled via ctx.run_node().
 
@@ -102,7 +102,7 @@ class DynamicNodeScheduler:
   3. Waiting: prior events show interrupt → resolve or propagate.
   """
 
-  def __init__(self, state: DynamicNodeState) -> None:
+  def __init__(self, *, state: DynamicNodeState) -> None:
     self._state = state
 
   async def __call__(

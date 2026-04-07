@@ -448,7 +448,7 @@ class Context(ReadonlyContext):
         from ..workflow._errors import DynamicNodeFailError
 
         raise DynamicNodeFailError(
-            f'Dynamic node {built_node.name} failed',
+            message=f'Dynamic node {built_node.name} failed',
             error=child_ctx.error,
             error_node_path=child_ctx.error_node_path,
         )

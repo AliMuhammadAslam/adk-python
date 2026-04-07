@@ -1107,7 +1107,7 @@ async def test_output_schema_inferred_validates_dict(
   def produce() -> _OutputModel:
     return {'name': 'test', 'value': 42}
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
@@ -1133,7 +1133,7 @@ async def test_output_schema_inferred_rejects_invalid(
   def produce() -> _OutputModel:
     return {'name': 'test'}  # missing 'value'
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   agent = Workflow(name='wf', edges=[(START, node)])
   with pytest.raises(ValueError):
     await run_workflow(agent)
@@ -1148,7 +1148,7 @@ async def test_output_schema_inferred_rejects_wrong_type(
   def produce() -> _OutputModel:
     return 'not a dict'
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   agent = Workflow(name='wf', edges=[(START, node)])
   with pytest.raises(ValueError):
     await run_workflow(agent)
@@ -1164,7 +1164,7 @@ async def test_output_schema_generator_rejects_invalid_item(
     yield {'name': 'a', 'value': 1}
     yield {'name': 'bad'}  # missing 'value'
 
-  node = FunctionNode(produce_items)
+  node = FunctionNode(func=produce_items)
   agent = Workflow(name='wf', edges=[(START, node)])
   with pytest.raises(ValueError):
     await run_workflow(agent)
@@ -1179,7 +1179,7 @@ async def test_output_schema_inferred_coerces_defaults(
   def produce() -> _OtherModel:
     return {'name': 'test', 'value': 5}
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   assert node.output_schema is _OtherModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
@@ -1209,7 +1209,7 @@ async def test_output_schema_inferred_from_return_hint(
   def produce() -> _OutputModel:
     return _OutputModel(name='inferred', value=1)
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
@@ -1232,7 +1232,7 @@ def test_output_schema_no_inference_for_non_basemodel():
   def produce() -> dict:
     return {'any': 'thing'}
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   assert node.output_schema is None
 
 
@@ -1245,7 +1245,7 @@ async def test_output_schema_inferred_type_coercion(
   def produce() -> _OutputModel:
     return {'name': 'coerce', 'value': '42'}
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   agent = Workflow(name='wf', edges=[(START, node)])
   events, _, _ = await run_workflow(agent)
 
@@ -1267,7 +1267,7 @@ async def test_output_schema_none_return(request: pytest.FixtureRequest):
   def produce_none() -> _OutputModel:
     return None
 
-  node = FunctionNode(produce_none)
+  node = FunctionNode(func=produce_none)
   assert node.output_schema is _OutputModel
 
   def downstream(node_input: Any) -> str:
@@ -1296,7 +1296,7 @@ async def test_output_schema_validates_returned_event_data(
   def produce() -> _OutputModel:
     return Event(output={'name': 'evt', 'value': 7})
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   assert node.output_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, node)])
@@ -1322,7 +1322,7 @@ async def test_output_schema_rejects_invalid_returned_event_data(
   def produce() -> _OutputModel:
     return Event(output={'wrong_field': 'oops'})
 
-  node = FunctionNode(produce)
+  node = FunctionNode(func=produce)
   agent = Workflow(name='wf', edges=[(START, node)])
   with pytest.raises(ValueError):
     await run_workflow(agent)
@@ -1343,7 +1343,7 @@ async def test_input_schema_validates_dict(request: pytest.FixtureRequest):
   def produce() -> dict:
     return {'name': 'test', 'value': 42}
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   assert node.input_schema is _OutputModel
 
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
@@ -1365,7 +1365,7 @@ async def test_input_schema_rejects_invalid_dict(
   def produce() -> dict:
     return {'name': 'test'}  # missing 'value'
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
   with pytest.raises(ValueError):
     await run_workflow(agent)
@@ -1383,7 +1383,7 @@ async def test_input_schema_coerces_types(request: pytest.FixtureRequest):
   def produce() -> dict:
     return {'name': 'test', 'value': '5'}
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
   await run_workflow(agent)
 
@@ -1402,7 +1402,7 @@ async def test_input_schema_fills_defaults(request: pytest.FixtureRequest):
   def produce() -> dict:
     return {'name': 'test', 'value': 1}
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   assert node.input_schema is _OtherModel
 
   agent = Workflow(name='wf', edges=[(START, produce), (produce, node)])
@@ -1417,7 +1417,7 @@ def test_input_schema_no_inference_for_non_basemodel():
   def process(node_input: dict) -> str:
     return 'ok'
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   assert node.input_schema is None
 
 
@@ -1431,7 +1431,7 @@ async def test_input_schema_none_passthrough(request: pytest.FixtureRequest):
   def process(node_input: _OutputModel | None = None) -> str:
     return f'got: {node_input}'
 
-  node = FunctionNode(process)
+  node = FunctionNode(func=process)
   agent = Workflow(
       name='wf', edges=[(START, produce_none), (produce_none, node)]
   )
@@ -1472,11 +1472,11 @@ class TestAuthConfig:
         credential_key='test_key',
     )
     with pytest.raises(ValueError, match='rerun_on_resume=True'):
-      FunctionNode(lambda: None, name='n', auth_config=auth_config)
+      FunctionNode(func=lambda: None, name='n', auth_config=auth_config)
 
   def test_no_auth_config_default(self):
     """auth_config defaults to None."""
-    node = FunctionNode(lambda: None, name='n')
+    node = FunctionNode(func=lambda: None, name='n')
     assert node.auth_config is None
 
   def test_rerun_on_resume_explicit_true_with_auth(self):
@@ -1496,7 +1496,7 @@ class TestAuthConfig:
         credential_key='test_key',
     )
     node = FunctionNode(
-        lambda: None,
+        func=lambda: None,
         name='n',
         auth_config=auth_config,
         rerun_on_resume=True,
@@ -1519,7 +1519,7 @@ class TestParameterBindingNodeInput:
       """Add two numbers."""
       return x + y
 
-    node = FunctionNode(add, name='add', parameter_binding='node_input')
+    node = FunctionNode(func=add, name='add', parameter_binding='node_input')
 
     assert node.parameter_binding == 'node_input'
     assert node.input_schema is not None
@@ -1534,7 +1534,7 @@ class TestParameterBindingNodeInput:
     def greet(name: str, ctx: Context) -> str:
       return f'Hello, {name}!'
 
-    node = FunctionNode(greet, name='greet', parameter_binding='node_input')
+    node = FunctionNode(func=greet, name='greet', parameter_binding='node_input')
 
     assert node.input_schema is not None
     assert 'name' in node.input_schema['properties']
@@ -1575,7 +1575,9 @@ class TestParameterBindingNodeInput:
     def produce():
       return producer_output
 
-    node = FunctionNode(add_func, name='add', parameter_binding='node_input')
+    node = FunctionNode(
+        func=add_func, name='add', parameter_binding='node_input'
+    )
 
     agent = Workflow(
         name='test_bind_from_node_input',
@@ -1608,7 +1610,7 @@ class TestParameterBindingNodeInput:
     def add(x: int, y: int):
       return x + y
 
-    node = FunctionNode(add, name='add', parameter_binding='node_input')
+    node = FunctionNode(func=add, name='add', parameter_binding='node_input')
 
     agent = Workflow(
         name='test_bind_node_input_missing',
@@ -1634,7 +1636,7 @@ class TestParameterBindingNodeInput:
       received_ctx.append(ctx)
       return f'Hello, {name}!'
 
-    node = FunctionNode(greet, name='greet', parameter_binding='node_input')
+    node = FunctionNode(func=greet, name='greet', parameter_binding='node_input')
 
     agent = Workflow(
         name='test_bind_node_input_ctx',
@@ -1664,7 +1666,7 @@ class TestParameterBindingNodeInput:
     def add(x: int, y: int) -> int:
       return x + y
 
-    node = FunctionNode(add, name='add', parameter_binding='node_input')
+    node = FunctionNode(func=add, name='add', parameter_binding='node_input')
     copied = node.model_copy(update={'name': 'add_copy'})
 
     assert copied.parameter_binding == 'node_input'

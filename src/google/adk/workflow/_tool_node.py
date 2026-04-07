@@ -16,8 +16,8 @@ from __future__ import annotations
 
 """A node that wraps an ADK Tool."""
 
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 import uuid
 
 from pydantic import ConfigDict
@@ -40,6 +40,7 @@ class _ToolNode(BaseNode):
 
   def __init__(
       self,
+      *,
       tool: BaseTool,
       name: str | None = None,
       retry_config: RetryConfig | None = None,

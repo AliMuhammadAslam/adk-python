@@ -1171,7 +1171,7 @@ async def test_run_id_sequential_in_loop():
       name='wf',
       edges=[
           (START, loop),
-          GraphEdge(loop, loop, route='again'),
+          GraphEdge(from_node=loop, to_node=loop, route='again'),
       ],
   )
 

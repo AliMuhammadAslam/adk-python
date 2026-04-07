@@ -222,7 +222,7 @@ class NodeRunner:
       from ._dynamic_node_scheduler import DynamicNodeScheduler
       from ._dynamic_node_scheduler import DynamicNodeState
 
-      scheduler = DynamicNodeScheduler(DynamicNodeState())
+      scheduler = DynamicNodeScheduler(state=DynamicNodeState())
 
     ic = self._parent_ctx._invocation_context
     base_branch = (
@@ -307,7 +307,7 @@ class NodeRunner:
     except asyncio.TimeoutError as e:
       from ._errors import NodeTimeoutError
 
-      raise NodeTimeoutError(self._node.name, timeout) from e
+      raise NodeTimeoutError(node_name=self._node.name, timeout=timeout) from e
 
   def _log_timeout_not_supported_warning(self, timeout: float) -> None:
     """Logs a warning when timeout is ignored due to Python version."""

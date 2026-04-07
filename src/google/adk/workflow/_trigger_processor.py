@@ -14,8 +14,7 @@
 
 from __future__ import annotations
 
-from typing import Callable
-from typing import Optional
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from ._definitions import RouteValue
@@ -44,7 +43,7 @@ def _get_next_pending_nodes(
   """Determines the next nodes to transition to PENDING state based on routes."""
   next_pending_nodes: list[str] = []
   matched_specific_route = False
-  default_route_node: Optional[str] = None
+  default_route_node: str | None = None
 
   for edge in graph.edges:
     if edge.from_node.name == node_name:

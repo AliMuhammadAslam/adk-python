@@ -87,7 +87,7 @@ def test_serialize_edges_mixed_formats() -> None:
           (START, node_a),
           (node_a, {'route_b': node_b, 'route_c': node_c}),
           (node_b, node_d),
-          Edge(node_c, node_d),
+          Edge(from_node=node_c, to_node=node_d),
       ],
   )
 

@@ -24,8 +24,8 @@ import asyncio
 from dataclasses import dataclass
 from dataclasses import field
 import logging
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 from typing import TYPE_CHECKING
 
 from pydantic import Field
@@ -57,10 +57,7 @@ logger = logging.getLogger('google_adk.' + __name__)
 # ---------------------------------------------------------------------------
 
 
-
-
-
-@dataclass
+@dataclass(kw_only=True)
 class _LoopState(DynamicNodeState):
   """Mutable, in-memory state for one Workflow execution.
 
@@ -429,7 +426,7 @@ class Workflow(BaseNode):
       self, loop_state: _LoopState
   ) -> ScheduleDynamicNode:
     """Create a DynamicNodeScheduler for this Workflow's loop state."""
-    return DynamicNodeScheduler(loop_state)
+    return DynamicNodeScheduler(state=loop_state)
 
   # --- Completion handling ---
 

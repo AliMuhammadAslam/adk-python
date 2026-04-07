@@ -109,7 +109,7 @@ async def test_parallel_worker_processes_list_ordered(
   # Delays are used to ensure deterministic output order and prevent race conditions in event ordering.
   items = [{'val': 'item1', 'delay': 0}, {'val': 'item2', 'delay': 0.1}]
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(_WorkerNode(name='Worker'))
+  worker = ParallelWorker(node=_WorkerNode(name='Worker'))
 
   agent = Workflow(
       name='test_agent',
@@ -166,7 +166,7 @@ async def test_parallel_worker_with_empty_input_returns_empty_list(
   # Given a workflow with a producer yielding empty list
   items = []
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(_WorkerNode(name='Worker'))
+  worker = ParallelWorker(node=_WorkerNode(name='Worker'))
 
   agent = Workflow(
       name='test_empty_agent',
@@ -212,7 +212,7 @@ async def test_parallel_worker_wraps_single_item_in_list(
   # Given a workflow with a producer yielding a single item (not a list)
   item = {'val': 'item1', 'delay': 0}
   node_a = _SingleItemProducerNode(item=item, name='NodeA')
-  worker = ParallelWorker(_WorkerNode(name='Worker'))
+  worker = ParallelWorker(node=_WorkerNode(name='Worker'))
 
   agent = Workflow(
       name='test_single_item_agent',
@@ -271,7 +271,7 @@ async def test_parallel_worker_accepts_plain_function(
   # Given a workflow with a producer and a parallel worker wrapping a function
   items = [{'val': 'item1', 'delay': 0}, {'val': 'item2', 'delay': 0.1}]
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(_worker_func)
+  worker = ParallelWorker(node=_worker_func)
 
   agent = Workflow(
       name='test_agent',
@@ -361,7 +361,7 @@ async def test_parallel_worker_failure_propagates_and_cancels_others(
 
     tracker[node_input] = True
 
-  worker = ParallelWorker(_worker_failable_func)
+  worker = ParallelWorker(node=_worker_failable_func)
 
   agent = Workflow(
       name='test_agent_fail',
@@ -468,7 +468,7 @@ async def test_parallel_worker_pauses_for_human_input(
   # Given a workflow with a worker that requests input for item2
   items = [{'val': 'item1', 'ask': False}, {'val': 'item2', 'ask': True}]
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(_HitlWorkerNode(name='Worker'))
+  worker = ParallelWorker(node=_HitlWorkerNode(name='Worker'))
 
   agent = Workflow(
       name='parallel_worker_hitl_agent',
@@ -589,7 +589,7 @@ async def test_parallel_worker_preserves_input_order_regardless_of_completion_or
   }
 
   node_a = _ProducerNode(items=[item1, item2], name='NodeA')
-  worker = ParallelWorker(_AsyncWorkerNode(name='Worker', events=events_map))
+  worker = ParallelWorker(node=_AsyncWorkerNode(name='Worker', events=events_map))
 
   agent = Workflow(
       name='out_of_order_agent',
@@ -796,7 +796,7 @@ async def test_parallel_worker_limits_concurrency(
     yield f'{node_input}_processed'
 
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(_concurrency_worker_func, max_concurrency=2)
+  worker = ParallelWorker(node=_concurrency_worker_func, max_concurrency=2)
 
   agent = Workflow(
       name='max_concurrency_agent',
@@ -949,7 +949,7 @@ async def test_parallel_worker_hitl_respects_concurrency_limits(
       yield Event(output=f'{val}_processed')
 
   node_a = _ProducerNode(items=items, name='NodeA')
-  worker = ParallelWorker(hitl_concurrency_worker, max_concurrency=2)
+  worker = ParallelWorker(node=hitl_concurrency_worker, max_concurrency=2)
 
   agent = Workflow(
       name='max_concurrency_hitl_agent',

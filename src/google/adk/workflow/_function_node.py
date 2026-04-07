@@ -19,9 +19,9 @@ import functools
 import inspect
 import logging
 import typing
+from collections.abc import AsyncGenerator
+from collections.abc import Callable
 from typing import Any
-from typing import AsyncGenerator
-from typing import Callable
 from typing import Literal
 from typing import TYPE_CHECKING
 
@@ -166,8 +166,8 @@ class FunctionNode(BaseNode):
 
   def __init__(
       self,
-      func: Callable[..., Any],
       *,
+      func: Callable[..., Any],
       name: str | None = None,
       rerun_on_resume: bool = False,
       retry_config: RetryConfig | None = None,

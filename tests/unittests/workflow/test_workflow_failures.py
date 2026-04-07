@@ -124,9 +124,9 @@ async def test_retry_on_matching_exception(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -179,9 +179,9 @@ async def test_no_retry_on_non_matching_exception(
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -226,8 +226,8 @@ async def test_retry_on_all_exceptions_if_not_specified(
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
   agent = Workflow(
@@ -271,9 +271,9 @@ async def test_attempt_count_populated_correctly(
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -328,9 +328,9 @@ async def test_retry_max_attempts_exceeded(
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -372,8 +372,8 @@ async def test_fails_without_retry_config(
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
   agent = Workflow(
@@ -413,8 +413,8 @@ async def test_retries_with_empty_retry_config(
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
   agent = Workflow(
@@ -459,9 +459,9 @@ async def test_retry_with_delay(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -516,9 +516,9 @@ async def test_retry_with_backoff_and_jitter(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -573,9 +573,9 @@ async def test_retry_with_jitter(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -629,9 +629,9 @@ async def test_retry_with_exception_classes(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -678,9 +678,9 @@ async def test_retry_with_mixed_exception_types(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='Executing C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
   agent = Workflow(
@@ -726,8 +726,8 @@ async def test_retry_exception_class_no_match(request: pytest.FixtureRequest):
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
   agent = Workflow(
@@ -944,8 +944,8 @@ async def test_error_event_emitted_on_failure(
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
   agent = Workflow(
@@ -994,7 +994,7 @@ async def test_error_event_emitted_on_each_retry(
   )
   graph = WorkflowGraph(
       edges=[
-          Edge(START, flaky_node),
+          Edge(from_node=START, to_node=flaky_node),
       ],
   )
   agent = Workflow(

@@ -43,11 +43,11 @@ def _build_join_node_workflow(
   agent = workflow.Workflow(
       name='test_join_node',
       edges=[
-          workflow_graph.Edge(base_node.START, node_a),
-          workflow_graph.Edge(base_node.START, node_b),
-          workflow_graph.Edge(node_a, node_join),
-          workflow_graph.Edge(node_b, node_join),
-          workflow_graph.Edge(node_join, node_capture),
+          workflow_graph.Edge(from_node=base_node.START, to_node=node_a),
+          workflow_graph.Edge(from_node=base_node.START, to_node=node_b),
+          workflow_graph.Edge(from_node=node_a, to_node=node_join),
+          workflow_graph.Edge(from_node=node_b, to_node=node_join),
+          workflow_graph.Edge(from_node=node_join, to_node=node_capture),
       ],
   )
   app_instance = app.App(
@@ -123,11 +123,11 @@ async def test_join_node_with_none_inputs(request: pytest.FixtureRequest):
   agent = workflow.Workflow(
       name='test_join_node_none_inputs',
       edges=[
-          workflow_graph.Edge(base_node.START, node_a),
-          workflow_graph.Edge(base_node.START, node_b),
-          workflow_graph.Edge(node_a, node_join),
-          workflow_graph.Edge(node_b, node_join),
-          workflow_graph.Edge(node_join, node_capture),
+          workflow_graph.Edge(from_node=base_node.START, to_node=node_a),
+          workflow_graph.Edge(from_node=base_node.START, to_node=node_b),
+          workflow_graph.Edge(from_node=node_a, to_node=node_join),
+          workflow_graph.Edge(from_node=node_b, to_node=node_join),
+          workflow_graph.Edge(from_node=node_join, to_node=node_capture),
       ],
   )
   app_instance = app.App(

@@ -17,8 +17,8 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 
 from typing_extensions import override
 

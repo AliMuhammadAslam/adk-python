@@ -30,7 +30,7 @@ def test_valid_graph() -> None:
   node_a = TestingNode(name='NodeA')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
       ],
   )
   graph.validate_graph()  # Should not raise
@@ -41,7 +41,7 @@ def test_missing_start_node() -> None:
   node_a = TestingNode(name='NodeA')
   node_b = TestingNode(name='NodeB')
   graph = WorkflowGraph(
-      edges=[Edge(node_a, node_b)],
+      edges=[Edge(from_node=node_a, to_node=node_b)],
   )
   with pytest.raises(
       ValueError,
@@ -59,8 +59,8 @@ def test_unreachable_node() -> None:
   node_b = TestingNode(name='NodeB')  # Unreachable
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_b, node_a),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_b, to_node=node_a),
       ],
   )
   with pytest.raises(
@@ -91,13 +91,13 @@ def test_duplicate_edges_fail_validation(
   graph = WorkflowGraph(
       edges=[
           Edge(
-              START,
-              node_a,
+              from_node=START,
+              to_node=node_a,
               route=routes[0],
           ),
           Edge(
-              START,
-              node_a,
+              from_node=START,
+              to_node=node_a,
               route=routes[1],
           ),
       ],
@@ -117,8 +117,8 @@ def test_start_node_with_incoming_edge() -> None:
   node_a = TestingNode(name='NodeA')
   graph = WorkflowGraph(
       edges=[
-          Edge(node_a, START),
-          Edge(START, node_a),
+          Edge(from_node=node_a, to_node=START),
+          Edge(from_node=START, to_node=node_a),
       ],
   )
   with pytest.raises(
@@ -137,9 +137,9 @@ def test_multiple_default_routes_fail_validation() -> None:
   node_c = TestingNode(name='NodeC')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b, route=DEFAULT_ROUTE),
-          Edge(node_a, node_c, route=DEFAULT_ROUTE),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b, route=DEFAULT_ROUTE),
+          Edge(from_node=node_a, to_node=node_c, route=DEFAULT_ROUTE),
       ],
   )
   with pytest.raises(
@@ -159,9 +159,9 @@ def test_single_default_route_passes_validation() -> None:
   node_c = TestingNode(name='NodeC')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b, route=DEFAULT_ROUTE),
-          Edge(node_a, node_c, route='another_route'),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b, route=DEFAULT_ROUTE),
+          Edge(from_node=node_a, to_node=node_c, route='another_route'),
       ],
   )
   graph.validate_graph()  # Should not raise
@@ -174,8 +174,8 @@ def test_duplicate_node_names_fail_validation() -> None:
   node_a2 = TestingNode(name='NodeA')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a1),
-          Edge(node_a1, node_a2),
+          Edge(from_node=START, to_node=node_a1),
+          Edge(from_node=node_a1, to_node=node_a2),
       ],
   )
   with pytest.raises(
@@ -223,9 +223,9 @@ def test_unconditional_cycle_fails_validation() -> None:
   node_b = TestingNode(name='NodeB')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
-          Edge(node_b, node_a),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
+          Edge(from_node=node_b, to_node=node_a),
       ],
   )
   with pytest.raises(
@@ -240,8 +240,8 @@ def test_unconditional_self_loop_fails_validation() -> None:
   node_a = TestingNode(name='NodeA')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_a),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_a),
       ],
   )
   with pytest.raises(
@@ -258,10 +258,10 @@ def test_longer_unconditional_cycle_fails_validation() -> None:
   node_c = TestingNode(name='NodeC')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
-          Edge(node_b, node_c),
-          Edge(node_c, node_a),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
+          Edge(from_node=node_b, to_node=node_c),
+          Edge(from_node=node_c, to_node=node_a),
       ],
   )
   with pytest.raises(
@@ -277,9 +277,9 @@ def test_conditional_cycle_passes_validation() -> None:
   node_b = TestingNode(name='NodeB')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
-          Edge(node_b, node_a, route='retry'),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
+          Edge(from_node=node_b, to_node=node_a, route='retry'),
       ],
   )
   graph.validate_graph()  # Should not raise — routed back-edge
@@ -291,9 +291,9 @@ def test_conditional_self_loop_passes_validation() -> None:
   node_b = TestingNode(name='NodeB')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_a, route='continue'),
-          Edge(node_a, node_b, route='done'),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_a, route='continue'),
+          Edge(from_node=node_a, to_node=node_b, route='done'),
       ],
   )
   graph.validate_graph()  # Should not raise — routed self-loop
@@ -306,10 +306,10 @@ def test_dag_with_diamond_passes_validation() -> None:
   node_c = TestingNode(name='NodeC')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(START, node_b),
-          Edge(node_a, node_c),
-          Edge(node_b, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=START, to_node=node_b),
+          Edge(from_node=node_a, to_node=node_c),
+          Edge(from_node=node_b, to_node=node_c),
       ],
   )
   graph.validate_graph()  # Should not raise
@@ -676,8 +676,8 @@ def test_schema_match_passes() -> None:
   node_b = TestingNode(name='NodeB', input_schema=ModelA)
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
       ],
   )
   graph.validate_graph()  # Should not raise
@@ -689,8 +689,8 @@ def test_schema_mismatch_raises() -> None:
   node_b = TestingNode(name='NodeB', input_schema=ModelB)
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
       ],
   )
   with pytest.raises(
@@ -706,8 +706,8 @@ def test_schema_missing_passes() -> None:
   node_b = TestingNode(name='NodeB')  # No input schema
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, node_b),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
       ],
   )
   graph.validate_graph()  # Should not raise

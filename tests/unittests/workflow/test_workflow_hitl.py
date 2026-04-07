@@ -1205,7 +1205,7 @@ async def test_wrapped_response_unwrapped_for_node(
   def my_node():
     return RequestInput(interrupt_id='ask1', message='Give me data')
 
-  node_a = FunctionNode(my_node)
+  node_a = FunctionNode(func=my_node)
   node_b = InputCapturingNode(name='NodeB')
   app = App(
       name=request.function.__name__,
@@ -1253,7 +1253,7 @@ async def test_dict_response_not_unwrapped(
   def my_node():
     return RequestInput(interrupt_id='ask1', message='Give me data')
 
-  node_a = FunctionNode(my_node)
+  node_a = FunctionNode(func=my_node)
   node_b = InputCapturingNode(name='NodeB')
   app = App(
       name=request.function.__name__,
@@ -1401,7 +1401,7 @@ async def test_function_node_auth_config(
     received_cred = ctx.get_auth_response(auth_config)
     return {'result': 'authed'}
 
-  node_a = FunctionNode(do_work, auth_config=auth_config, rerun_on_resume=True)
+  node_a = FunctionNode(func=do_work, auth_config=auth_config, rerun_on_resume=True)
   node_b = InputCapturingNode(name='NodeB')
   app = App(
       name=request.function.__name__,

@@ -99,7 +99,7 @@ def build_node(
         from .._parallel_worker import _ParallelWorker
 
         node.parallel_worker = False
-        return _ParallelWorker(node)
+        return _ParallelWorker(node=node)
       return node
     else:
       if kwargs:

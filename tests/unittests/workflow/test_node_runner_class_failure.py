@@ -92,9 +92,9 @@ async def test_node_retries_on_matched_exception_string(
   agent = Workflow(
       name='test_workflow_agent_retry',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -156,9 +156,9 @@ async def test_node_fails_immediately_on_unmatched_exception_string(
   agent = Workflow(
       name='test_workflow_agent_no_retry',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -224,8 +224,8 @@ async def test_retry_occurs_for_any_exception_when_exceptions_not_specified(
   agent = Workflow(
       name='test_workflow_agent_retry_all',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
 
@@ -281,9 +281,9 @@ async def test_node_receives_incrementing_attempt_counts(
   agent = Workflow(
       name='test_retry_count_populated_correctly',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -350,9 +350,9 @@ async def test_node_stops_retrying_after_max_attempts(
   agent = Workflow(
       name='test_workflow_agent_max_attempts',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -422,8 +422,8 @@ async def test_node_fails_immediately_without_retry_config(
   agent = Workflow(
       name='test_workflow_agent_fails_without_retry_config',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
 
@@ -490,8 +490,8 @@ async def test_node_retries_with_default_config_when_empty(
   agent = Workflow(
       name='test_workflow_agent_retries_with_empty_retry_config',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
 
@@ -549,9 +549,9 @@ async def test_node_waits_for_initial_delay_before_retry(
   agent = Workflow(
       name='test_workflow_agent_retry_delay',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -625,9 +625,9 @@ async def test_retry_applies_backoff_strategy(request: pytest.FixtureRequest):
   agent = Workflow(
       name='test_workflow_agent_retry_backoff',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -704,9 +704,9 @@ async def test_retry_applies_random_jitter(request: pytest.FixtureRequest):
   agent = Workflow(
       name='test_workflow_agent_retry_jitter',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -785,9 +785,9 @@ async def test_node_retries_on_exception_class_match(
   agent = Workflow(
       name='test_retry_exception_classes',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -848,9 +848,9 @@ async def test_node_retries_on_mixed_exception_types(
   agent = Workflow(
       name='test_retry_mixed_exceptions',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
-          Edge(flaky_node, node_c),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
+          Edge(from_node=flaky_node, to_node=node_c),
       ],
   )
 
@@ -910,8 +910,8 @@ async def test_node_fails_immediately_on_unmatched_exception_class(
   agent = Workflow(
       name='test_retry_exception_class_no_match',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
 
@@ -979,8 +979,8 @@ async def test_error_event_emitted_on_failure(
   agent = Workflow(
       name='test_error_event',
       edges=[
-          Edge(START, node_a),
-          Edge(node_a, flaky_node),
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=flaky_node),
       ],
   )
 
@@ -1032,7 +1032,7 @@ async def test_error_event_emitted_on_each_retry(
   agent = Workflow(
       name='test_error_event_retry',
       edges=[
-          Edge(START, flaky_node),
+          Edge(from_node=START, to_node=flaky_node),
       ],
   )
 

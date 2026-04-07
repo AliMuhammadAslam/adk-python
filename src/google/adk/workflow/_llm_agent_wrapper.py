@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from contextlib import aclosing
 import json
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 
 from google.genai import types
 from pydantic import BaseModel

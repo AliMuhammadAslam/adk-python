@@ -45,15 +45,15 @@ async def test_run_async_with_edge_routes(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route='route_c',
           ),
       ],
@@ -147,15 +147,15 @@ async def test_output_route_no_data(request: pytest.FixtureRequest):
   node_c = TestingNode(name='NodeC', output='C')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route='route_c',
           ),
       ],
@@ -188,20 +188,20 @@ async def test_run_async_with_list_of_routes(request: pytest.FixtureRequest):
   node_d = TestingNode(name='NodeD', output='D')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route='route_c',
           ),
           Edge(
-              node_a,
-              node_d,
+              from_node=node_a,
+              to_node=node_d,
               route='route_d',
           ),
       ],
@@ -248,22 +248,22 @@ async def test_run_async_with_default_route(request: pytest.FixtureRequest):
 
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           # This edge has the DEFAULT_ROUTE tag.
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route=DEFAULT_ROUTE,
           ),
           # This edge has no route tag, so it should always be triggered.
           Edge(
-              node_a,
-              node_d,
+              from_node=node_a,
+              to_node=node_d,
           ),
       ],
   )
@@ -310,16 +310,16 @@ async def test_run_async_default_route_not_triggered_if_match(
 
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           # This edge has the DEFAULT_ROUTE tag.
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route=DEFAULT_ROUTE,
           ),
       ],
@@ -355,21 +355,21 @@ async def test_run_async_with_untagged_edges(request: pytest.FixtureRequest):
   node_d = TestingNode(name='NodeD', output='D')
   graph = WorkflowGraph(
       edges=[
-          Edge(START, node_a),
+          Edge(from_node=START, to_node=node_a),
           Edge(
-              node_a,
-              node_b,
+              from_node=node_a,
+              to_node=node_b,
               route='route_b',
           ),
           Edge(
-              node_a,
-              node_c,
+              from_node=node_a,
+              to_node=node_c,
               route='route_c',
           ),
           # This edge has no route tag, so it should always be triggered.
           Edge(
-              node_a,
-              node_d,
+              from_node=node_a,
+              to_node=node_d,
           ),
       ],
   )
@@ -428,7 +428,7 @@ async def test_edge_with_multiple_routes(
       name='test_multi_route',
       edges=[
           (START, node_router),
-          Edge(node_router, node_target, route=['route_a', 'route_b']),
+          Edge(from_node=node_router, to_node=node_target, route=['route_a', 'route_b']),
           (node_router, {'route_c': node_other}),
       ],
   )
@@ -498,7 +498,7 @@ async def test_routing_map_mixed_with_other_formats(
           (START, node_a),
           (node_a, {'route_b': node_b, 'route_c': node_c}),
           (node_b, node_d),  # unconditional 2-tuple
-          Edge(node_c, node_d),  # Edge object
+          Edge(from_node=node_c, to_node=node_d),  # Edge object
       ],
   )
 

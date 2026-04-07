@@ -16,9 +16,9 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
+from collections.abc import Callable
 from typing import Any
-from typing import AsyncGenerator
-from typing import Callable
 from typing import overload
 from typing import TYPE_CHECKING
 from typing import TypeVar
@@ -118,7 +118,7 @@ def node(
       func: T,
   ) -> function_node.FunctionNode | parallel_worker_lib._ParallelWorker:
     built_node = function_node.FunctionNode(
-        func,
+        func=func,
         name=name,
         rerun_on_resume=rerun_on_resume
         if rerun_on_resume is not None
@@ -128,7 +128,7 @@ def node(
         auth_config=auth_config,
     )
     if parallel_worker:
-      return parallel_worker_lib._ParallelWorker(built_node)
+      return parallel_worker_lib._ParallelWorker(node=built_node)
     return built_node
 
   if node_like is None:
@@ -144,7 +144,7 @@ def node(
         auth_config=auth_config,
     )
     if parallel_worker:
-      return parallel_worker_lib._ParallelWorker(built_node)
+      return parallel_worker_lib._ParallelWorker(node=built_node)
     return built_node
 
 
@@ -168,7 +168,7 @@ class Node(base_node.BaseNode):
       # original (essential for LlmAgent and Workflow subclasses).
       worker_node = self.model_copy(update={"parallel_worker": False})
 
-      inner = parallel_worker_lib._ParallelWorker(worker_node)
+      inner = parallel_worker_lib._ParallelWorker(node=worker_node)
       self._inner_node = inner
       # Synchronize rerun_on_resume with the inner node.
       self.rerun_on_resume = inner.rerun_on_resume
@@ -188,7 +188,7 @@ class Node(base_node.BaseNode):
           retry_config=copied.retry_config,
           timeout=copied.timeout,
       )
-      copied._inner_node = parallel_worker_lib._ParallelWorker(impl_node)
+      copied._inner_node = parallel_worker_lib._ParallelWorker(node=impl_node)
       copied.rerun_on_resume = copied._inner_node.rerun_on_resume
 
     return copied

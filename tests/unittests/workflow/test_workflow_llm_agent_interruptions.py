@@ -339,7 +339,7 @@ async def test_workflow_pause_and_resume_auth_node(
     yield Event(message=f'authed with {api_key}')
 
   node_a = FunctionNode(
-      fetch_weather, auth_config=auth_config, rerun_on_resume=True
+      func=fetch_weather, auth_config=auth_config, rerun_on_resume=True
   )
 
   wf = Workflow(

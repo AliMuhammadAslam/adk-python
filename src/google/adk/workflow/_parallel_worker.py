@@ -17,8 +17,8 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 
 from pydantic import ConfigDict
 from pydantic import Field
@@ -48,6 +48,7 @@ class _ParallelWorker(BaseNode):
 
   def __init__(
       self,
+      *,
       node: NodeLike,
       max_concurrency: int | None = None,
       retry_config: RetryConfig | None = None,

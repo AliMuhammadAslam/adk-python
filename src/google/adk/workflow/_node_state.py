@@ -17,7 +17,6 @@
 from __future__ import annotations
 
 from typing import Any
-from typing import Optional
 
 from pydantic import BaseModel
 from pydantic import ConfigDict
@@ -37,7 +36,7 @@ class NodeState(BaseModel):
   input: Any = None
   """The input provided to the node."""
 
-  triggered_by: Optional[str] = None
+  triggered_by: str | None = None
   """The node that triggered the current node."""
 
   attempt_count: int = Field(default=1, exclude_if=lambda v: v == 1)
@@ -59,6 +58,6 @@ class NodeState(BaseModel):
   run_id: str | None = None
   """The run ID of this node run."""
 
-  parent_run_id: Optional[str] = None
+  parent_run_id: str | None = None
   """The run ID of the parent node which dynamically
   scheduled this node run."""

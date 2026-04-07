@@ -14,8 +14,8 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncGenerator
 from typing import Any
-from typing import AsyncGenerator
 from typing import final
 from typing import TYPE_CHECKING
 
