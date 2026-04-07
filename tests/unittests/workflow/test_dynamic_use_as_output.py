@@ -192,14 +192,10 @@ async def test_use_as_output_custom_node_to_function(
 
 @pytest.mark.parametrize('resumable', [True, False])
 @pytest.mark.asyncio
-async def test_use_as_output_last_wins(
+async def test_use_as_output_multiple_disallowed(
     request: pytest.FixtureRequest, resumable: bool
 ):
-  """When use_as_output=True is called multiple times, last one wins.
-
-  The parent's output is resolved from the last delegate. Earlier
-  delegates' output events still appear in the event stream.
-  """
+  """V2 engine forbids calling use_as_output=True multiple times from the same node."""
 
   def func_b() -> str:
     return 'from_b'
@@ -211,27 +207,26 @@ async def test_use_as_output_last_wins(
   node_c = FunctionNode(func=func_c)
 
   async def func_a(ctx: Context):
-    b_result = await ctx.run_node(node_b, use_as_output=True)
-    c_result = await ctx.run_node(node_c, use_as_output=True)
-    return f'{b_result}+{c_result}'
+    await ctx.run_node(node_b, use_as_output=True)
+    # V2 engine should throw ValueError on second call
+    with pytest.raises(
+        ValueError, match='already has a use_as_output delegate'
+    ):
+      await ctx.run_node(node_c, use_as_output=True)
+    return 'failure_as_expected'
 
   node_a = FunctionNode(func=func_a, rerun_on_resume=True)
 
-  def func_d(node_input: str) -> str:
-    return f'received:{node_input}'
-
   wf_name = request.node.name.replace('[', '_').replace(']', '')
-  agent = Workflow(
-      name=wf_name,
-      edges=[(START, node_a), (node_a, func_d)],
-  )
+  agent = Workflow(name=wf_name, edges=[(START, node_a)])
   app = _make_app(wf_name, agent, resumable)
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
   outputs = _get_outputs(events)
-  # Last use_as_output wins: func_d receives func_c's output.
-  assert 'received:from_c' in outputs
+  # func_a's output is suppressed because it successfully delegated to func_b
+  # before failing on func_c. So only func_b's output appears.
+  assert outputs == ['from_b']
 
 
 # ---------------------------------------------------------------------------
@@ -349,70 +344,6 @@ async def test_without_use_as_output_emits_both(
   assert outputs == ['from_b', 'from_b']
 
 
-# ---------------------------------------------------------------------------
-# HITL with use_as_output (interrupt + resume)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize('resumable', [True, False])
-@pytest.mark.asyncio
-async def test_use_as_output_with_hitl_resume(
-    request: pytest.FixtureRequest, resumable: bool
-):
-  """Dynamic child with HITL pauses the workflow; on resume, output dedup works.
-
-  Flow:
-    1. func_a calls ctx.run_node(hitl_node, use_as_output=True)
-    2. hitl_node yields RequestInput → workflow pauses
-    3. User provides response → workflow resumes
-    4. func_a re-runs, hitl_node returns cached result
-    5. Only hitl_node's output event appears (func_a's is suppressed)
-  """
-
-  async def hitl_node(ctx: Context):
-    if resume := ctx.resume_inputs.get('req1'):
-      yield Event(output=f"user said: {resume['text']}")
-      return
-    yield RequestInput(
-        interrupt_id='req1',
-        message='what is your name?',
-        response_schema={'type': 'string'},
-    )
-
-  hitl = FunctionNode(func=hitl_node, rerun_on_resume=True)
-
-  async def func_a(ctx: Context):
-    return await ctx.run_node(hitl, use_as_output=True)
-
-  node_a = FunctionNode(func=func_a, rerun_on_resume=True)
-
-  wf_name = request.node.name.replace('[', '_').replace(']', '')
-  agent = Workflow(name=wf_name, edges=[(START, node_a)])
-  app = _make_app(wf_name, agent, resumable)
-  runner = testing_utils.InMemoryRunner(app=app)
-
-  # Run 1: Should pause at hitl_node.
-  events1 = await runner.run_async(testing_utils.get_user_content('start'))
-  outputs1 = _get_outputs(events1)
-  assert outputs1 == []  # No output yet — paused.
-
-  # Resume with user response.
-  invocation_id = events1[0].invocation_id
-  resume_payload = testing_utils.UserContent(
-      types.Part(
-          function_response=types.FunctionResponse(
-              id='req1',
-              name='user_input',
-              response={'text': 'Alice'},
-          )
-      )
-  )
-  events2 = await runner.run_async(
-      new_message=resume_payload, invocation_id=invocation_id
-  )
-
-  outputs2 = _get_outputs(events2)
-  assert outputs2 == ['user said: Alice']
 
 
 # ---------------------------------------------------------------------------
@@ -443,7 +374,6 @@ async def test_use_as_output_workflow_with_hitl(
     yield RequestInput(
         interrupt_id='wf_req1',
         message='enter value',
-        response_schema={'type': 'string'},
     )
 
   def final_step(node_input: Any) -> str:
