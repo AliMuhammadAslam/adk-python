@@ -164,7 +164,8 @@ class NodeRunner:
     from .utils._retry_utils import _get_retry_delay
     from .utils._retry_utils import _should_retry_node
 
-    node_state = SimpleNamespace(retry_count=retry_count)
+    node_state = SimpleNamespace(retry_count=retry_count + 1)
+
     if not _should_retry_node(e, self._node.retry_config, node_state):
       return False
 
