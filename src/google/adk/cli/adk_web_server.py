@@ -1144,6 +1144,13 @@ class AdkWebServer:
 
       workflows = self._get_all_sub_workflows(app_info, node if node else "")
 
+      # This allows plotting non-workflow agents as a tree.
+      target_path = node if node else ""
+      if target_path not in workflows:
+        target_agent = app_info.get("root_agent")
+        if target_agent:
+          workflows[target_path] = target_agent
+
       results = {}
       for path, info in workflows.items():
         dot_string = plot_workflow_graph(
