@@ -38,6 +38,7 @@ from typing_extensions import override
 
 from .. import testing_utils
 from .workflow_testing_utils import InputCapturingNode
+from .workflow_testing_utils import find_function_call_event
 from .workflow_testing_utils import RequestInputNode
 from .workflow_testing_utils import simplify_events_with_node
 from .workflow_testing_utils import TestingNode
@@ -284,6 +285,7 @@ async def test_nested_workflow_intermediate_nodes(
 @pytest.mark.asyncio
 async def test_nested_workflow_with_hitl(request: pytest.FixtureRequest):
   """Tests that a nested Workflow with HITL works correctly."""
+  # Given: A nested workflow with an LLM agent that calls a long running tool
   llm_agent = LlmAgent(
       name='llm_agent',
       model=testing_utils.MockModel.create(
@@ -317,25 +319,19 @@ async def test_nested_workflow_with_hitl(request: pytest.FixtureRequest):
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When: Starting the workflow
   user_event = testing_utils.get_user_content('start workflow')
   events1 = await runner.run_async(user_event)
 
-  function_call_id = None
-  for ev in events1:
-    if (
-        ev.content
-        and ev.content.parts
-        and ev.content.parts[0].function_call
-        and ev.content.parts[0].function_call.name == 'long_running_tool_func'
-    ):
-      function_call_id = ev.content.parts[0].function_call.id
-      break
-  assert function_call_id is not None
+  # Then: It should yield a FunctionCall event and wait for tool execution
+  ev = find_function_call_event(events1, 'long_running_tool_func')
+  assert ev is not None
+  function_call_id = ev.content.parts[0].function_call.id
 
   simplified_events1 = simplify_events_with_node(events1, use_node_path=True)
   assert simplified_events1 == [
       (
-          'outer_agent/nested_agent/llm_agent/execute_tools',
+          'outer_agent/nested_agent/llm_agent',
           types.Part.from_function_call(name='long_running_tool_func', args={}),
       ),
   ]
@@ -358,26 +354,7 @@ async def test_nested_workflow_with_hitl(request: pytest.FixtureRequest):
 
   simplified_events2 = simplify_events_with_node(events2, use_node_path=True)
   assert simplified_events2 == [
-      (
-          'outer_agent/nested_agent/llm_agent/execute_tools',
-          types.Part(
-              function_response=types.FunctionResponse(
-                  name='long_running_tool_func',
-                  response={'result': 'Final tool output'},
-              )
-          ),
-      ),
-      (
-          'outer_agent/nested_agent/llm_agent/call_llm',
-          {'node_name': 'call_llm', 'output': 'LLM response after tool'},
-      ),
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'node_name': 'llm_agent',
-              'output': 'LLM response after tool',
-          },
-      ),
+      ('outer_agent/nested_agent/llm_agent', 'LLM response after tool'),
       (
           'outer_agent/output_func',
           {'node_name': 'output_func', 'output': 'I am outer'},
@@ -456,7 +433,7 @@ async def test_nested_workflow_with_request_input_event_hitl(
   assert simplified_events1 == [
       (
           'outer_agent/nested_agent/node_hitl',
-          testing_utils.simplify_content(req_events[0].content),
+          testing_utils.simplify_content(copy.deepcopy(req_events[0].content)),
       ),
   ]
 
@@ -598,6 +575,7 @@ async def test_nested_workflow_with_tool_calls(
     tool_call_count += 1
     return f'Tool output {tool_call_count}'
 
+  # Given: A nested workflow where the inner node calls a tool
   llm_agent = LlmAgent(
       name='llm_agent',
       model=testing_utils.MockModel.create(
@@ -634,61 +612,35 @@ async def test_nested_workflow_with_tool_calls(
   )
   runner = testing_utils.InMemoryRunner(app=app)
 
+  # When: Starting the workflow
   user_event = testing_utils.get_user_content('start workflow')
   events = await runner.run_async(user_event)
 
+  # Then: It should call the tool and yield events
   assert tool_call_count == 1
 
   simplified_events = simplify_events_with_node(events, use_node_path=True)
 
-  # Extract the dynamically generated function_call_id from call_llm output.
-  call_llm_output = [
-      e[1]
-      for e in simplified_events
-      if isinstance(e[1], dict)
-      and 'output' in e[1]
-      and isinstance(e[1]['output'], CallLlmResult)
-  ][0]
-  function_call_id = call_llm_output['output'].function_calls[0].id
+  # Extract the dynamically generated function_call_id from events.
+  ev = find_function_call_event(events, 'simple_tool')
+  assert ev is not None
+  function_call_id = ev.content.parts[0].function_call.id
 
   assert simplified_events == [
       (
-          'outer_agent/nested_agent/llm_agent/call_llm',
+          'outer_agent/nested_agent/llm_agent',
           types.Part.from_function_call(name='simple_tool', args={}),
       ),
       (
-          'outer_agent/nested_agent/llm_agent/call_llm',
-          {
-              'node_name': 'call_llm',
-              'output': CallLlmResult(
-                  function_calls=[
-                      types.FunctionCall(
-                          name='simple_tool',
-                          args={},
-                          id=function_call_id,
-                      )
-                  ],
-              ),
-          },
-      ),
-      (
-          'outer_agent/nested_agent/llm_agent/execute_tools',
-          types.Part.from_function_response(
-              name='simple_tool',
-              response={'result': 'Tool output 1'},
+          'outer_agent/nested_agent/llm_agent',
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='simple_tool',
+                  response={'result': 'Tool output 1'},
+              )
           ),
       ),
-      (
-          'outer_agent/nested_agent/llm_agent/call_llm',
-          {'node_name': 'call_llm', 'output': 'LLM response after tools'},
-      ),
-      (
-          'outer_agent/nested_agent/llm_agent',
-          {
-              'node_name': 'llm_agent',
-              'output': 'LLM response after tools',
-          },
-      ),
+      ('outer_agent/nested_agent/llm_agent', 'LLM response after tools'),
       (
           'outer_agent/output_func',
           {
@@ -766,6 +718,7 @@ async def test_duplicate_grandchild_workflow_names(
 ):
   """Tests that grandchild workflow agents with same name can coexist."""
 
+  # Given: A workflow hierarchy where grandchild workflows have the same name
   async def grandchild_func():
     return 'I am grandchild'
 
@@ -776,12 +729,12 @@ async def test_duplicate_grandchild_workflow_names(
 
   child1_agent = Workflow(
       name='child1',
-      edges=[('START', grandchild_agent.clone())],
+      edges=[('START', copy.deepcopy(grandchild_agent))],
   )
 
   child2_agent = Workflow(
       name='child2',
-      edges=[('START', grandchild_agent.clone())],
+      edges=[('START', copy.deepcopy(grandchild_agent))],
   )
 
   root_agent = Workflow(
@@ -794,9 +747,11 @@ async def test_duplicate_grandchild_workflow_names(
       root_agent=root_agent,
   )
   runner = testing_utils.InMemoryRunner(app=app)
+  # When: Starting the workflow
   user_content = testing_utils.get_user_content('hello')
   events = await runner.run_async(user_content)
 
+  # Then: It should execute both grandchildren successfully
   simplified_events = simplify_events_with_node(events, use_node_path=True)
   assert simplified_events == [
       (
