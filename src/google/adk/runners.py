@@ -802,13 +802,26 @@ class Runner:
     from .agents.llm_agent import LlmAgent
     from .workflow._base_node import BaseNode
 
+    # TODO: handle when self.agent is BaseAgent, but is not LlmAgent.
     # Wrap LlmAgent with _V1LlmAgentWrapper if it's the root agent
     if isinstance(self.agent, LlmAgent):
       from .workflow._v1_llm_agent_wrapper import _V1LlmAgentWrapper
 
       if self.agent.mode is None:
+        # LlmAgent as root agent must have chat mode.
         self.agent.mode = 'chat'
-      wrapped_agent = _V1LlmAgentWrapper(agent=self.agent)
+
+      if self.agent.mode == 'chat':
+        session = await self._get_or_create_session(
+            user_id=user_id, session_id=session_id
+        )
+        agent_to_run = self._find_agent_to_run(session, self.agent)
+        wrapped_agent = _V1LlmAgentWrapper(agent=agent_to_run)
+      else:
+        raise ValueError(
+            "LlmAgent as root agent must have mode='chat', but got"
+            f" mode='{self.agent.mode}'."
+        )
       async for event in self._run_node_async(
           user_id=user_id,
           session_id=session_id,
@@ -1412,6 +1425,8 @@ class Runner:
     - An LlmAgent who replied last and is capable to transfer to any other agent
       in the agent hierarchy.
 
+    TODO: use wait_for_output to decide the agent to run
+
     Args:
         session: The session to find the agent for.
         root_agent: The root agent of the runner.
@@ -1445,6 +1460,7 @@ class Runner:
       return True
 
     for event in filter(_event_filter, reversed(session.events)):
+      logger.warning(f'!!! DEBUG !!! checking event from {event.author}')
       if event.author == root_agent.name:
         # Found root agent.
         return root_agent
@@ -1456,7 +1472,11 @@ class Runner:
             event.id,
         )
         continue
-      if self._is_transferable_across_agent_tree(agent):
+      transferable = self._is_transferable_across_agent_tree(agent)
+      logger.warning(
+          f'!!! DEBUG !!! agent {agent.name} transferable={transferable}'
+      )
+      if transferable:
         return agent
     # Falls back to root agent if no suitable agents are found in the session.
     return root_agent
