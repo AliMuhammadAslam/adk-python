@@ -499,3 +499,35 @@ async def test_artifact_and_state_bundled_together():
   assert events[0].output == 'done'
   assert events[0].actions.state_delta.get('s1') == 'v1'
   assert events[0].actions.artifact_delta.get('file.txt') == 1
+
+
+@pytest.mark.asyncio
+async def test_node_input_schema_validation():
+  """NodeRunner fails if node input does not match input_schema."""
+  from pydantic import BaseModel
+  from pydantic import ValidationError
+
+  class _MyInput(BaseModel):
+    name: str
+    age: int
+
+  node = _EchoNode(name='schema_node', input_schema=_MyInput)
+  ctx, _ = _make_ctx()
+
+  # Valid input (dict that matches schema)
+  result = await NodeRunner(node=node, parent_ctx=ctx).run(
+      node_input={'name': 'Alice', 'age': 30}
+  )
+  
+  # _validate_schema converts model instances to dicts!
+  assert isinstance(result.output, dict)
+  assert result.output['name'] == 'Alice'
+  assert result.output['age'] == 30
+
+  # Invalid input (missing field)
+  result = await NodeRunner(node=node, parent_ctx=ctx).run(
+      node_input={'name': 'Alice'}
+  )
+
+  assert result.error is not None
+  assert isinstance(result.error, ValidationError)

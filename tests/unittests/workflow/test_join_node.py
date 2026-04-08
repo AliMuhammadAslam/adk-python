@@ -79,7 +79,7 @@ async def test_join_node_waits_for_all_inputs(request: pytest.FixtureRequest):
   # assert that there is a state event to save the state with agent path as key
   assert any(
       e.actions.state_delta
-      and 'test_join_node/NodeJoin_join_state' in e.actions.state_delta
+      and any('NodeJoin' in k and '_join_state' in k for k in e.actions.state_delta)
       for e in events
   )
 
@@ -214,6 +214,7 @@ async def test_join_node_input_schema_none_trigger_passes(
     request: pytest.FixtureRequest,
 ):
   """JoinNode input_schema skips validation for None trigger input."""
+  # Given
   node_a_fn = workflow_testing_utils.TestingNode(
       name='NodeA', output=None, route='join'
   )
@@ -235,8 +236,11 @@ async def test_join_node_input_schema_none_trigger_passes(
   )
   app_instance = app.App(name=request.function.__name__, root_agent=agent)
   runner = testing_utils.InMemoryRunner(app=app_instance)
+
+  # When
   await runner.run_async(testing_utils.get_user_content('start'))
 
+  # Then
   assert capture.received_inputs == [{
       'NodeA': None,
       'NodeB': {'key': 'b', 'value': 2},

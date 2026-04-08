@@ -160,6 +160,7 @@ class BaseNode(BaseModel):
     from ..events.event import Event
     from ..events.request_input import RequestInput
 
+    node_input = self._validate_input_data(node_input)
     async for item in self._run_impl(ctx=ctx, node_input=node_input):
       if item is None:
         continue
