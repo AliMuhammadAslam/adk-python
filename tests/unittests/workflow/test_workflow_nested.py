@@ -13,6 +13,10 @@
 # limitations under the License.
 
 import copy
+import uuid
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+
 from typing import Any
 from typing import AsyncGenerator
 
@@ -24,6 +28,8 @@ from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
 from google.adk.tools.long_running_tool import LongRunningFunctionTool
 from google.adk.workflow import BaseNode
+from google.adk.workflow._base_node import START
+
 from google.adk.workflow import JoinNode
 from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._node_status import NodeStatus
@@ -804,3 +810,365 @@ async def test_duplicate_name_in_ancestral_path(
           {'node_name': 'func_a', 'output': 'I am A'},
       ),
   ]
+
+
+# --- Helpers moved from test_workflow_class.py ---
+
+
+class _OutputNode(BaseNode):
+  """Yields a fixed output value."""
+
+  value: Any = None
+
+  async def _run_impl(
+      self, *, ctx: Context, node_input: Any
+  ) -> AsyncGenerator[Any, None]:
+    yield self.value
+
+
+
+class _InputCapturingNode(BaseNode):
+  """Captures node_input for later assertion."""
+
+  model_config = ConfigDict(arbitrary_types_allowed=True)
+  received_inputs: list[Any] = Field(default_factory=list)
+
+  async def _run_impl(
+      self, *, ctx: Context, node_input: Any
+  ) -> AsyncGenerator[Any, None]:
+    self.received_inputs.append(node_input)
+    yield {"received": node_input}
+
+
+async def _run_workflow(wf, message="start"):
+  """Run a Workflow through Runner, return collected events."""
+  ss = InMemorySessionService()
+  runner = Runner(app_name="test", node=wf, session_service=ss)
+  session = await ss.create_session(app_name="test", user_id="u")
+  msg = types.Content(parts=[types.Part(text=message)], role="user")
+  events = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+  return events, ss, session
+
+
+def _outputs(events):
+  """Extract non-None outputs from events."""
+  return [e.output for e in events if e.output is not None]
+
+
+def _output_by_node(events):
+  """Extract (node_name_from_path, output) for child node events."""
+  results = []
+  for e in events:
+    if e.output is not None and e.node_info.path and "/" in e.node_info.path:
+      node_name = e.node_info.path.rsplit("/", 1)[-1]
+      if "@" in node_name:
+        node_name = node_name.rsplit("@", 1)[0]
+      results.append((node_name, e.output))
+  return results
+
+
+# --- Tests moved from test_workflow_class.py ---
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_completes():
+  """Inner workflow runs to completion, outer continues downstream."""
+  inner_node = _OutputNode(name="inner_node", value="inner_result")
+  inner_wf = Workflow(name="inner_wf", edges=[(START, inner_node)])
+  before = _OutputNode(name="before", value="before_result")
+  after = _InputCapturingNode(name="after")
+  wf = Workflow(name="wf", edges=[(START, before, inner_wf, after)])
+
+  events, _, _ = await _run_workflow(wf)
+
+  by_node = _output_by_node(events)
+  assert ("before", "before_result") in by_node
+  assert ("inner_node", "inner_result") in by_node
+  assert after.received_inputs == ["inner_result"]
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_event_author():
+  """Events are authored by the nearest orchestrator (workflow/agent).
+
+  Setup: outer_wf → inner_wf → inner_node.
+  Assert:
+    - inner_node's events are authored by inner_wf (nearest).
+    - outer_wf's direct children are authored by outer_wf.
+    - inner_wf overrides the author for its subtree.
+  """
+  inner_node = _OutputNode(name="inner_node", value="inner_result")
+  inner_wf = Workflow(name="inner_wf", edges=[(START, inner_node)])
+  outer_node = _OutputNode(name="outer_node", value="outer_result")
+  wf = Workflow(
+      name="outer_wf",
+      edges=[(START, outer_node, inner_wf)],
+  )
+
+  events, _, _ = await _run_workflow(wf)
+
+  # outer_node's events authored by outer_wf (nearest orchestrator).
+  outer_events = [
+      e for e in events if e.node_info.path == "outer_wf@1/outer_node@1"
+  ]
+  assert outer_events
+  assert all(e.author == "outer_wf" for e in outer_events)
+
+  # inner_node's events authored by inner_wf (nearest orchestrator),
+  # NOT outer_wf.
+  inner_events = [
+      e
+      for e in events
+      if e.node_info.path == "outer_wf@1/inner_wf@1/inner_node@1"
+  ]
+  assert inner_events
+  assert all(e.author == "inner_wf" for e in inner_events)
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_interrupt_and_resume():
+  """Inner workflow child interrupts, outer resumes on FR."""
+
+  class _InterruptNode(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get("_nested_fc")
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state["_nested_fc"] = None
+        response = ctx.resume_inputs[fc_id]["answer"]
+        yield f"approved:{response}"
+        return
+      fc_id = f"fc-{uuid.uuid4().hex[:8]}"
+      ctx.state["_nested_fc"] = fc_id
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name="inner_tool", args={}, id=fc_id
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={fc_id},
+      )
+
+  inner_wf = Workflow(
+      name="inner_wf",
+      edges=[(START, _InterruptNode(name="approval"))],
+  )
+  before = _OutputNode(name="before", value="before_result")
+  after = _InputCapturingNode(name="after")
+  wf = Workflow(
+      name="wf",
+      edges=[(START, before, inner_wf, after)],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name="test", node=wf, session_service=ss)
+  session = await ss.create_session(app_name="test", user_id="u")
+
+  # Run 1: before completes, inner_wf/approval interrupts
+  msg1 = types.Content(parts=[types.Part(text="go")], role="user")
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  # Should have interrupt from inner's child
+  interrupt_events = [e for e in events1 if e.long_running_tool_ids]
+  assert len(interrupt_events) == 1
+  assert interrupt_events[0].long_running_tool_ids is not None
+  fc_id = list(interrupt_events[0].long_running_tool_ids)[0]
+
+  # Workflow-level interrupt events should NOT be persisted
+  # (they're _adk_internal). Only the leaf child's event at
+  # 'wf/inner_wf/approval' should have interrupt ids in session.
+  updated_session = await ss.get_session(
+      app_name="test", user_id="u", session_id=session.id
+  )
+  assert updated_session is not None
+  wf_interrupt_events = [
+      e
+      for e in updated_session.events
+      if e.long_running_tool_ids and e.node_info.path in ("wf", "wf/inner_wf")
+  ]
+  assert wf_interrupt_events == []
+
+  # Run 2: resume
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name="inner_tool",
+                  id=fc_id,
+                  response={"answer": "yes"},
+              )
+          )
+      ],
+      role="user",
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # Inner resumed, after should receive inner's output
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert "approved:yes" in outputs
+  assert after.received_inputs == ["approved:yes"]
+
+
+@pytest.mark.asyncio
+async def test_nested_workflow_partial_resume():
+  """Partial FR re-runs nested Workflow, resolved child completes while unresolved stays interrupted.
+
+  Setup: outer_wf → inner_wf → (child_a, child_b) → join.
+    Both children interrupt on first run.
+  Act:
+    - Run 2: resolve only child_a's FR.
+    - Run 3: resolve child_b's FR.
+  Assert:
+    - Run 2: child_a produces output, invocation still interrupted.
+    - Run 3: child_b produces output, join completes, no interrupts.
+  """
+
+  class _InterruptOnce(BaseNode):
+    """Interrupts on first run, yields resume response on second."""
+
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = f"fc-{self.name}"
+      if ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        yield f"{self.name}:{ctx.resume_inputs[fc_id]}"
+        return
+      yield RequestInput(interrupt_id=fc_id)
+
+  child_a = _InterruptOnce(name="child_a")
+  child_b = _InterruptOnce(name="child_b")
+  join = JoinNode(name="join", wait_for_output=True)
+
+  inner_wf = Workflow(
+      name="inner_wf",
+      edges=[
+          (START, child_a),
+          (START, child_b),
+          (child_a, join),
+          (child_b, join),
+      ],
+  )
+
+  outer_wf = Workflow(
+      name="outer",
+      edges=[(START, inner_wf)],
+  )
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name="test", node=outer_wf, session_service=ss)
+  session = await ss.create_session(app_name="test", user_id="u")
+
+  # Run 1: both children interrupt
+  msg1 = types.Content(parts=[types.Part(text="go")], role="user")
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  interrupt_ids = set()
+  for e in events1:
+    if e.long_running_tool_ids:
+      interrupt_ids.update(e.long_running_tool_ids)
+  assert "fc-child_a" in interrupt_ids
+  assert "fc-child_b" in interrupt_ids
+
+  # Run 2: resolve only child_a
+  msg2 = types.Content(
+      parts=[create_request_input_response("fc-child_a", {"v": "a"})],
+      role="user",
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # child_a should have produced output
+  child_a_outputs = [
+      e.output
+      for e in events2
+      if e.node_info.path and "child_a" in e.node_info.path and e.output
+  ]
+  assert any("child_a:" in str(o) for o in child_a_outputs)
+
+  # Run 3: resolve child_b → join completes, workflow finishes
+  msg3 = types.Content(
+      parts=[create_request_input_response("fc-child_b", {"v": "b"})],
+      role="user",
+  )
+  events3: list[Event] = []
+  async for event in runner.run_async(
+      user_id="u", session_id=session.id, new_message=msg3
+  ):
+    events3.append(event)
+
+  # child_b should have produced output
+  child_b_outputs = [
+      e.output
+      for e in events3
+      if e.node_info.path and "child_b" in e.node_info.path and e.output
+  ]
+  assert any("child_b:" in str(o) for o in child_b_outputs)
+
+  # join should have completed (no more interrupts)
+  final_interrupts = set()
+  for e in events3:
+    if e.long_running_tool_ids:
+      final_interrupts.update(e.long_running_tool_ids)
+  assert not final_interrupts
+
+
+@pytest.mark.asyncio
+async def test_scan_child_events_ignores_descendant_run_id_resets():
+  """_scan_child_events only resets run_id from direct child events."""
+  from unittest.mock import MagicMock
+
+  from google.adk.events.event import Event
+  from google.adk.events.event import NodeInfo
+
+  # We create a Workflow instance to test its private method _scan_child_events.
+  wf = Workflow(name="wf", edges=[])
+
+  # Given a direct child event and a descendant event.
+  event1 = Event(
+      author="node",
+      node_info=NodeInfo(path="wf@1/child@1", run_id="1"),
+  )
+  event2 = Event(
+      author="node",
+      node_info=NodeInfo(path="wf@1/child@1/grandchild@2", run_id="2"),
+  )
+
+  ctx = MagicMock()
+  ctx._invocation_context = MagicMock()
+  ctx._invocation_context.session = MagicMock()
+  ctx._invocation_context.session.events = [event1, event2]
+  # _scan_child_events reads ctx.node_path to determine the base workflow path.
+  ctx.node_path = "wf@1"
+
+  children = wf._scan_child_events(ctx)
+
+  # Assert child 'child' run_id remains '1' (not '2' from the descendant).
+  assert children["child"].run_id == "1"
+

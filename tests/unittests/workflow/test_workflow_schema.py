@@ -16,11 +16,15 @@
 
 from __future__ import annotations
 
+from google.adk.apps.app import App
 from google.adk.events.event import Event
+from google.adk.runners import Runner
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.workflow import BaseNode
 from google.adk.workflow import JoinNode
 from google.adk.workflow import START
 from google.adk.workflow._workflow_class import Workflow
-from google.adk.apps.app import App
+from google.genai import types
 from pydantic import BaseModel
 import pytest
 
@@ -209,9 +213,16 @@ async def test_workflow_output_schema_validates_multiple_terminals(
 
   # Both terminal outputs should have 'extra' filled by _OtherModel default.
   output = consume_events[0].output
-  assert output['branch_a'] == {'name': 'from_a', 'value': 1, 'extra': 'default'}
-  assert output['branch_b'] == {'name': 'from_b', 'value': 2, 'extra': 'default'}
-
+  assert output['branch_a'] == {
+      'name': 'from_a',
+      'value': 1,
+      'extra': 'default',
+  }
+  assert output['branch_b'] == {
+      'name': 'from_b',
+      'value': 2,
+      'extra': 'default',
+  }
 
 
 @pytest.mark.asyncio
@@ -256,7 +267,6 @@ async def test_workflow_output_schema_rejects_invalid_among_multiple_terminals(
     await runner.run_async(testing_utils.get_user_content('start'))
 
 
-
 # ── Primitive and generic type output_schema ─────────────────────────
 
 
@@ -284,7 +294,8 @@ async def test_workflow_output_schema_int_coerces(
   consume_events = [
       e
       for e in events
-      if isinstance(e, Event) and e.output is not None
+      if isinstance(e, Event)
+      and e.output is not None
       and e.node_info.name == 'consume'
   ]
   assert len(consume_events) == 1
@@ -339,7 +350,8 @@ async def test_workflow_output_schema_list_of_str(
   consume_events = [
       e
       for e in events
-      if isinstance(e, Event) and e.output is not None
+      if isinstance(e, Event)
+      and e.output is not None
       and e.node_info.name == 'consume'
   ]
   assert len(consume_events) == 1
@@ -373,7 +385,8 @@ async def test_workflow_output_schema_list_of_basemodel(
   consume_events = [
       e
       for e in events
-      if isinstance(e, Event) and e.output is not None
+      if isinstance(e, Event)
+      and e.output is not None
       and e.node_info.name == 'consume'
   ]
   assert len(consume_events) == 1
@@ -498,3 +511,112 @@ async def test_e2e_fan_out_join_with_schemas(
   }
   assert 'wf' in terminal[0].node_info.path
   assert 'reviewer' in terminal[0].node_info.path
+
+
+@pytest.mark.asyncio
+async def test_start_node_with_str_input_schema():
+  """input_schema=str parses user text."""
+
+  class _AssertingNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      assert node_input == 'hello'
+      yield 'done'
+
+  node = _AssertingNode(name='node', input_schema=str)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+  events = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  data_events = [e for e in events if isinstance(e, Event) and e.output]
+  assert any(e.output == 'done' for e in data_events)
+
+
+@pytest.mark.xfail(reason='Input schema parsing not yet in new Workflow.')
+@pytest.mark.asyncio
+async def test_start_node_with_int_input_schema():
+  """input_schema=int parses user text to int."""
+  assert False, 'TODO'
+
+
+@pytest.mark.xfail(reason='Input schema parsing not yet in new Workflow.')
+@pytest.mark.asyncio
+async def test_start_node_with_int_list_input_schema():
+  """input_schema=list[int] parses JSON list."""
+  assert False, 'TODO'
+
+
+@pytest.mark.asyncio
+async def test_start_node_with_invalid_input_schema():
+  """Invalid input against schema raises error."""
+
+  class _MyModel(BaseModel):
+    age: int
+
+  class _AssertingNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield 'done'
+
+  node = _AssertingNode(name='node', input_schema=_MyModel)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Pass invalid input (Content instead of dict with age)
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+
+  # We expect it to raise ValidationError
+  from pydantic import ValidationError
+
+  with pytest.raises(ValidationError):
+    async for event in runner.run_async(
+        user_id='u', session_id=session.id, new_message=msg
+    ):
+      pass
+
+
+@pytest.mark.asyncio
+async def test_start_node_receives_parsed_user_content_with_schema():
+  """Parsed input replaces raw Content for first node."""
+
+  class _AssertingNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      assert isinstance(node_input, str)
+      assert node_input == 'hello'
+      yield 'done'
+
+  node = _AssertingNode(name='node', input_schema=str)
+  wf = Workflow(name='wf', edges=[(START, node)])
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg = types.Content(parts=[types.Part(text='hello')], role='user')
+  events = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg
+  ):
+    events.append(event)
+
+  data_events = [e for e in events if isinstance(e, Event) and e.output]
+  assert any(e.output == 'done' for e in data_events)
