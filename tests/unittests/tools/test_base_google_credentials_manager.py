@@ -22,8 +22,8 @@ from google.adk.auth.auth_tool import AuthConfig
 from google.adk.tools import _google_credentials
 from google.adk.tools._google_credentials import BaseGoogleCredentialsConfig
 from google.adk.tools._google_credentials import GoogleCredentialsManager
-from google.adk.tools.bigquery.bigquery_credentials import BIGQUERY_TOKEN_CACHE_KEY
-from google.adk.tools.bigquery.bigquery_credentials import BigQueryCredentialsConfig
+from google.adk.integrations.bigquery.bigquery_credentials import BIGQUERY_TOKEN_CACHE_KEY
+from google.adk.integrations.bigquery.bigquery_credentials import BigQueryCredentialsConfig
 from google.adk.tools.tool_context import ToolContext
 from google.auth.credentials import Credentials as AuthCredentials
 from google.auth.exceptions import RefreshError
