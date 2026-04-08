@@ -28,6 +28,11 @@ from google.adk.agents.context import Context
 from google.adk.events.event import Event
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._node_runner_class import NodeRunner
+import pytest
+from google.adk.agents.invocation_context import InvocationContext
+from google.adk.agents.base_agent import BaseAgent
+from google.adk.sessions.session import Session
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
 import pytest
 
@@ -150,30 +155,33 @@ class _ArtifactSavingNode(BaseNode):
 # --- Helpers ---
 
 
-def _make_ctx(invocation_id='inv-test', enqueue_events=None):
+def _make_ctx(invocation_id='inv-test', enqueue_events=None, node_path=''):
   """Create a minimal Context mock with IC."""
-  ic = MagicMock()
-  ic.invocation_id = invocation_id
-  ic.session = MagicMock()
-  ic.session.state = {}
-  ic.session.app_name = 'test_app'
-  ic.session.user_id = 'test_user'
-  ic.run_config = None
-  ic._state_schema = None
 
+  mock_agent = MagicMock(spec=BaseAgent)
+  real_session = Session(id='test_session', app_name='test_app', user_id='test_user')
+  real_session_service = InMemorySessionService()
+  
+  ic = InvocationContext(
+      invocation_id=invocation_id,
+      agent=mock_agent,
+      session=real_session,
+      session_service=real_session_service,
+  )
+  
   collected = enqueue_events if enqueue_events is not None else []
 
   async def _enqueue(event):
     collected.append(event)
 
-  ic.enqueue_event = AsyncMock(side_effect=_enqueue)
+  object.__setattr__(ic, 'enqueue_event', AsyncMock(side_effect=_enqueue))
 
-  ctx = MagicMock()
-  ctx._invocation_context = ic
-  ctx.node_path = ''
-  ctx.schedule_dynamic_node = None
-  ctx.event_author = ''
-  ctx._output_for_ancestors = []
+  ctx = Context(
+      invocation_context=ic,
+      node_path=node_path,
+      event_author='',
+      output_for_ancestors=[],
+  )
   return ctx, collected
 
 
@@ -319,8 +327,7 @@ async def test_resume_inputs_available_on_context():
 async def test_node_path_includes_parent():
   """A child node's node_path is parent_node_path/child_name."""
   node = _EchoNode(name='child')
-  ctx, events = _make_ctx()
-  ctx.node_path = 'parent_path'
+  ctx, events = _make_ctx(node_path='parent_path')
   runner = NodeRunner(node=node, parent_ctx=ctx)
   await runner.run(node_input='x')
 

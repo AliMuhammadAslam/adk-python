@@ -23,7 +23,12 @@ forward correctly.
 from unittest.mock import AsyncMock
 from unittest.mock import MagicMock
 
+from google.adk.agents.base_agent import BaseAgent
+from google.adk.agents.context import Context
+from google.adk.agents.invocation_context import InvocationContext
 from google.adk.events.event import Event
+from google.adk.sessions.in_memory_session_service import InMemorySessionService
+from google.adk.sessions.session import Session
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._node_runner_class import NodeRunner
 from google.genai import types
@@ -32,30 +37,34 @@ import pytest
 # --- Helpers ---
 
 
-def _make_ctx():
-  """Create a minimal parent Context mock."""
-  ic = MagicMock()
-  ic.invocation_id = 'inv-test'
-  ic.session = MagicMock()
-  ic.session.state = {}
-  ic.session.app_name = 'test'
-  ic.session.user_id = 'u'
-  ic.run_config = None
-  ic._state_schema = None
+def _make_ctx(invocation_id='inv-test', enqueue_events=None, node_path=''):
+  """Create a minimal Context mock with IC."""
+  mock_agent = MagicMock(spec=BaseAgent)
+  real_session = Session(
+      id='test_session', app_name='test_app', user_id='test_user'
+  )
+  real_session_service = InMemorySessionService()
 
-  collected = []
+  ic = InvocationContext(
+      invocation_id=invocation_id,
+      agent=mock_agent,
+      session=real_session,
+      session_service=real_session_service,
+  )
+
+  collected = enqueue_events if enqueue_events is not None else []
 
   async def _enqueue(event):
     collected.append(event)
 
-  ic.enqueue_event = AsyncMock(side_effect=_enqueue)
+  object.__setattr__(ic, 'enqueue_event', AsyncMock(side_effect=_enqueue))
 
-  ctx = MagicMock()
-  ctx._invocation_context = ic
-  ctx.node_path = ''
-  ctx._schedule_dynamic_node_internal = None
-  ctx._output_for_ancestors = []
-  ctx.event_author = ''
+  ctx = Context(
+      invocation_context=ic,
+      node_path=node_path,
+      event_author='',
+      output_for_ancestors=[],
+  )
   return ctx, collected
 
 
