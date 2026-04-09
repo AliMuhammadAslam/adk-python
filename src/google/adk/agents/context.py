@@ -22,11 +22,10 @@ from typing import Any
 from typing import Protocol
 from typing import TYPE_CHECKING
 
+from opentelemetry import context as context_api
 from typing_extensions import override
 
 from .readonly_context import ReadonlyContext
-
-from opentelemetry import context as context_api
 
 if TYPE_CHECKING:
   from google.genai import types
@@ -308,7 +307,6 @@ class Context(ReadonlyContext):
     """Returns the name of the node that triggered the current node."""
     return self._triggered_by
 
-
   @property
   def attempt_count(self) -> int:
     """Returns the current attempt number (1-based)."""
@@ -497,6 +495,11 @@ class Context(ReadonlyContext):
     from ..workflow.utils._workflow_graph_utils import build_node  # pylint: disable=g-import-not-at-top
 
     built_node = build_node(node)
+
+    from ..agents.base_agent import BaseAgent
+
+    if isinstance(node, BaseAgent) and isinstance(built_node, BaseAgent):
+      built_node.parent_agent = node.parent_agent
 
     # Prefer the internal scheduler (new Workflow architecture) which
     # returns child Context. Fall back to the legacy scheduler.

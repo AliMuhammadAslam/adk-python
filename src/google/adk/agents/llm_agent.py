@@ -528,6 +528,23 @@ class LlmAgent(BaseAgent):
       if ctx.end_invocation:
         return
 
+  @override
+  async def _run_impl(
+      self,
+      *,
+      ctx: Context,
+      node_input: Any,
+  ) -> AsyncGenerator[Any, None]:
+    """Runs the agent as a node in a workflow graph."""
+    from ..utils.context_utils import Aclosing
+    from ..workflow._llm_agent_wrapper import run_llm_agent_as_node
+
+    async with Aclosing(
+        run_llm_agent_as_node(self, ctx=ctx, node_input=node_input)
+    ) as agen:
+      async for event in agen:
+        yield event
+
   @property
   def canonical_model(self) -> BaseLlm:
     """The resolved self.model field as BaseLlm.

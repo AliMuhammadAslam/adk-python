@@ -19,14 +19,13 @@ from __future__ import annotations
 from typing import Callable
 from typing import Literal
 
-from ..agents.base_agent import BaseAgent
 from ..tools.base_tool import BaseTool
 from ._base_node import BaseNode
 
 RouteValue = bool | int | str
 """Type alias for valid routing values used in conditional graph edges."""
 
-NodeLike = BaseNode | BaseAgent | BaseTool | Callable | Literal['START']
+NodeLike = BaseNode | BaseTool | Callable | Literal['START']
 """Type alias for objects that can be converted to a workflow node."""
 
 RoutingMap = dict[RouteValue, NodeLike | tuple[NodeLike, ...]]

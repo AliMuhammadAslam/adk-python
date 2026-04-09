@@ -32,7 +32,6 @@ from google.adk.features import FeatureName
 from google.adk.features import override_feature_enabled
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
 from google.adk.workflow.utils._workflow_graph_utils import build_node
 from google.genai import types
 from pydantic import BaseModel
@@ -103,9 +102,9 @@ def _mock_agent_run(agent, finish_output=None, content_text=None):
   return _Ctx()
 
 
-def _mock_leaf_run(wrapper, content_text=None):
+def _mock_leaf_run(agent, content_text=None):
   """Mocks the agent.run_async. Returns a context manager."""
-  target = wrapper.agent
+  target = agent
 
   async def fake_run_async(*args, **kwargs):
     if content_text:
@@ -142,44 +141,42 @@ class TestValidation:
 
   def test_task_mode_accepted(self):
     """Wrapping a task-mode agent succeeds."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(mode='task'))
+    wrapper = build_node(_make_agent(mode='task'))
     assert wrapper.name == 'test_agent'
 
   def test_single_turn_mode_accepted(self):
     """Wrapping a single_turn-mode agent succeeds."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(mode='single_turn'))
+    wrapper = build_node(_make_agent(mode='single_turn'))
     assert wrapper.name == 'test_agent'
 
   def test_chat_mode_accepted(self):
     """Wrapping a chat-mode agent succeeds."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(mode='chat'))
+    wrapper = build_node(_make_agent(mode='chat'))
     assert wrapper.name == 'test_agent'
 
   def test_name_defaults_to_agent_name(self):
     """Wrapper name defaults to the inner agent's name."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(name='my_agent'))
+    wrapper = build_node(_make_agent(name='my_agent'))
     assert wrapper.name == 'my_agent'
 
   def test_name_can_be_overridden(self):
     """Explicit name overrides the agent's name."""
-    wrapper = _LlmAgentWrapper(
-        agent=_make_agent(name='my_agent'), name='custom'
-    )
+    wrapper = build_node(_make_agent(name='my_agent'), name='custom')
     assert wrapper.name == 'custom'
 
   def test_task_mode_waits_for_output(self):
     """Task mode sets wait_for_output=True."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(mode='task'))
+    wrapper = build_node(_make_agent(mode='task'))
     assert wrapper.wait_for_output is True
 
   def test_single_turn_does_not_wait_for_output(self):
     """Single_turn mode does not set wait_for_output."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent(mode='single_turn'))
+    wrapper = build_node(_make_agent(mode='single_turn'))
     assert wrapper.wait_for_output is False
 
   def test_rerun_on_resume_defaults_true(self):
     """Wrapper defaults to rerun_on_resume=True."""
-    wrapper = _LlmAgentWrapper(agent=_make_agent())
+    wrapper = build_node(_make_agent())
     assert wrapper.rerun_on_resume is True
 
 
@@ -189,16 +186,17 @@ class TestValidation:
 class TestBuildNode:
 
   def test_task_mode_wrapped(self):
-    """build_node wraps a task-mode LlmAgent."""
+    """build_node returns a cloned task-mode LlmAgent."""
     agent = _make_agent(mode='task')
     node = build_node(agent)
-    assert isinstance(node, _LlmAgentWrapper)
-    assert node.agent is agent
+    assert isinstance(node, LlmAgent)
+    assert node is not agent
+    assert node.name == agent.name
 
   def test_single_turn_mode_wrapped(self):
-    """build_node wraps a single_turn-mode LlmAgent."""
+    """build_node returns a cloned single_turn-mode LlmAgent."""
     node = build_node(_make_agent(mode='single_turn'))
-    assert isinstance(node, _LlmAgentWrapper)
+    assert isinstance(node, LlmAgent)
 
   @pytest.mark.skip(
       reason=(
@@ -214,8 +212,7 @@ class TestBuildNode:
 
     node = build_node(agent)
 
-    # Check node.agent as Pydantic may copy the object during assignment
-    assert node.agent.mode == 'single_turn'
+    assert node.mode == 'single_turn'
 
   def test_name_override(self):
     """build_node respects explicit name override."""
@@ -234,7 +231,7 @@ async def test_task_finish_output_reaches_downstream(
   agent = _make_agent(mode='task')
   from . import testing_utils
 
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   capture = InputCapturingNode(name='capture')
   wf = Workflow(
       name='wf',
@@ -242,8 +239,9 @@ async def test_task_finish_output_reaches_downstream(
   )
   runner = _new_workflow_runner(wf, request.function.__name__)
 
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
   with _mock_agent_run(
-      agent,
+      agent_clone,
       finish_output={'title': 'Story', 'content': 'Once upon a time'},
       content_text='Writing...',
   ):
@@ -262,7 +260,7 @@ async def test_single_turn_output_reaches_downstream(
   from . import testing_utils
 
   agent = _make_agent(mode='single_turn')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   capture = InputCapturingNode(name='capture')
   wf = Workflow(
       name='wf',
@@ -270,7 +268,8 @@ async def test_single_turn_output_reaches_downstream(
   )
   runner = _new_workflow_runner(wf, request.function.__name__)
 
-  with _mock_leaf_run(wrapper, content_text='Done.'):
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
+  with _mock_leaf_run(agent_clone, content_text='Done.'):
     await runner.run_async(testing_utils.get_user_content('start'))
 
   assert capture.received_inputs == ['Done.']
@@ -284,16 +283,31 @@ async def test_valid_input_schema_accepted(
   from . import testing_utils
 
   agent = _make_agent(mode='task', input_schema=StoryInput)
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   capture = InputCapturingNode(name='capture')
   wf = Workflow(
       name='wf',
       edges=[('START', wrapper), (wrapper, capture)],
   )
-  runner = _new_workflow_runner(wf, request.function.__name__)
+  from unittest.mock import AsyncMock
+  from unittest.mock import MagicMock
 
-  with _mock_agent_run(agent, finish_output={'result': 'ok'}):
-    await runner.run_async(testing_utils.get_user_content('start'))
+  ctx = MagicMock(spec=Context)
+  ic = MagicMock()
+  ctx.get_invocation_context.return_value = ic
+  ctx._invocation_context = ic
+  ctx.resume_inputs = {}
+  ctx._output_for_ancestors = []
+  ic.model_copy.return_value = ic
+  ic.enqueue_event = AsyncMock(return_value=None)
+  ic.plugin_manager.run_before_agent_callback = AsyncMock(return_value=None)
+  ic.plugin_manager.run_after_agent_callback = AsyncMock(return_value=None)
+  ctx.node_path = 'wf'
+
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
+  with _mock_agent_run(agent_clone, finish_output={'result': 'ok'}):
+    async for _ in wf.run(ctx=ctx, node_input={'topic': 'Gemini'}):
+      pass
 
   assert capture.received_inputs == [{'result': 'ok'}]
 
@@ -305,7 +319,7 @@ async def test_valid_input_schema_accepted(
 # ):
 #   """Invalid input not matching input_schema raises ValidationError."""
 #   agent = _make_agent(mode='task', input_schema=StoryInput)
-#   wrapper = _LlmAgentWrapper(agent=agent)
+#   wrapper = build_node(agent)
 #   wf = Workflow(name='wf', edges=[(START, wrapper)])
 #   ctx = await create_parent_invocation_context(request.function.__name__, wf)
 #   ic = ctx.model_copy(update={'branch': None})
@@ -330,7 +344,8 @@ async def test_auto_wrap_in_workflow_edges(request: pytest.FixtureRequest):
   )
   runner = _new_workflow_runner(wf, request.function.__name__)
 
-  with _mock_agent_run(agent, finish_output={'result': 'auto'}):
+  agent_clone = next(n for n in wf.graph.nodes if n.name == agent.name)
+  with _mock_agent_run(agent_clone, finish_output={'result': 'auto'}):
     await runner.run_async(testing_utils.get_user_content('start'))
 
   assert capture.received_inputs == [{'result': 'auto'}]
@@ -342,7 +357,7 @@ async def test_single_turn_isolates_content_via_branch(
 ):
   """Single_turn wrapper sets a branch for content isolation."""
   agent = _make_agent(mode='single_turn')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   captured_branches = []
 
   async def fake_run(invocation_context):
@@ -354,12 +369,13 @@ async def test_single_turn_isolates_content_via_branch(
   wf = Workflow(name='wf', edges=[('START', wrapper)])
   runner = _new_workflow_runner(wf, request.function.__name__)
 
-  original = wrapper.agent.run_async
-  object.__setattr__(wrapper.agent, 'run_async', fake_run)
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
+  original = agent_clone.run_async
+  object.__setattr__(agent_clone, 'run_async', fake_run)
   try:
     await runner.run_async(testing_utils.get_user_content('start'))
   finally:
-    object.__setattr__(wrapper.agent, 'run_async', original)
+    object.__setattr__(agent_clone, 'run_async', original)
 
   assert len(captured_branches) == 1
   assert captured_branches[0].startswith('node:')
@@ -372,7 +388,7 @@ async def test_task_mode_does_not_set_branch(
 ):
   """Task mode preserves None branch for HITL visibility."""
   agent = _make_agent(mode='task')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   captured_branches = []
 
   async def fake_run(invocation_context):
@@ -388,11 +404,13 @@ async def test_task_mode_does_not_set_branch(
   wf = Workflow(name='wf', edges=[('START', wrapper)])
   runner = _new_workflow_runner(wf, request.function.__name__)
 
-  object.__setattr__(agent, 'run_async', fake_run)
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
+  original = agent_clone.run_async
+  object.__setattr__(agent_clone, 'run_async', fake_run)
   try:
     await runner.run_async(testing_utils.get_user_content('start'))
   finally:
-    object.__setattr__(agent, 'run_async', agent.__class__.run_async)
+    object.__setattr__(agent_clone, 'run_async', original)
 
   assert captured_branches == [None]
 
@@ -403,7 +421,7 @@ async def test_single_turn_converts_input_to_content(
 ):
   """Single_turn wrapper converts string node_input to types.Content."""
   agent = _make_agent(mode='single_turn')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   captured_inputs = []
 
   async def fake_run(*args, **kwargs):
@@ -420,12 +438,13 @@ async def test_single_turn_converts_input_to_content(
   )
   runner = _new_workflow_runner(wf, request.function.__name__)
 
-  original = wrapper.agent.run_async
-  object.__setattr__(wrapper.agent, 'run_async', fake_run)
+  agent_clone = next(n for n in wf.graph.nodes if n.name == wrapper.name)
+  original = agent_clone.run_async
+  object.__setattr__(agent_clone, 'run_async', fake_run)
   try:
     await runner.run_async(testing_utils.get_user_content('start'))
   finally:
-    object.__setattr__(wrapper.agent, 'run_async', original)
+    object.__setattr__(agent_clone, 'run_async', original)
 
   assert len(captured_inputs) == 1
   assert isinstance(captured_inputs[0], types.Content)
@@ -859,26 +878,26 @@ def _make_v1_agent(mode='task'):
 
 def test_task_mode_sets_wait_for_output():
   agent = _make_v1_agent(mode='task')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   assert wrapper.wait_for_output is True
 
 
 def test_single_turn_does_not_set_wait_for_output():
   agent = _make_v1_agent(mode='single_turn')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   assert wrapper.wait_for_output is False
 
 
 def test_chat_mode_sets_wait_for_output():
   agent = _make_v1_agent(mode='chat')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
   assert wrapper.wait_for_output is True
 
 
 @pytest.mark.asyncio
 async def test_task_mode_proceeds_on_finish_task():
   agent = _make_v1_agent(mode='task')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
 
   async def mock_run_async(*args, **kwargs):
     yield Event(
@@ -887,12 +906,17 @@ async def test_task_mode_proceeds_on_finish_task():
         actions=EventActions(finish_task={'output': 'done_output'}),
     )
 
-  object.__setattr__(agent, 'run_async', mock_run_async)
+  object.__setattr__(wrapper, 'run_async', mock_run_async)
 
+  from unittest.mock import AsyncMock
   from unittest.mock import MagicMock
 
   ctx = MagicMock(spec=Context)
-  ctx._invocation_context = MagicMock()
+  ic = MagicMock()
+  ctx.get_invocation_context.return_value = ic
+  ic.model_copy.return_value = ic
+  ic.plugin_manager.run_before_agent_callback = AsyncMock(return_value=None)
+  ic.plugin_manager.run_after_agent_callback = AsyncMock(return_value=None)
   ctx.node_path = 'wf'
 
   events = []
@@ -906,7 +930,7 @@ async def test_task_mode_proceeds_on_finish_task():
 @pytest.mark.asyncio
 async def test_task_mode_does_not_proceed_without_finish_task():
   agent = _make_v1_agent(mode='task')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
 
   async def mock_run_async(*args, **kwargs):
     yield Event(
@@ -915,12 +939,17 @@ async def test_task_mode_does_not_proceed_without_finish_task():
         content=types.Content(parts=[types.Part(text='Working...')]),
     )
 
-  object.__setattr__(agent, 'run_async', mock_run_async)
+  object.__setattr__(wrapper, 'run_async', mock_run_async)
 
+  from unittest.mock import AsyncMock
   from unittest.mock import MagicMock
 
   ctx = MagicMock(spec=Context)
-  ctx._invocation_context = MagicMock()
+  ic = MagicMock()
+  ctx.get_invocation_context.return_value = ic
+  ic.model_copy.return_value = ic
+  ic.plugin_manager.run_before_agent_callback = AsyncMock(return_value=None)
+  ic.plugin_manager.run_after_agent_callback = AsyncMock(return_value=None)
   ctx.node_path = 'wf'
 
   events = []
@@ -934,7 +963,7 @@ async def test_task_mode_does_not_proceed_without_finish_task():
 @pytest.mark.asyncio
 async def test_chat_mode_yields_events_directly():
   agent = _make_v1_agent(mode='chat')
-  wrapper = _LlmAgentWrapper(agent=agent)
+  wrapper = build_node(agent)
 
   async def mock_run_async(*args, **kwargs):
     yield Event(
@@ -943,12 +972,17 @@ async def test_chat_mode_yields_events_directly():
         content=types.Content(parts=[types.Part(text='Hello from chat')]),
     )
 
-  object.__setattr__(agent, 'run_async', mock_run_async)
+  object.__setattr__(wrapper, 'run_async', mock_run_async)
 
+  from unittest.mock import AsyncMock
   from unittest.mock import MagicMock
 
   ctx = MagicMock(spec=Context)
-  ctx._invocation_context = MagicMock()
+  ic = MagicMock()
+  ctx.get_invocation_context.return_value = ic
+  ic.model_copy.return_value = ic
+  ic.plugin_manager.run_before_agent_callback = AsyncMock(return_value=None)
+  ic.plugin_manager.run_after_agent_callback = AsyncMock(return_value=None)
   ctx.node_path = 'wf'
 
   events = []

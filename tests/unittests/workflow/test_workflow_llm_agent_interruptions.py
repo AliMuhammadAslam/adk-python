@@ -32,7 +32,6 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.workflow import Edge
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
 from google.genai import types
 import pytest
 
@@ -612,7 +611,7 @@ def _append_function_response(
 
 
 @pytest.mark.asyncio
-async def test_workflow_resume_inputs_fallback_branch():
+async def test_workflow_resume_inputs_fallback_branch(monkeypatch):
   """Resume inputs find function name in a different branch.
 
   Setup: Session contains a FunctionCall in branch_A.
@@ -625,7 +624,6 @@ async def test_workflow_resume_inputs_fallback_branch():
       responses=[types.Part.from_text(text='I am done')]
   )
   agent = LlmAgent(name='test_agent', model=mock_model)
-  wrapper = _LlmAgentWrapper(agent=agent)
 
   # Create a dummy context and session
 
@@ -670,7 +668,7 @@ async def test_workflow_resume_inputs_fallback_branch():
       resume_inputs={'fc_123': {'result': 'ok'}},
   )
 
-  # Mock _prepare_context to return an agent context with our ic
+  # Mock prepare functions
   class DummyAgentCtx:
 
     def __init__(self, ic):
@@ -679,8 +677,16 @@ async def test_workflow_resume_inputs_fallback_branch():
     def get_invocation_context(self):
       return self._ic
 
-  wrapper._prepare_context = lambda c: DummyAgentCtx(ic)
-  wrapper._prepare_input = lambda c, i: None
+  from google.adk.workflow import _llm_agent_wrapper
+
+  monkeypatch.setattr(
+      _llm_agent_wrapper,
+      'prepare_llm_agent_context',
+      lambda a, c: DummyAgentCtx(ic),
+  )
+  monkeypatch.setattr(
+      _llm_agent_wrapper, 'prepare_llm_agent_input', lambda a, c, i: None
+  )
 
   # Simulate Runner adding the event to the correct branch!
   _append_function_response(
@@ -692,8 +698,10 @@ async def test_workflow_resume_inputs_fallback_branch():
       response={'result': 'ok'},
   )
 
-  # Act - Run the wrapper
-  gen = wrapper._run_impl(ctx=ctx, node_input='start')
+  # Act - Run the function directly
+  from google.adk.workflow._llm_agent_wrapper import run_llm_agent_as_node
+
+  gen = run_llm_agent_as_node(agent, ctx=ctx, node_input='start')
   try:
     await gen.__anext__()
   except StopAsyncIteration:
@@ -710,7 +718,7 @@ async def test_workflow_resume_inputs_fallback_branch():
 
 
 @pytest.mark.asyncio
-async def test_workflow_resume_inputs_multiple_branches():
+async def test_workflow_resume_inputs_multiple_branches(monkeypatch):
   """Resume inputs handle multiple items targeting different branches.
 
   Setup: Session contains FunctionCalls in branch_A and branch_B.
@@ -723,7 +731,6 @@ async def test_workflow_resume_inputs_multiple_branches():
       responses=[types.Part.from_text(text='I am done')]
   )
   agent = LlmAgent(name='test_agent', model=mock_model)
-  wrapper = _LlmAgentWrapper(agent=agent)
 
   session = Session(id='test_session', appName='test_app', userId='test_user')
 
@@ -792,8 +799,16 @@ async def test_workflow_resume_inputs_multiple_branches():
     def get_invocation_context(self):
       return self._ic
 
-  wrapper._prepare_context = lambda c: DummyAgentCtx(ic)
-  wrapper._prepare_input = lambda c, i: None
+  from google.adk.workflow import _llm_agent_wrapper
+
+  monkeypatch.setattr(
+      _llm_agent_wrapper,
+      'prepare_llm_agent_context',
+      lambda a, c: DummyAgentCtx(ic),
+  )
+  monkeypatch.setattr(
+      _llm_agent_wrapper, 'prepare_llm_agent_input', lambda a, c, i: None
+  )
 
   # Simulate Runner adding the events to the correct branches!
   _append_function_response(
@@ -813,8 +828,10 @@ async def test_workflow_resume_inputs_multiple_branches():
       response={'result': 'ok_B'},
   )
 
-  # Act - Run the wrapper
-  gen = wrapper._run_impl(ctx=ctx, node_input='start')
+  # Act - Run the function directly
+  from google.adk.workflow._llm_agent_wrapper import run_llm_agent_as_node
+
+  gen = run_llm_agent_as_node(agent, ctx=ctx, node_input='start')
   try:
     await gen.__anext__()
   except StopAsyncIteration:

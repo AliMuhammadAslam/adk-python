@@ -18,9 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ...agents.base_agent import BaseAgent
 from ...tools.base_tool import BaseTool
-from .._agent_node import AgentNode
 from .._base_node import BaseNode
 from .._base_node import START
 from .._definitions import NodeLike
@@ -32,7 +30,7 @@ from .._tool_node import _ToolNode
 def is_node_like(item: Any) -> bool:
   """Checks if an object is NodeLike."""
   return (
-      isinstance(item, (BaseNode, BaseAgent, BaseTool))
+      isinstance(item, (BaseNode, BaseTool))
       or callable(item)
       or item == 'START'
   )
@@ -72,28 +70,10 @@ def build_node(
 
   # Lazy import to avoid circular dependency:
   # workflow_graph_utils -> agents.llm_agent -> ... -> workflow_graph_utils
+  from ...agents.base_agent import BaseAgent
   from ...agents.llm_agent import LlmAgent
-  from .._llm_agent_wrapper import _LlmAgentWrapper
 
-  if isinstance(node_like, LlmAgent):
-    wrapper_class = _LlmAgentWrapper
-
-    wrapper = wrapper_class(
-        agent=node_like,
-        name=name,
-        rerun_on_resume=rerun_on_resume
-        if rerun_on_resume is not None
-        else True,
-        retry_config=retry_config,
-        timeout=timeout,
-    )
-    if node_like.parallel_worker:
-      from .._parallel_worker import _ParallelWorker
-
-      return _ParallelWorker(wrapper)
-    return wrapper
-  elif isinstance(node_like, BaseNode):
-    node = node_like
+  if isinstance(node_like, BaseNode):
     kwargs = {}
     if name is not None:
       kwargs['name'] = name
@@ -103,18 +83,28 @@ def build_node(
       kwargs['retry_config'] = retry_config
     if timeout is not None:
       kwargs['timeout'] = timeout
-    if kwargs:
-      return node.model_copy(update=kwargs)
 
-    return node
-  elif isinstance(node_like, BaseAgent):
-    return AgentNode(
-        agent=node_like,
-        name=name,
-        rerun_on_resume=rerun_on_resume or False,
-        retry_config=retry_config,
-        timeout=timeout,
-    )
+    if isinstance(node_like, LlmAgent):
+      if rerun_on_resume is None:
+        kwargs['rerun_on_resume'] = True
+      node = node_like.clone(update=kwargs)
+
+      if node.mode is None:
+        node.mode = 'single_turn'
+
+      if node.mode in ('task', 'chat'):
+        node.wait_for_output = True
+
+      if node.parallel_worker:
+        from .._parallel_worker import _ParallelWorker
+
+        node.parallel_worker = False
+        return _ParallelWorker(node)
+      return node
+    else:
+      if kwargs:
+        return node_like.model_copy(update=kwargs)
+      return node_like
   elif isinstance(node_like, BaseTool):
     return _ToolNode(
         tool=node_like,

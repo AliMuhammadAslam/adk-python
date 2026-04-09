@@ -26,7 +26,6 @@ from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.tools.base_tool import BaseTool
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
-from google.adk.workflow._agent_node import AgentNode
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._node import node
 from google.adk.workflow._node import Node
@@ -189,15 +188,14 @@ def test_node_no_unnecessary_wrap():
 
   llm_agent = LlmAgent(name="llm")
   llm_node = node(llm_agent, name="overridden_llm")
-  from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
 
-  assert isinstance(llm_node, _LlmAgentWrapper)
+  assert isinstance(llm_node, LlmAgent)
   assert llm_node.name == "overridden_llm"
-  assert llm_agent.mode == "single_turn"
+  assert llm_node.mode == "single_turn"
 
   agent = BaseAgent(name="agent")
   agent_node_inst = node(agent, name="overridden_agent", rerun_on_resume=True)
-  assert isinstance(agent_node_inst, AgentNode)
+  assert isinstance(agent_node_inst, BaseAgent)
   assert agent_node_inst.name == "overridden_agent"
   assert agent_node_inst.rerun_on_resume
 

@@ -27,12 +27,11 @@ from opentelemetry.semconv._incubating.attributes.gen_ai_attributes import GEN_A
 from opentelemetry.util.types import Attributes
 
 from ..agents.context import Context
-from ..workflow._agent_node import AgentNode
 from ..workflow._base_node import BaseNode
 from .tracing import tracer
 
 if TYPE_CHECKING:
-  from ..workflow._llm_agent_wrapper import _LlmAgentWrapper
+  from ..agents.base_agent import BaseAgent
   from ..workflow._workflow_class import Workflow
 
 
@@ -96,10 +95,10 @@ async def start_as_current_node_span(
 
 
 def _span_metadata(context: Context, node: BaseNode) -> _SpanMetadata | None:
-  from ..workflow._llm_agent_wrapper import _LlmAgentWrapper
+  from ..agents.base_agent import BaseAgent
   from ..workflow._workflow_class import Workflow
 
-  if isinstance(node, (AgentNode, _LlmAgentWrapper)):
+  if isinstance(node, BaseAgent):
     return _agent_span_metadata(context, node)
   elif isinstance(node, Workflow):
     return _workflow_span_metadata(context, node)
@@ -108,9 +107,11 @@ def _span_metadata(context: Context, node: BaseNode) -> _SpanMetadata | None:
 
 
 def _agent_span_metadata(
-    context: Context, agent_node: AgentNode | _LlmAgentWrapper
+    context: Context, agent_node: BaseAgent
 ) -> _SpanMetadata:
-  agent = agent_node.agent
+  from ..agents.base_agent import BaseAgent
+
+  agent = agent_node
   return _SpanMetadata(
       name=f'invoke_agent {agent.name}',
       attributes={

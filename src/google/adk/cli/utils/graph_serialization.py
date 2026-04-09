@@ -26,7 +26,6 @@ from ...agents.base_agent import BaseAgent
 # Node type mapping for cleaner lookup
 NODE_TYPE_MAP = {
     "FunctionNode": "function",
-    "AgentNode": "agent",
     "ToolNode": "tool",
     "JoinNode": "join",
 }
@@ -82,21 +81,6 @@ def serialize_node(node: Any) -> dict[str, Any]:
         "type": "start",
         "rerun_on_resume": _get_node_field(node, "rerun_on_resume"),
     }
-
-  # For AgentNode, serialize the wrapped agent if present
-  if class_name == "AgentNode":
-    try:
-      agent = _get_node_field(node, "agent")
-      if agent is not None:
-        result = serialize_agent(agent)
-        if "type" not in result:
-          if getattr(agent, "graph", None) is not None:
-            result["type"] = "workflow"
-          else:
-            result["type"] = "agent"
-        return result
-    except AttributeError:
-      pass
 
   if hasattr(node, "model_fields"):
     result = serialize_agent(node)
@@ -237,7 +221,7 @@ def serialize_agent(agent: BaseAgent) -> dict[str, Any]:
       try:
         if callable(value):
           continue
-        # Handle nested agents (e.g. _LlmAgentWrapper.agent)
+        # Handle nested agents
         if isinstance(value, BaseAgent):
           agent_dict[field_name] = serialize_agent(value)
         # Handle simple types and collections

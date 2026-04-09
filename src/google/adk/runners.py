@@ -802,11 +802,7 @@ class Runner:
     from .agents.llm_agent import LlmAgent
     from .workflow._base_node import BaseNode
 
-    # TODO: handle when self.agent is BaseAgent, but is not LlmAgent.
-    # Wrap LlmAgent with _LlmAgentWrapper if it's the root agent
     if isinstance(self.agent, LlmAgent):
-      from .workflow._llm_agent_wrapper import _LlmAgentWrapper
-
       if self.agent.mode is None:
         # LlmAgent as root agent must have chat mode.
         self.agent.mode = 'chat'
@@ -816,7 +812,9 @@ class Runner:
             user_id=user_id, session_id=session_id
         )
         agent_to_run = self._find_agent_to_run(session, self.agent)
-        wrapped_agent = _LlmAgentWrapper(agent=agent_to_run)
+        from .workflow.utils._workflow_graph_utils import build_node  # pylint: disable=g-import-not-at-top
+
+        agent_to_run = build_node(agent_to_run)
       else:
         raise ValueError(
             "LlmAgent as root agent must have mode='chat', but got"
@@ -828,15 +826,15 @@ class Runner:
           new_message=new_message,
           run_config=run_config,
           yield_user_message=yield_user_message,
-          node=wrapped_agent,
+          node=agent_to_run,
       ):
         yield event
       return
 
-    # TODO: remove `not isinstance(self.agent, LlmAgent)` after LLM agent is
-    # refactored to inherit from BaseNode.
+    # TODO: remove `not isinstance(self.agent, BaseAgent)` after all agents are
+    # refactored to use the node runtime path (requires adding tracing and plugins to it).
     if isinstance(self.agent, BaseNode) and not isinstance(
-        self.agent, LlmAgent
+        self.agent, BaseAgent
     ):
       async for event in self._run_node_async(
           user_id=user_id,
