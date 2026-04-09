@@ -27,14 +27,14 @@ from google.adk.agents.callback_context import CallbackContext
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.llm._functions import build_auth_request_event
 from google.adk.agents.llm._functions import REQUEST_EUC_FUNCTION_CALL_NAME
-from google.adk.agents.llm._reasoning import _resolve_toolset_auth
-from google.adk.agents.llm._reasoning import TOOLSET_AUTH_CREDENTIAL_ID_PREFIX as FLOW_PREFIX
 from google.adk.auth.auth_credential import AuthCredential
 from google.adk.auth.auth_credential import AuthCredentialTypes
 from google.adk.auth.auth_credential import OAuth2Auth
 from google.adk.auth.auth_preprocessor import TOOLSET_AUTH_CREDENTIAL_ID_PREFIX
 from google.adk.auth.auth_tool import AuthConfig
 from google.adk.auth.auth_tool import AuthToolArguments
+from google.adk.flows.llm_flows.base_llm_flow import _resolve_toolset_auth
+from google.adk.flows.llm_flows.base_llm_flow import TOOLSET_AUTH_CREDENTIAL_ID_PREFIX as FLOW_PREFIX
 from google.adk.tools.base_tool import BaseTool
 from google.adk.tools.base_toolset import BaseToolset
 import pytest
@@ -169,7 +169,7 @@ class TestResolveToolsetAuth:
     )
 
     with patch(
-        "google.adk.agents.llm._reasoning.CredentialManager"
+        "google.adk.flows.llm_flows.base_llm_flow.CredentialManager"
     ) as MockCredentialManager:
       mock_manager = AsyncMock()
       mock_manager.get_auth_credential = AsyncMock(return_value=mock_credential)
@@ -197,7 +197,7 @@ class TestResolveToolsetAuth:
     mock_agent.tools = [toolset]
 
     with patch(
-        "google.adk.agents.llm._reasoning.CredentialManager"
+        "google.adk.flows.llm_flows.base_llm_flow.CredentialManager"
     ) as MockCredentialManager:
       mock_manager = AsyncMock()
       mock_manager.get_auth_credential = AsyncMock(return_value=None)
@@ -241,7 +241,7 @@ class TestResolveToolsetAuth:
     mock_agent.tools = [toolset1, toolset2]
 
     with patch(
-        "google.adk.agents.llm._reasoning.CredentialManager"
+        "google.adk.flows.llm_flows.base_llm_flow.CredentialManager"
     ) as MockCredentialManager:
       mock_manager = AsyncMock()
       mock_manager.get_auth_credential = AsyncMock(return_value=None)

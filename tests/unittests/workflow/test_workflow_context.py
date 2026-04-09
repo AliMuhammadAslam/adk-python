@@ -20,7 +20,15 @@ from google.adk.agents import context as workflow_context
 from google.adk.agents.base_agent import BaseAgent
 from google.adk.agents.invocation_context import InvocationContext
 from google.adk.agents.invocation_context import new_invocation_context_id
-from google.adk.agents.llm._transfer_target_info import _TransferTargetInfo
+
+
+class _TransferTargetInfo:
+
+  def __init__(self, name: str, description: str = ''):
+    self.name = name
+    self.description = description
+
+
 from google.adk.events.event import Event
 from google.adk.sessions.base_session_service import BaseSessionService
 from google.adk.sessions.session import Session

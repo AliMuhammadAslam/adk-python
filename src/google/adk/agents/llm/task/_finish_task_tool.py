@@ -34,7 +34,7 @@ from ._task_models import TaskResult
 if TYPE_CHECKING:
   from ....models.llm_request import LlmRequest
   from ....tools.tool_context import ToolContext
-  from .._base_llm_agent import BaseLlmAgent
+  from ...llm_agent import LlmAgent
 
 # Name of the finish_task tool
 FINISH_TASK_TOOL_NAME = 'finish_task'
@@ -50,7 +50,7 @@ class FinishTaskTool(BaseTool):
 
   def __init__(
       self,
-      task_agent: BaseLlmAgent,
+      task_agent: LlmAgent,
   ):
     """Initialize the finish_task tool.
 
