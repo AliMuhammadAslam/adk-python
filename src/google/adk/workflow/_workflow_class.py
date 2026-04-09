@@ -597,7 +597,11 @@ class Workflow(BaseNode):
         # For nodes with events but no output:
         # If wait_for_output is True, they are still WAITING for output.
         # Otherwise, they are considered COMPLETED (e.g., side-effect nodes).
-        status = NodeStatus.WAITING if is_wait_for_output and child.output is None else NodeStatus.COMPLETED
+        status = (
+            NodeStatus.WAITING
+            if is_wait_for_output and child.output is None
+            else NodeStatus.COMPLETED
+        )
         nodes[child_name] = NodeState(
             status=status,
             run_id=existing_evt_run_id,
@@ -701,7 +705,11 @@ class Workflow(BaseNode):
 
       # New run_id → reset child state (previous run stale).
       # ONLY update run_id from direct child events, not descendants!
-      evt_run_id = event.node_info.path.rsplit('@', 1)[-1] if '@' in event.node_info.path else ''
+      evt_run_id = (
+          event.node_info.path.rsplit('@', 1)[-1]
+          if '@' in event.node_info.path
+          else ''
+      )
       if (
           is_direct_child(event.node_info.path, workflow_path)
           and evt_run_id
