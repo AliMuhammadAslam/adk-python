@@ -42,6 +42,21 @@ import pytest
 # Shared helper nodes (used by multiple tests)
 # ---------------------------------------------------------------------------
 
+def _make_function_call_interrupt(fc_id: str, name: str = 'approve') -> Event:
+  """Helper to create a raw function call interruption event."""
+  return Event(
+      content=types.Content(
+          parts=[
+              types.Part(
+                  function_call=types.FunctionCall(
+                      name=name, args={}, id=fc_id
+                  )
+              )
+          ]
+      ),
+      long_running_tool_ids={fc_id},
+  )
+
 
 class _OutputNode(BaseNode):
   """Yields a fixed output value."""
@@ -1698,21 +1713,17 @@ async def test_terminal_node_output_dedup_nested():
 
 
 @pytest.mark.asyncio
-async def test_wait_for_output_node_preserved_across_resume():
-  """wait_for_output node is marked WAITING on resume, not re-triggered.
+async def test_wait_for_output_node_preserves_state_across_resume():
+  """Wait-for-output node preserves received triggers across workflow resume.
 
-  Scenario:
-    START → A (completes), B (interrupts)
-    A → Gate(wait_for_output, needs 2 triggers)
-    B → Gate
-    Gate → Downstream
-
-  Run 1: A completes → triggers Gate (1/2, no output). B interrupts.
-  Run 2: Resume B → B completes → triggers Gate (2/2, outputs).
-         Gate opens → Downstream runs.
-
-  Without _add_wait_for_output_nodes, Gate would be treated as fresh
-  on resume and only receive 1 trigger (from B), never opening.
+  Setup:
+    START -> NodeA (completes) -> Gate (wait_for_output, needs 2 triggers).
+    START -> NodeB (interrupts) -> Gate.
+  Act:
+    - Turn 1: Start workflow. NodeA completes, NodeB interrupts. Gate waits (1/2).
+    - Turn 2: Resume with NodeB response. NodeB completes, triggers Gate (2/2).
+  Assert:
+    - Gate opens in Turn 2 and produces output.
   """
 
   class _InterruptOnce(BaseNode):
@@ -1728,18 +1739,7 @@ async def test_wait_for_output_node_preserved_across_resume():
         return
       fc_id = f'fc-{uuid.uuid4().hex[:8]}'
       ctx.state['_fc_id'] = fc_id
-      yield Event(
-          content=types.Content(
-              parts=[
-                  types.Part(
-                      function_call=types.FunctionCall(
-                          name='approve', args={}, id=fc_id
-                      )
-                  )
-              ]
-          ),
-          long_running_tool_ids={fc_id},
-      )
+      yield _make_function_call_interrupt(fc_id)
 
   a = _OutputNode(name='NodeA', value='A')
   b = _InterruptOnce(name='NodeB')
@@ -1802,6 +1802,125 @@ async def test_wait_for_output_node_preserved_across_resume():
   assert 'done' in outputs
 
 
+@pytest.mark.asyncio
+async def test_wait_for_output_node_in_loop_generates_unique_paths():
+  """Wait-for-output node in loop generates unique paths across iterations.
+
+  Setup:
+    Workflow with a loop: START -> Process -> [NodeA, NodeB] -> Join -> Handle.
+    Handle loops back to Process on first iteration, exits on second.
+    NodeB interrupts on first run of each iteration.
+  Act:
+    - Turn 1: Start workflow. NodeA completes, NodeB interrupts. Join waits.
+    - Turn 2: Resume with NodeB response. Handle loops back. Process runs again.
+              NodeA completes, NodeB interrupts again.
+    - Turn 3: Resume with NodeB response again. Join opens.
+  Assert:
+    - JoinNode runs with path ending in `Join@2` in the second iteration.
+  """
+
+
+  class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      fc_id = ctx.state.get('_fc_id')
+      if fc_id and ctx.resume_inputs and fc_id in ctx.resume_inputs:
+        ctx.state['_fc_id'] = None
+        yield 'B_done'
+        return
+      fc_id = 'fc-interrupt'
+      ctx.state['_fc_id'] = fc_id
+      yield _make_function_call_interrupt(fc_id)
+
+  class _HandleNode(BaseNode):
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      # Loop back if this is the first iteration
+      count = ctx.state.get('loop_count', 0) + 1
+      ctx.state['loop_count'] = count
+      if count == 1:
+        yield Event(route='loop')
+      else:
+        yield Event(route='exit', output='finished')
+
+  process = _PassthroughNode(name='Process')
+  a = _OutputNode(name='NodeA', value='A')
+  b = _InterruptOnce(name='NodeB')
+  join = JoinNode(name='Join')
+  handle = _HandleNode(name='Handle')
+  exit_node = _PassthroughNode(name='Exit')
+
+  wf = Workflow(
+      name='loop_wf',
+      edges=[
+          (START, process),
+          (process, a),
+          (process, b),
+          (a, join),
+          (b, join),
+          (join, handle),
+          (handle, {'loop': process, 'exit': exit_node}),
+      ],
+  )
+
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Turn 1: process runs, A completes, B interrupts, Join waits
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  # Verify paths in Turn 1
+  join_events1 = [
+      e for e in events1 if e.node_info and 'Join' in e.node_info.path
+  ]
+  # JoinNode does not yield events until all inputs are collected.
+
+  # Turn 2: Provide response for NodeB (InterruptNode)
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id='fc-interrupt', response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # Workflow loops back. NodeB interrupts again in the second iteration.
+
+  # Turn 3: Provide response for NodeB again!
+  events3: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events3.append(event)
+
+  # JoinNode opens in the second iteration and produces output.
+
+  join_events3 = [
+      e for e in events3 if e.node_info and 'Join@2' in e.node_info.path
+  ]
+  assert len(join_events3) > 0, "JoinNode should run again in loop with @2"
+
+
 # --- run_id reuse on resume ---
 
 
@@ -1822,7 +1941,7 @@ async def test_run_id_reused_on_resume():
         return
       fc_id = str(uuid.uuid4())
       ctx.state['_fc_id'] = fc_id
-      yield RequestInput(interrupt_id=fc_id)
+      yield _make_function_call_interrupt(fc_id)
 
   wf = Workflow(
       name='wf',
@@ -1852,7 +1971,13 @@ async def test_run_id_reused_on_resume():
 
   # Run 2: resume
   msg2 = types.Content(
-      parts=[create_request_input_response(fc_id, {'ok': True})],
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id=fc_id, response={'ok': True}
+              )
+          )
+      ],
       role='user',
   )
   events2: list[Event] = []
@@ -1871,6 +1996,3 @@ async def test_run_id_reused_on_resume():
   ]
   assert len(resumed_events) == 1
   assert resumed_events[0].node_info.run_id == original_run_id
-
-
-
