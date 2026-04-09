@@ -83,9 +83,9 @@ class ScenarioGenerator:
     agent_info = types.evals.AgentInfo.load_from_agent(agent=agent)
 
     vertex_config = types.evals.UserScenarioGenerationConfig(
-        count=config.count,
-        generation_instruction=config.generation_instruction,
-        environment_context=config.environment_context,
+        user_scenario_count=config.count,
+        simulation_instruction=config.generation_instruction,
+        environment_data=config.environment_context,
         model_name=config.model_name,
     )
 

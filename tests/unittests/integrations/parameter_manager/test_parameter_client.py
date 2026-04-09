@@ -18,8 +18,11 @@ import json
 from unittest.mock import MagicMock
 from unittest.mock import patch
 
-from google.adk.integrations.parameter_manager.parameter_client import ParameterManagerClient
 import pytest
+
+pytest.importorskip("google.cloud.parametermanager_v1")
+
+from google.adk.integrations.parameter_manager.parameter_client import ParameterManagerClient
 
 
 class TestParameterManagerClient:
