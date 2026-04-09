@@ -35,11 +35,11 @@ from ..agents.context import Context
 from ..agents.invocation_context import InvocationContext
 from ..events.event import Event
 from ..events.event_actions import EventActions
+from ..sessions.state import _validate_state_entry
+from ..sessions.state import StateSchemaError
 from ._base_node import BaseNode
 from ._base_node import START
 from ._dynamic_node_registry import dynamic_node_registry
-from ..sessions.state import _validate_state_entry
-from ..sessions.state import StateSchemaError
 from ._errors import NodeInterruptedError
 from ._node import Node
 from ._node_runner import _check_and_schedule_nodes
@@ -477,7 +477,6 @@ class Workflow(BaseAgent, Node):
             ctx,
             author=self.name,
             node_path=join_paths(ctx.node_path or '', node_name),
-            run_id=node_state.run_id or '',
             branch=True,
         )
 
@@ -649,7 +648,11 @@ class Workflow(BaseAgent, Node):
       if event.actions and event.actions.state_delta:
         # Use the child node's own schema if it defines one, otherwise
         # fall back to the workflow-level schema.
-        child_name = event.node_info.path.rsplit('/', 1)[-1] if event.node_info.path else ''
+        child_name = (
+            event.node_info.path.rsplit('/', 1)[-1]
+            if event.node_info.path
+            else ''
+        )
         child_node = run_state.nodes_map.get(child_name)
         schema = (
             child_node.state_schema

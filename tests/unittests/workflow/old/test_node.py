@@ -22,7 +22,6 @@ from google.adk.tools.base_tool import BaseTool
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._agent_node import AgentNode
 from google.adk.workflow._base_node import BaseNode
 from google.adk.workflow._llm_agent_wrapper import _LlmAgentWrapper
@@ -32,11 +31,12 @@ from google.adk.workflow._parallel_worker import _ParallelWorker as ParallelWork
 from google.adk.workflow._retry_config import RetryConfig
 from google.adk.workflow._tool_node import _ToolNode as ToolNode
 from google.adk.workflow._workflow import workflow_node_input
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 import pytest
 
+from .. import testing_utils
 from ..workflow_testing_utils import create_parent_invocation_context
 from ..workflow_testing_utils import simplify_events_with_node
-from .. import testing_utils
 
 ANY = mock.ANY
 
@@ -62,7 +62,7 @@ async def test_node_decorator(request: pytest.FixtureRequest):
 
   assert simplify_events_with_node(events) == [
       (
-          "test_agent",
+          "test_agent@1/decorated_node@1",
           {
               "node_name": "decorated_node",
               "output": "Hello from decorated_func",
@@ -108,56 +108,50 @@ async def test_node_parallel_worker_execution(request: pytest.FixtureRequest):
       ],
   )
   from google.adk.apps.app import App
+
   test_app = App(
       name=request.function.__name__,
       root_agent=agent,
   )
   runner = testing_utils.InMemoryRunner(app=test_app)
-  events = await runner.run_async(testing_utils.get_user_content('start'))
+  events = await runner.run_async(testing_utils.get_user_content("start"))
 
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
-          'test_agent@1/producer_func@1',
+          "test_agent@1/producer_func@1",
           {
-              'node_name': 'producer_func',
-              'output': [1, 2, 3],
-              'run_id': None,
+              "node_name": "producer_func",
+              "output": [1, 2, 3],
           },
       ),
       (
-          'test_agent@1/my_func@1/my_func@1',
+          "test_agent@1/my_func@1/my_func@1",
           {
-              'node_name': 'my_func',
-              'output': 2,
-              'run_id': None,
+              "node_name": "my_func",
+              "output": 2,
           },
       ),
       (
-          'test_agent@1/my_func@1/my_func@2',
+          "test_agent@1/my_func@1/my_func@2",
           {
-              'node_name': 'my_func',
-              'output': 4,
-              'run_id': None,
+              "node_name": "my_func",
+              "output": 4,
           },
       ),
       (
-          'test_agent@1/my_func@1/my_func@3',
+          "test_agent@1/my_func@1/my_func@3",
           {
-              'node_name': 'my_func',
-              'output': 6,
-              'run_id': None,
+              "node_name": "my_func",
+              "output": 6,
           },
       ),
       (
-          'test_agent@1/my_func@1',
+          "test_agent@1/my_func@1",
           {
-              'node_name': 'my_func',
-              'output': [2, 4, 6],
-              'run_id': None,
+              "node_name": "my_func",
+              "output": [2, 4, 6],
           },
       ),
   ]
@@ -279,7 +273,7 @@ async def test_tool_node_state_delta(request: pytest.FixtureRequest):
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
-          "test_tool_node_state_delta",
+          "test_tool_node_state_delta@1/stateful_tool@1",
           {
               "node_name": "stateful_tool",
               "output": {"status": "ok"},
@@ -287,7 +281,7 @@ async def test_tool_node_state_delta(request: pytest.FixtureRequest):
           },
       ),
       (
-          "test_tool_node_state_delta",
+          "test_tool_node_state_delta@1/read_state@1",
           {
               "node_name": "read_state",
               "output": "tool_key=tool_value, tool_count=10",
@@ -324,7 +318,7 @@ async def test_tool_node_state_delta_no_return(
   simplified = simplify_events_with_node(events, include_state_delta=True)
   assert simplified == [
       (
-          "test_tool_node_state_delta_no_return",
+          "test_tool_node_state_delta_no_return@1/stateful_tool_no_return@1",
           {
               "node_name": "stateful_tool_no_return",
               "output": None,
@@ -332,7 +326,7 @@ async def test_tool_node_state_delta_no_return(
           },
       ),
       (
-          "test_tool_node_state_delta_no_return",
+          "test_tool_node_state_delta_no_return@1/read_state@1",
           {
               "node_name": "read_state",
               "output": "silent_key=silent_value",

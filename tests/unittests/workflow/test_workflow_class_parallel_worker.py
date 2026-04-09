@@ -129,9 +129,7 @@ async def test_parallel_worker_processes_list_ordered(
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Then results should be ordered and match expected events
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
@@ -142,23 +140,21 @@ async def test_parallel_worker_processes_list_ordered(
                   {'val': 'item1', 'delay': 0},
                   {'val': 'item2', 'delay': 0.1},
               ],
-              'run_id': None,
           },
       ),
       (
           'test_agent@1/Worker@1/Worker@1',
-          {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
+          {'node_name': 'Worker', 'output': 'item1_processed'},
       ),
       (
           'test_agent@1/Worker@1/Worker@2',
-          {'node_name': 'Worker', 'output': 'item2_processed', 'run_id': None},
+          {'node_name': 'Worker', 'output': 'item2_processed'},
       ),
       (
           'test_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed', 'item2_processed'],
-              'run_id': None,
           },
       ),
   ]
@@ -192,9 +188,7 @@ async def test_parallel_worker_with_empty_input_returns_empty_list(
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Then output aggregator should return empty list
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
@@ -202,7 +196,6 @@ async def test_parallel_worker_with_empty_input_returns_empty_list(
           {
               'node_name': 'NodeA',
               'output': [],
-              'run_id': None,
           },
       ),
       (
@@ -210,7 +203,6 @@ async def test_parallel_worker_with_empty_input_returns_empty_list(
           {
               'node_name': 'Worker',
               'output': [],
-              'run_id': None,
           },
       ),
   ]
@@ -244,9 +236,7 @@ async def test_parallel_worker_wraps_single_item_in_list(
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Then it should be wrapped and processed as a single-element list
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
@@ -254,19 +244,17 @@ async def test_parallel_worker_wraps_single_item_in_list(
           {
               'node_name': 'NodeA',
               'output': {'val': 'item1', 'delay': 0},
-              'run_id': None,
           },
       ),
       (
           'test_single_item_agent@1/Worker@1/Worker@1',
-          {'node_name': 'Worker', 'output': 'item1_processed', 'run_id': None},
+          {'node_name': 'Worker', 'output': 'item1_processed'},
       ),
       (
           'test_single_item_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed'],
-              'run_id': None,
           },
       ),
   ]
@@ -309,9 +297,7 @@ async def test_parallel_worker_accepts_plain_function(
   events = await runner.run_async(testing_utils.get_user_content('start'))
 
   # Then it should process items correctly
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
@@ -322,7 +308,6 @@ async def test_parallel_worker_accepts_plain_function(
                   {'val': 'item1', 'delay': 0},
                   {'val': 'item2', 'delay': 0.1},
               ],
-              'run_id': None,
           },
       ),
       (
@@ -330,7 +315,6 @@ async def test_parallel_worker_accepts_plain_function(
           {
               'node_name': '_worker_func',
               'output': 'item1_processed',
-              'run_id': None,
           },
       ),
       (
@@ -338,7 +322,6 @@ async def test_parallel_worker_accepts_plain_function(
           {
               'node_name': '_worker_func',
               'output': 'item2_processed',
-              'run_id': None,
           },
       ),
       (
@@ -346,7 +329,6 @@ async def test_parallel_worker_accepts_plain_function(
           {
               'node_name': '_worker_func',
               'output': ['item1_processed', 'item2_processed'],
-              'run_id': None,
           },
       ),
   ]
@@ -429,14 +411,14 @@ async def test_parallel_worker_failure_propagates_and_cancels_others(
 
   assert simplified_events == [
       (
-          'test_agent_fail',
+          'test_agent_fail@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': ['task-1', 'task-2', 'task-3'],
           },
       ),
       (
-          'test_agent_fail',
+          'test_agent_fail@1/_worker_failable_func@1/_worker_failable_func@1',
           {
               'node_name': '_worker_failable_func',
               'output': 'task-1_processed',
@@ -527,7 +509,7 @@ async def test_parallel_worker_pauses_for_human_input(
   simplified_events1 = simplify_events_with_node(events1)
   assert simplified_events1 == [
       (
-          'parallel_worker_hitl_agent',
+          'parallel_worker_hitl_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': [
@@ -537,7 +519,7 @@ async def test_parallel_worker_pauses_for_human_input(
           },
       ),
       (
-          'parallel_worker_hitl_agent',
+          'parallel_worker_hitl_agent@1/Worker@1',
           {'node_name': 'Worker', 'output': 'item1_processed'},
       ),
       (
@@ -564,11 +546,11 @@ async def test_parallel_worker_pauses_for_human_input(
 
   assert simplified_events2 == [
       (
-          'parallel_worker_hitl_agent',
+          'parallel_worker_hitl_agent@1/Worker@1',
           {'node_name': 'Worker', 'output': 'item2_resumed'},
       ),
       (
-          'parallel_worker_hitl_agent',
+          'parallel_worker_hitl_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed', 'item2_resumed'],
@@ -658,11 +640,20 @@ async def test_parallel_worker_preserves_input_order_regardless_of_completion_or
   simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
-      ('out_of_order_agent', {'node_name': 'NodeA', 'output': [item1, item2]}),
-      ('out_of_order_agent', {'node_name': 'Worker', 'output': 'item2_res'}),
-      ('out_of_order_agent', {'node_name': 'Worker', 'output': 'item1_res'}),
       (
-          'out_of_order_agent',
+          'out_of_order_agent@1/NodeA@1',
+          {'node_name': 'NodeA', 'output': [item1, item2]},
+      ),
+      (
+          'out_of_order_agent@1/Worker@1/Worker@2',
+          {'node_name': 'Worker', 'output': 'item2_res'},
+      ),
+      (
+          'out_of_order_agent@1/Worker@1/Worker@1',
+          {'node_name': 'Worker', 'output': 'item1_res'},
+      ),
+      (
+          'out_of_order_agent@1/Worker@1',
           {'node_name': 'Worker', 'output': ['item1_res', 'item2_res']},
       ),
   ]
@@ -709,22 +700,22 @@ async def test_parallel_worker_can_wrap_nested_workflow(
 
   assert simplified_events == [
       (
-          'outer_agent',
+          'outer_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': ['item1', 'item2'],
           },
       ),
       (
-          'nested_agent',
+          'outer_agent@1/nested_agent@1/nested_agent@1/worker_func@1',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
       ),
       (
-          'nested_agent',
+          'outer_agent@1/nested_agent@1/nested_agent@2/worker_func@1',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
       (
-          'outer_agent',
+          'outer_agent@1/nested_agent@1',
           {
               'node_name': 'nested_agent',
               'output': [
@@ -778,22 +769,22 @@ async def test_workflow_auto_wraps_parallel_worker_when_flag_set(
 
   assert simplified_events == [
       (
-          'outer_agent',
+          'outer_agent@1/producer_func@1',
           {
               'node_name': 'producer_func',
               'output': ['item1', 'item2'],
           },
       ),
       (
-          'nested_agent',
+          'nested_agent@1/worker_func@1',
           {'node_name': 'worker_func', 'output': 'item1_processed'},
       ),
       (
-          'nested_agent',
+          'nested_agent@1/worker_func@1',
           {'node_name': 'worker_func', 'output': 'item2_processed'},
       ),
       (
-          'outer_agent',
+          'outer_agent@1/nested_agent@1',
           {
               'node_name': 'nested_agent',
               'output': [
@@ -882,21 +873,18 @@ async def test_parallel_worker_limits_concurrency(
 
   await run_task
 
-  simplified_events = simplify_events_with_node(
-      events, use_node_path=True, include_run_id=True
-  )
+  simplified_events = simplify_events_with_node(events)
 
   assert simplified_events == [
       (
           'max_concurrency_agent@1/NodeA@1',
-          {'node_name': 'NodeA', 'output': items, 'run_id': None},
+          {'node_name': 'NodeA', 'output': items},
       ),
       (
           'max_concurrency_agent@1/_concurrency_worker_func@1/_concurrency_worker_func@2',
           {
               'node_name': '_concurrency_worker_func',
               'output': 'item2_processed',
-              'run_id': None,
           },
       ),
       (
@@ -904,7 +892,6 @@ async def test_parallel_worker_limits_concurrency(
           {
               'node_name': '_concurrency_worker_func',
               'output': 'item3_processed',
-              'run_id': None,
           },
       ),
       (
@@ -912,7 +899,6 @@ async def test_parallel_worker_limits_concurrency(
           {
               'node_name': '_concurrency_worker_func',
               'output': 'item1_processed',
-              'run_id': None,
           },
       ),
       (
@@ -920,7 +906,6 @@ async def test_parallel_worker_limits_concurrency(
           {
               'node_name': '_concurrency_worker_func',
               'output': 'item4_processed',
-              'run_id': None,
           },
       ),
       (
@@ -933,7 +918,6 @@ async def test_parallel_worker_limits_concurrency(
                   'item3_processed',
                   'item4_processed',
               ],
-              'run_id': None,
           },
       ),
   ]
@@ -1036,7 +1020,7 @@ async def test_parallel_worker_hitl_respects_concurrency_limits(
   simplified_events1 = simplify_events_with_node(events1)
   assert simplified_events1 == [
       (
-          'max_concurrency_hitl_agent',
+          'max_concurrency_hitl_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': items,
@@ -1047,7 +1031,7 @@ async def test_parallel_worker_hitl_respects_concurrency_limits(
           testing_utils.simplify_content(req_events[0].content),
       ),
       (
-          'max_concurrency_hitl_agent',
+          'max_concurrency_hitl_agent@1/Worker__0@1',
           {'node_name': 'Worker__0', 'output': 'item1_processed'},
       ),
   ]
@@ -1085,7 +1069,7 @@ async def test_parallel_worker_hitl_respects_concurrency_limits(
   simplified_events2 = simplify_events_with_node(events2)
   assert simplified_events2 == [
       (
-          'max_concurrency_hitl_agent',
+          'max_concurrency_hitl_agent@1/Worker__1@1',
           {'node_name': 'Worker__1', 'output': 'item2_resumed'},
       ),
       (
@@ -1118,11 +1102,11 @@ async def test_parallel_worker_hitl_respects_concurrency_limits(
 
   assert simplified_events3 == [
       (
-          'max_concurrency_hitl_agent',
+          'max_concurrency_hitl_agent@1/Worker__2@1',
           {'node_name': 'Worker__2', 'output': 'item3_resumed'},
       ),
       (
-          'max_concurrency_hitl_agent',
+          'max_concurrency_hitl_agent@1/Worker@1',
           {
               'node_name': 'Worker',
               'output': ['item1_processed', 'item2_resumed', 'item3_resumed'],

@@ -100,7 +100,7 @@ async def test_node_completes_within_timeout(request: pytest.FixtureRequest):
   events = [e async for e in agent.run_async(ctx)]
 
   assert simplify_events_with_node(events) == [
-      ('test_workflow', {'node_name': 'NodeA', 'output': 'done'}),
+      ('test_workflow@1/NodeA@1', {'node_name': 'NodeA', 'output': 'done'}),
   ]
 
 
@@ -138,7 +138,7 @@ async def test_node_no_timeout(request: pytest.FixtureRequest):
   events = [e async for e in agent.run_async(ctx)]
 
   assert simplify_events_with_node(events) == [
-      ('test_workflow', {'node_name': 'NodeA', 'output': 'done'}),
+      ('test_workflow@1/NodeA@1', {'node_name': 'NodeA', 'output': 'done'}),
   ]
 
 
@@ -172,7 +172,7 @@ async def test_timeout_with_retry(request: pytest.FixtureRequest):
   events = [e async for e in agent.run_async(ctx)]
 
   assert simplify_events_with_node(events) == [
-      ('test_workflow', {'node_name': 'NodeA', 'output': 'success'}),
+      ('test_workflow@1/NodeA@1', {'node_name': 'NodeA', 'output': 'success'}),
   ]
 
   # Verify retry_count in agent state events to confirm retry occurred.

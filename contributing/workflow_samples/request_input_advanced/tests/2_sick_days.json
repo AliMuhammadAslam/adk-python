@@ -24,8 +24,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -51,8 +50,6 @@
       },
       "nodeInfo": {
         "path": "request_input_advanced@1/process_request@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "request_input_advanced@1/process_request@1"
         ],
@@ -111,9 +108,7 @@
       "invocationId": "i-1",
       "author": "request_input_advanced",
       "nodeInfo": {
-        "path": "request_input_advanced@1/evaluate_request@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_advanced@1/evaluate_request@1"
       },
       "longRunningToolIds": [
         "fc-1"
@@ -138,8 +133,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-7"
     },
@@ -155,9 +149,7 @@
       "invocationId": "i-1",
       "author": "request_input_advanced",
       "nodeInfo": {
-        "path": "request_input_advanced@1/process_decision@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_advanced@1/process_decision@1"
       },
       "id": "e-9"
     }

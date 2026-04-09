@@ -20,8 +20,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -39,8 +38,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/generate_fruit_agent@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_fruit_agent@1"
         ],
@@ -63,8 +60,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/generate_benefit_agent@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_benefit_agent@1",
           "root_agent@1"

@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -27,9 +26,7 @@
         }
       },
       "nodeInfo": {
-        "path": "request_input@1/process_input@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input@1/process_input@1"
       },
       "id": "e-3"
     },
@@ -52,8 +49,6 @@
       },
       "nodeInfo": {
         "path": "request_input@1/draft_email@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "request_input@1/draft_email@1"
         ],
@@ -82,9 +77,7 @@
       "invocationId": "i-1",
       "author": "request_input",
       "nodeInfo": {
-        "path": "request_input@1/request_human_review@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input@1/request_human_review@1"
       },
       "longRunningToolIds": [
         "fc-1"
@@ -109,8 +102,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-7"
     },
@@ -121,9 +113,7 @@
         "route": "rejected"
       },
       "nodeInfo": {
-        "path": "request_input@1/handle_human_review@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input@1/handle_human_review@1"
       },
       "id": "e-9"
     },
@@ -139,9 +129,7 @@
       "invocationId": "i-1",
       "author": "request_input",
       "nodeInfo": {
-        "path": "request_input@1/reject_email@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input@1/reject_email@1"
       },
       "id": "e-10"
     }

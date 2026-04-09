@@ -21,8 +21,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -35,9 +34,7 @@
         }
       },
       "nodeInfo": {
-        "path": "root_agent@1/process_input@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/process_input@1"
       },
       "id": "e-3"
     },
@@ -55,8 +52,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/find_related_topics@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/find_related_topics@1"
         ],
@@ -71,8 +66,6 @@
       "output": "BOTANY",
       "nodeInfo": {
         "path": "root_agent@1/make_upper_case@1/make_upper_case@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/make_upper_case@1/make_upper_case@1"
         ]
@@ -85,8 +78,6 @@
       "output": "GARDENING",
       "nodeInfo": {
         "path": "root_agent@1/make_upper_case@1/make_upper_case@2",
-        "runId": "2",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/make_upper_case@1/make_upper_case@2"
         ]
@@ -99,8 +90,6 @@
       "output": "POLLINATION",
       "nodeInfo": {
         "path": "root_agent@1/make_upper_case@1/make_upper_case@3",
-        "runId": "3",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/make_upper_case@1/make_upper_case@3"
         ]
@@ -117,8 +106,6 @@
       ],
       "nodeInfo": {
         "path": "root_agent@1/make_upper_case@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/make_upper_case@1"
         ]
@@ -139,8 +126,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/explain_topic@1/explain_topic@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/explain_topic@1/explain_topic@1"
         ],
@@ -163,8 +148,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/explain_topic@1/explain_topic@2",
-        "runId": "2",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/explain_topic@1/explain_topic@2"
         ],
@@ -187,8 +170,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/explain_topic@1/explain_topic@3",
-        "runId": "3",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/explain_topic@1/explain_topic@3"
         ],
@@ -216,8 +197,6 @@
       ],
       "nodeInfo": {
         "path": "root_agent@1/explain_topic@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/explain_topic@1"
         ]
@@ -236,9 +215,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/aggregate@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/aggregate@1"
       },
       "id": "e-20"
     }

@@ -73,8 +73,14 @@ async def test_run_async(request: pytest.FixtureRequest):
   events = [e async for e in agent.run_async(ctx)]
 
   assert simplify_events_with_node(events) == [
-      ('test_workflow_agent', {'node_name': 'NodeA', 'output': 'Hello'}),
-      ('test_workflow_agent', {'node_name': 'NodeB', 'output': 'World'}),
+      (
+          'test_workflow_agent@1/NodeA@1',
+          {'node_name': 'NodeA', 'output': 'Hello'},
+      ),
+      (
+          'test_workflow_agent@1/NodeB@1',
+          {'node_name': 'NodeB', 'output': 'World'},
+      ),
   ]
 
 
@@ -105,7 +111,10 @@ async def test_run_async_with_intermediate_content(
   assert simplify_events_with_node(events) == [
       ('NodeA', 'A message'),
       ('NodeA', 'Another message'),
-      ('test_workflow_agent', {'node_name': 'NodeA', 'output': 'A output'}),
+      (
+          'test_workflow_agent@1/NodeA@1',
+          {'node_name': 'NodeA', 'output': 'A output'},
+      ),
   ]
 
 
@@ -188,31 +197,31 @@ async def test_run_async_with_loop_and_break(request: pytest.FixtureRequest):
 
   assert simplify_events_with_node(events) == [
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Looping'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Checking'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Looping'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Checking'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Looping'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Checking'},
       ),
       (
-          'loop_agent_with_conditional_break',
+          'loop_agent_with_conditional_break@1/NodeB@1',
           {'node_name': 'NodeB', 'output': 'Finished'},
       ),
   ]
@@ -313,19 +322,19 @@ async def test_resume_behavior(request: pytest.FixtureRequest):
   # Iteration 1: A runs. B fails.
   assert simplify_events_with_node(events1) == [
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Executing A'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/FailNode@1',
           {'node_name': 'FailNode', 'output': 'Executing B'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Executing C'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Executing A'},
       ),
   ]
@@ -354,23 +363,23 @@ async def test_resume_behavior(request: pytest.FixtureRequest):
   # Iteration 2: A, B, C. count becomes 3. Loop terminates.
   assert simplify_events_with_node(events2) == [
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/FailNode@1',
           {'node_name': 'FailNode', 'output': 'Executing B'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Executing C'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Executing A'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/FailNode@1',
           {'node_name': 'FailNode', 'output': 'Executing B'},
       ),
       (
-          'test_workflow_agent_resume',
+          'test_workflow_agent_resume@1/CheckNode@1',
           {'node_name': 'CheckNode', 'output': 'Executing C'},
       ),
   ]
@@ -463,11 +472,11 @@ async def test_run_async_with_implicit_graph(request: pytest.FixtureRequest):
 
   assert simplify_events_with_node(events) == [
       (
-          'test_workflow_agent_implicit_graph',
+          'test_workflow_agent_implicit_graph@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Hello'},
       ),
       (
-          'test_workflow_agent_implicit_graph',
+          'test_workflow_agent_implicit_graph@1/NodeB@1',
           {'node_name': 'NodeB', 'output': 'World'},
       ),
   ]
@@ -489,11 +498,11 @@ async def test_run_async_with_string_start(request: pytest.FixtureRequest):
 
   assert simplify_events_with_node(events) == [
       (
-          'test_workflow_agent_string_start',
+          'test_workflow_agent_string_start@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Hello'},
       ),
       (
-          'test_workflow_agent_string_start',
+          'test_workflow_agent_string_start@1/NodeB@1',
           {'node_name': 'NodeB', 'output': 'World'},
       ),
   ]
@@ -519,15 +528,15 @@ async def test_run_async_with_implicit_graph_with_edge_combinations(
 
   assert simplify_events_with_node(events) == [
       (
-          'test_workflow_agent_implicit_complex',
+          'test_workflow_agent_implicit_complex@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'A'},
       ),
       (
-          'test_workflow_agent_implicit_complex',
+          'test_workflow_agent_implicit_complex@1/NodeB@1',
           {'node_name': 'NodeB', 'output': 'B'},
       ),
       (
-          'test_workflow_agent_implicit_complex',
+          'test_workflow_agent_implicit_complex@1/NodeC@1',
           {'node_name': 'NodeC', 'output': 'C'},
       ),
   ]
@@ -666,11 +675,11 @@ async def test_run_async_with_event(
 
   assert simplify_events_with_node(events) == [
       (
-          'test_event',
+          'test_event@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Hello'},
       ),
       (
-          'test_event',
+          'test_event@1/NodeB@1',
           {
               'node_name': 'NodeB',
               'output': {'received': 'Hello'},
@@ -697,7 +706,7 @@ async def test_run_async_with_raw_output_node(
 
   assert simplify_events_with_node(events) == [
       (
-          'test_workflow_agent_raw_output',
+          'test_workflow_agent_raw_output@1/NodeA@1',
           {'node_name': 'NodeA', 'output': 'Hello'},
       ),
   ]
@@ -821,7 +830,7 @@ async def test_start_node_receives_user_content(request: pytest.FixtureRequest):
   assert node_a.received_inputs == [testing_utils.UserContent('test message')]
   assert simplify_events_with_node(events) == [
       (
-          'test_start_node_input',
+          'test_start_node_input@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': {'received': testing_utils.UserContent('test message')},
@@ -1069,11 +1078,11 @@ async def test_wait_for_output_retrigger_then_complete(
   first_two = {simplified[0][1]['node_name'], simplified[1][1]['node_name']}
   assert first_two == {'NodeA', 'NodeB'}
   assert simplified[2] == (
-      'test_retrigger',
+      'test_retrigger@1/Gate@1',
       {'node_name': 'Gate', 'output': 'gate_open'},
   )
   assert simplified[3] == (
-      'test_retrigger',
+      'test_retrigger@1/Downstream@1',
       {'node_name': 'Downstream', 'output': 'done'},
   )
 
@@ -1218,7 +1227,7 @@ async def test_start_node_receives_parsed_user_content_with_schema(
   assert node_a.received_inputs == [parsed_input]
   assert simplify_events_with_node(events) == [
       (
-          'test_start_node_parsed_input',
+          'test_start_node_parsed_input@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': {'received': parsed_input},
@@ -1247,9 +1256,9 @@ async def test_run_async_with_implicit_graph_chain(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('start'))
   assert simplify_events_with_node(events) == [
-      ('test_chain', {'node_name': 'NodeA', 'output': 'A'}),
-      ('test_chain', {'node_name': 'NodeB', 'output': 'B'}),
-      ('test_chain', {'node_name': 'NodeC', 'output': 'C'}),
+      ('test_chain@1/NodeA@1', {'node_name': 'NodeA', 'output': 'A'}),
+      ('test_chain@1/NodeB@1', {'node_name': 'NodeB', 'output': 'B'}),
+      ('test_chain@1/NodeC@1', {'node_name': 'NodeC', 'output': 'C'}),
   ]
 
 
@@ -1560,7 +1569,7 @@ async def test_resume_with_manual_state_verifies_input_persistence(
   # Verify NodeB output event
   simplified = simplify_events_with_node(events)
   assert (
-      'test_manual_state_resume',
+      'test_manual_state_resume@1/NodeB@1',
       {
           'node_name': 'NodeB',
           'output': {'received': 'injected_input_from_state'},

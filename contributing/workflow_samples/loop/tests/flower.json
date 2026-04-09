@@ -25,8 +25,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -39,9 +38,7 @@
         }
       },
       "nodeInfo": {
-        "path": "root_agent@1/process_input@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/process_input@1"
       },
       "id": "e-3"
     },
@@ -59,8 +56,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/generate_headline@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_headline@1"
         ],
@@ -91,8 +86,6 @@
       },
       "nodeInfo": {
         "path": "root_agent@1/evaluate_headline@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/evaluate_headline@1"
         ],
@@ -108,9 +101,7 @@
         "route": "unrelated"
       },
       "nodeInfo": {
-        "path": "root_agent@1/route_headline@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/route_headline@1"
       },
       "id": "e-9"
     },
@@ -128,8 +119,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/generate_headline@2",
-        "runId": "2",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_headline@2"
         ],
@@ -160,8 +149,6 @@
       },
       "nodeInfo": {
         "path": "root_agent@1/evaluate_headline@2",
-        "runId": "2",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/evaluate_headline@2"
         ],
@@ -177,9 +164,7 @@
         "route": "tech-related"
       },
       "nodeInfo": {
-        "path": "root_agent@1/route_headline@2",
-        "runId": "2",
-        "parentRunId": "1"
+        "path": "root_agent@1/route_headline@2"
       },
       "id": "e-15"
     }

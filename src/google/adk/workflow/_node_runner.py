@@ -308,7 +308,6 @@ def _create_error_event(
       ctx,
       author=get_node_name_from_path(node_path),
       node_path=join_paths(node_path, node_name),
-      run_id=run_id,
       branch=True,
   )
 
@@ -520,7 +519,6 @@ def _enrich_event(
     ctx: InvocationContext,
     author: str | None,
     node_path: str,
-    run_id: str | None,
 ) -> None:
   """Local enrich for V1 runner that forces run_id assignment."""
   if not event.invocation_id:
@@ -528,13 +526,10 @@ def _enrich_event(
   if not event.author and author:
     event.author = author
   event.node_info.path = node_path
-  if run_id:
-    event.node_info.run_id = run_id
 
 
 async def process_next_item(
     ctx: InvocationContext,
-    run_id: str,
     parent_node_path: str,
     node: BaseNode,
     item: Any,
@@ -543,11 +538,10 @@ async def process_next_item(
 
   This function converts various types of items (e.g., RequestInput, raw data)
   into Event objects and ensures they have the necessary metadata
-  (author, node_name, invocation_id, run_id).
+  (author, node_name, invocation_id).
 
   Args:
     ctx: The invocation context.
-    run_id: Unique identifier for the current node run.
     parent_node_path: The path of the workflow agent.
     node: The node instance.
     item: The item yielded by the node.
@@ -593,7 +587,6 @@ async def process_next_item(
       ctx,
       author=get_node_name_from_path(parent_node_path),
       node_path=join_paths(parent_node_path, node.name),
-      run_id=run_id,
   )
 
   # 5. Yield the processed event.
@@ -660,7 +653,6 @@ async def _execute_node(
   ):
     async for event in process_next_item(
         ctx,
-        run_id,
         current_node_path,
         node,
         item,

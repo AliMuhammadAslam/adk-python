@@ -152,7 +152,6 @@ async def test_workflow_pause_and_resume(
   simplified_events1 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events1),
-          include_run_id=True,
       )
   )
 
@@ -176,7 +175,6 @@ async def test_workflow_pause_and_resume(
                 'NodeB_agent': {
                     'status': NodeStatus.WAITING.value,
                     'interrupts': [function_call_id],
-                    'run_id': ANY,
                 },
             },
         },
@@ -205,7 +203,6 @@ async def test_workflow_pause_and_resume(
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events2),
           include_resume_inputs=True,
-          include_run_id=True,
       )
   )
 
@@ -390,7 +387,7 @@ async def test_workflow_request_input_resume(
           },
       ),
       (
-          'test_workflow_agent_input_schema',
+          'test_workflow_agent_input_schema@1/NodeA_input@1',
           types.Part(
               function_call=types.FunctionCall(
                   name=REQUEST_INPUT_FUNCTION_CALL_NAME,
@@ -445,7 +442,7 @@ async def test_workflow_request_input_resume(
   )
   expected_events2 = [
       (
-          'test_workflow_agent_input_schema',
+          'test_workflow_agent_input_schema@1/NodeA_input@1',
           {'output': {'age': 30, 'name': 'John'}, 'node_name': 'NodeA_input'},
       ),
       (
@@ -460,7 +457,7 @@ async def test_workflow_request_input_resume(
           },
       ),
       (
-          'test_workflow_agent_input_schema',
+          'test_workflow_agent_input_schema@1/NodeB@1',
           {
               'node_name': 'NodeB',
               'output': 'Received user details',
@@ -549,10 +546,10 @@ async def test_workflow_allows_mixing_output_and_request_input(
   # The node yields the output event and then the RequestInput event.
   assert len(simplified) == 2
   assert simplified[0] == (
-      'test_agent',
+      'test_agent@1/NodeA@1',
       {'node_name': 'NodeA', 'output': 'output 1'},
   )
-  assert simplified[1][0] == 'test_agent'
+  assert simplified[1][0] == 'test_agent@1/NodeA@1'
   assert simplified[1][1].function_call.name == 'adk_request_input'
   assert simplified[1][1].function_call.args['interrupt_id'] == 'req1'
 
@@ -617,7 +614,6 @@ async def test_workflow_rerun_on_resume(
   simplified_events1 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events1),
-          include_run_id=True,
       )
   )
   req_events = workflow_testing_utils.get_request_input_events(events1)
@@ -626,9 +622,6 @@ async def test_workflow_rerun_on_resume(
   invocation_id = events1[0].invocation_id
 
   if resumable:
-    node_a_run_id_1 = simplified_events1[-1][1]['nodes']['NodeA']['run_id']
-    assert node_a_run_id_1
-
     assert simplified_events1[-1] == (
         'test_agent',
         {
@@ -636,13 +629,10 @@ async def test_workflow_rerun_on_resume(
                 'NodeA': {
                     'status': NodeStatus.WAITING.value,
                     'interrupts': [interrupt_id1],
-                    'run_id': node_a_run_id_1,
                 },
             },
         },
     )
-  else:
-    node_a_run_id_1 = ANY
 
   # Run 2: provide input, node reruns and completes
   events2 = await runner.run_async(
@@ -655,13 +645,8 @@ async def test_workflow_rerun_on_resume(
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events2),
           include_resume_inputs=True,
-          include_run_id=True,
       )
   )
-  if resumable:
-    # Verify run_id stays the same even for rerun node
-    node_a_run_id_2 = simplified_events2[0][1]['nodes']['NodeA']['run_id']
-    assert node_a_run_id_1 == node_a_run_id_2
 
   expected_events2 = [
       (
@@ -671,17 +656,15 @@ async def test_workflow_rerun_on_resume(
                   'NodeA': {
                       'status': NodeStatus.RUNNING.value,
                       'resume_inputs': {interrupt_id1: {'approved': True}},
-                      'run_id': node_a_run_id_1,
                   },
               }
           },
       ),
       (
-          'test_agent',
+          'test_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': {'approval': True},
-              'run_id': node_a_run_id_1,
           },
       ),
       (
@@ -770,7 +753,6 @@ async def test_workflow_rerun_with_multiple_inputs(
   simplified_events1 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events1),
-          include_run_id=True,
       )
   )
   req_events1 = workflow_testing_utils.get_request_input_events(events1)
@@ -779,9 +761,6 @@ async def test_workflow_rerun_with_multiple_inputs(
   assert interrupt_id1 == 'req1'
   invocation_id = events1[0].invocation_id
   if resumable:
-    node_a_run_id_1 = simplified_events1[-1][1]['nodes']['NodeA']['run_id']
-    assert node_a_run_id_1
-
     assert simplified_events1[-1] == (
         'test_agent',
         {
@@ -789,13 +768,10 @@ async def test_workflow_rerun_with_multiple_inputs(
                 'NodeA': {
                     'status': NodeStatus.WAITING.value,
                     'interrupts': [interrupt_id1],
-                    'run_id': node_a_run_id_1,
                 },
             },
         },
     )
-  else:
-    node_a_run_id_1 = ANY
 
   # Run 2: provide 1st input, node reruns and requests 2nd input
   events2 = await runner.run_async(
@@ -808,16 +784,12 @@ async def test_workflow_rerun_with_multiple_inputs(
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events2),
           include_resume_inputs=True,
-          include_run_id=True,
       )
   )
   req_events2 = workflow_testing_utils.get_request_input_events(events2)
   assert len(req_events2) == 1
   interrupt_id2 = get_request_input_interrupt_ids(req_events2[0])[0]
   assert interrupt_id2 == 'req2'
-  if resumable:
-    node_a_run_id_2 = simplified_events2[0][1]['nodes']['NodeA']['run_id']
-    assert node_a_run_id_1 == node_a_run_id_2
 
   expected_events2 = [
       (
@@ -827,13 +799,12 @@ async def test_workflow_rerun_with_multiple_inputs(
                   'NodeA': {
                       'status': NodeStatus.RUNNING.value,
                       'resume_inputs': {interrupt_id1: {'text': 'response 1'}},
-                      'run_id': node_a_run_id_1,
                   },
               }
           },
       ),
       (
-          'test_agent',
+          'test_agent@1/NodeA@1',
           types.Part(
               function_call=types.FunctionCall(
                   name=REQUEST_INPUT_FUNCTION_CALL_NAME,
@@ -854,7 +825,6 @@ async def test_workflow_rerun_with_multiple_inputs(
                       'status': NodeStatus.WAITING.value,
                       'interrupts': [interrupt_id2],
                       'resume_inputs': {interrupt_id1: {'text': 'response 1'}},
-                      'run_id': node_a_run_id_1,
                   },
               },
           },
@@ -878,12 +848,8 @@ async def test_workflow_rerun_with_multiple_inputs(
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events3),
           include_resume_inputs=True,
-          include_run_id=True,
       )
   )
-  if resumable:
-    node_a_run_id_3 = simplified_events3[0][1]['nodes']['NodeA']['run_id']
-    assert node_a_run_id_1 == node_a_run_id_3
 
   expected_events3 = [
       (
@@ -896,17 +862,15 @@ async def test_workflow_rerun_with_multiple_inputs(
                           interrupt_id1: {'text': 'response 1'},
                           interrupt_id2: {'text': 'response 2'},
                       },
-                      'run_id': node_a_run_id_1,
                   },
               }
           },
       ),
       (
-          'test_agent',
+          'test_agent@1/NodeA@1',
           {
               'node_name': 'NodeA',
               'output': {'input1': 'response 1', 'input2': 'response 2'},
-              'run_id': node_a_run_id_1,
           },
       ),
       (

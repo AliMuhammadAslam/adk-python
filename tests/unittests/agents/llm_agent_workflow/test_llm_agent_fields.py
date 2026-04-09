@@ -35,9 +35,9 @@ from google.adk.tools.google_search_tool import google_search
 from google.adk.tools.google_search_tool import GoogleSearchTool
 from google.adk.tools.vertex_ai_search_tool import VertexAiSearchTool
 from google.adk.workflow import Workflow
-from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._dynamic_node_registry import dynamic_node_registry
 from google.adk.workflow._node import node
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.genai import types
 from pydantic import BaseModel
 import pytest
@@ -598,9 +598,7 @@ class TestParallelWorker:
     runner = testing_utils.InMemoryRunner(app=app)
     events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(
-        events, use_node_path=True, include_run_id=True
-    )
+    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
 
     assert simplified_events == [
         (
@@ -684,9 +682,7 @@ class TestParallelWorker:
     runner = testing_utils.InMemoryRunner(app=app)
     events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(
-        events, use_node_path=True, include_run_id=True
-    )
+    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
 
     assert simplified_events == [
         (

@@ -48,16 +48,9 @@ class NodeInfo(BaseModel):
   path will be "A/B". Agent state event will have path as "A".
   """
 
-  run_id: str = ''
-  """The run ID of the node that generated the event."""
-
   source_node_name: str | None = None
   """The original node definition name for a dynamically scheduled
   node. Used to reconstruct dynamic node state from session events."""
-
-  parent_run_id: str | None = None
-  """The run ID of the parent node that dynamically scheduled
-  this node. Used to reconstruct dynamic node state from session events."""
 
   output_for: list[str] | None = None
   """Node paths whose output this event represents.
@@ -75,21 +68,28 @@ class NodeInfo(BaseModel):
   carries the output value.
   """
 
-  @model_validator(mode='after')
-  def _derive_ids_from_path(self) -> 'NodeInfo':
-    """Derives run_id from path if standard name@run_id format is used."""
+  @property
+  def run_id(self) -> str:
+    """The run ID of the node that generated the event."""
     if '@' in self.path:
       segments = self.path.split('/')
       if segments:
         last_segment = segments[-1]
         if '@' in last_segment:
-          self.run_id = last_segment.rsplit('@', 1)[-1]
+          return last_segment.rsplit('@', 1)[-1]
+    return ''
 
-        if len(segments) > 1:
-          parent_segment = segments[-2]
-          if '@' in parent_segment:
-            self.parent_run_id = parent_segment.rsplit('@', 1)[-1]
-    return self
+  @property
+  def parent_run_id(self) -> str | None:
+    """The run ID of the parent node that dynamically scheduled
+    this node. Used to reconstruct dynamic node state from session events."""
+    if '@' in self.path:
+      segments = self.path.split('/')
+      if len(segments) > 1:
+        parent_segment = segments[-2]
+        if '@' in parent_segment:
+          return parent_segment.rsplit('@', 1)[-1]
+    return None
 
   @property
   def name(self) -> str:

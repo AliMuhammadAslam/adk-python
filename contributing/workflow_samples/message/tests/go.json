@@ -20,8 +20,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -37,9 +36,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/send_string@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/send_string@1"
       },
       "id": "e-3"
     },
@@ -61,9 +58,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/send_multimodal@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/send_multimodal@1"
       },
       "id": "e-4"
     },
@@ -79,9 +74,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/multiple_messages@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/multiple_messages@1"
       },
       "id": "e-5"
     },
@@ -97,9 +90,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/multiple_messages@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/multiple_messages@1"
       },
       "id": "e-6"
     },
@@ -115,9 +106,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/multiple_messages@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/multiple_messages@1"
       },
       "id": "e-7"
     },
@@ -133,9 +122,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/multiple_messages@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/multiple_messages@1"
       },
       "id": "e-8"
     },
@@ -151,9 +138,7 @@
       "invocationId": "i-1",
       "author": "message",
       "nodeInfo": {
-        "path": "message@1/stream_sentence@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "message@1/stream_sentence@1"
       },
       "id": "e-9"
     }

@@ -23,8 +23,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -38,9 +37,7 @@
         }
       },
       "nodeInfo": {
-        "path": "request_input_rerun@1/process_input@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/process_input@1"
       },
       "id": "e-3"
     },
@@ -63,8 +60,6 @@
       },
       "nodeInfo": {
         "path": "request_input_rerun@1/draft_email@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "request_input_rerun@1/draft_email@1"
         ],
@@ -93,9 +88,7 @@
       "invocationId": "i-1",
       "author": "request_input_rerun",
       "nodeInfo": {
-        "path": "request_input_rerun@1/human_review@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/human_review@1"
       },
       "longRunningToolIds": [
         "fc-1"
@@ -120,8 +113,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-7"
     },
@@ -135,9 +127,7 @@
         "route": "revise"
       },
       "nodeInfo": {
-        "path": "request_input_rerun@1/human_review@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/human_review@1"
       },
       "id": "e-9"
     },
@@ -160,8 +150,6 @@
       },
       "nodeInfo": {
         "path": "request_input_rerun@1/draft_email@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "request_input_rerun@1/draft_email@1"
         ],
@@ -190,9 +178,7 @@
       "invocationId": "i-1",
       "author": "request_input_rerun",
       "nodeInfo": {
-        "path": "request_input_rerun@1/human_review@2",
-        "runId": "2",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/human_review@2"
       },
       "longRunningToolIds": [
         "fc-2"
@@ -217,8 +203,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-13"
     },
@@ -229,9 +214,7 @@
         "route": "approved"
       },
       "nodeInfo": {
-        "path": "request_input_rerun@1/human_review@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/human_review@2"
       },
       "id": "e-15"
     },
@@ -247,9 +230,7 @@
       "invocationId": "i-1",
       "author": "request_input_rerun",
       "nodeInfo": {
-        "path": "request_input_rerun@1/send_email@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "request_input_rerun@1/send_email@1"
       },
       "id": "e-16"
     }

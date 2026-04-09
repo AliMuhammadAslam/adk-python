@@ -40,9 +40,9 @@ from google.adk.tools.tool_context import ToolContext
 from google.adk.workflow import FunctionNode
 from google.adk.workflow import START
 from google.adk.workflow import Workflow
-from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.adk.workflow._dynamic_node_registry import dynamic_node_registry
 from google.adk.workflow._node import node
+from google.adk.workflow._workflow_class import Workflow as WorkflowV2
 from google.genai import types
 from pydantic import BaseModel
 from pydantic import ValidationError
@@ -286,6 +286,7 @@ class TestParallelWorker:
     )
 
     from google.adk.apps.app import App
+
     test_app = App(
         name=request.function.__name__,
         root_agent=outer_agent,
@@ -293,9 +294,7 @@ class TestParallelWorker:
     runner = testing_utils.InMemoryRunner(app=test_app)
     events = await runner.run_async(testing_utils.get_user_content('start'))
 
-    simplified_events = workflow_testing_utils.simplify_events_with_node(
-        events, use_node_path=True, include_run_id=True
-    )
+    simplified_events = workflow_testing_utils.simplify_events_with_node(events)
 
     assert simplified_events == [
         (

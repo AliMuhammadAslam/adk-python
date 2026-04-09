@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -46,8 +45,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "longRunningToolIds": [],
       "id": "e-3"
@@ -100,8 +98,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "longRunningToolIds": [
         "fc-4",
@@ -149,8 +146,7 @@
         }
       },
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "id": "e-7"
     },
@@ -172,8 +168,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-11"
     },
@@ -195,8 +190,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "id": "e-13"
     },
@@ -213,8 +207,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "id": "e-14"
     },
@@ -236,8 +229,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-16"
     },
@@ -259,8 +251,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "id": "e-18"
     },
@@ -277,8 +268,7 @@
       "invocationId": "i-1",
       "author": "money_transfer_assistant",
       "nodeInfo": {
-        "path": "money_transfer_assistant@1",
-        "runId": "1"
+        "path": "money_transfer_assistant@1"
       },
       "id": "e-19"
     }

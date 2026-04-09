@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -30,8 +29,7 @@
       "invocationId": "i-1",
       "author": "empty_agent",
       "nodeInfo": {
-        "path": "empty_agent@1",
-        "runId": "1"
+        "path": "empty_agent@1"
       },
       "id": "e-3"
     }

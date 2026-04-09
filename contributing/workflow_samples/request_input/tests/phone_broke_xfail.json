@@ -1,0 +1,238 @@
+{
+  "id": "cbd1b977-915d-4000-a8f8-f1c747fd3d0e",
+  "appName": "request_input",
+  "userId": "user",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "phone broke"
+    },
+    "complaint": "phone broke",
+    "feedback": "shorter",
+    "draft": "Subject: Regarding Your Phone Issue\n\nDear [Customer Name],\n\nI'm sorry to hear your phone has broken. I understand how inconvenient this must be.\n\nTo help us investigate and find the best solution for you, please reply with details about your phone (model, purchase date) and what happened. If you have an order number, please include that too.\n\nWe're ready to assist you further once we have this information.\n\nSincerely,\n[Your Name/Company Support Team]"
+  },
+  "events": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "phone broke"
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": ""
+      },
+      "id": "e-1"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "complaint": "phone broke",
+          "feedback": ""
+        }
+      },
+      "nodeInfo": {
+        "path": "request_input@1/process_input@1"
+      },
+      "id": "e-3"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Subject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm very sorry to hear that your phone has broken. I understand how essential your device is and how frustrating it can be when it's not working properly. We're here to help you get this resolved as quickly as possible.\n\nTo assist you most effectively, could you please provide us with a few more details about what happened? This will help us determine the best course of action, whether it's troubleshooting, repair, or replacement options.\n\nCould you please tell us:\n*   **What is the make and model of your phone?** (e.g., Samsung Galaxy S23, iPhone 14 Pro, Pixel 7)\n*   **When did you purchase it?** (This helps us check its warranty status.)\n*   **What exactly happened?** (e.g., \"The screen cracked after a fall,\" \"It suddenly stopped turning on,\" \"There's an issue with the charging port,\" \"It was exposed to water,\" etc.)\n\nOnce we have this information, we can guide you through the next steps, such as initiating a repair, exploring warranty options, or providing further troubleshooting advice.\n\nPlease reply to this email with the requested details, and we'll do our best to help you as quickly as possible. If you prefer to speak with someone directly, please don't hesitate to call us at [Your Company Phone Number] during business hours, or visit our support portal at [Your Company Support URL] for more resources.\n\nThank you for your patience, and we look forward to assisting you.\n\nSincerely,\n\nThe [Your Company Name] Support Team"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "draft": "Subject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm very sorry to hear that your phone has broken. I understand how essential your device is and how frustrating it can be when it's not working properly. We're here to help you get this resolved as quickly as possible.\n\nTo assist you most effectively, could you please provide us with a few more details about what happened? This will help us determine the best course of action, whether it's troubleshooting, repair, or replacement options.\n\nCould you please tell us:\n*   **What is the make and model of your phone?** (e.g., Samsung Galaxy S23, iPhone 14 Pro, Pixel 7)\n*   **When did you purchase it?** (This helps us check its warranty status.)\n*   **What exactly happened?** (e.g., \"The screen cracked after a fall,\" \"It suddenly stopped turning on,\" \"There's an issue with the charging port,\" \"It was exposed to water,\" etc.)\n\nOnce we have this information, we can guide you through the next steps, such as initiating a repair, exploring warranty options, or providing further troubleshooting advice.\n\nPlease reply to this email with the requested details, and we'll do our best to help you as quickly as possible. If you prefer to speak with someone directly, please don't hesitate to call us at [Your Company Phone Number] during business hours, or visit our support portal at [Your Company Support URL] for more resources.\n\nThank you for your patience, and we look forward to assisting you.\n\nSincerely,\n\nThe [Your Company Name] Support Team"
+        }
+      },
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1",
+        "outputFor": [
+          "request_input@1/draft_email@1"
+        ],
+        "messageAsOutput": true
+      },
+      "branch": "node:request_input@1/draft_email@1.draft_email",
+      "id": "e-4"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-1",
+              "args": {
+                "interrupt_id": "fc-1",
+                "payload": null,
+                "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm very sorry to hear that your phone has broken. I understand how essential your device is and how frustrating it can be when it's not working properly. We're here to help you get this resolved as quickly as possible.\n\nTo assist you most effectively, could you please provide us with a few more details about what happened? This will help us determine the best course of action, whether it's troubleshooting, repair, or replacement options.\n\nCould you please tell us:\n*   **What is the make and model of your phone?** (e.g., Samsung Galaxy S23, iPhone 14 Pro, Pixel 7)\n*   **When did you purchase it?** (This helps us check its warranty status.)\n*   **What exactly happened?** (e.g., \"The screen cracked after a fall,\" \"It suddenly stopped turning on,\" \"There's an issue with the charging port,\" \"It was exposed to water,\" etc.)\n\nOnce we have this information, we can guide you through the next steps, such as initiating a repair, exploring warranty options, or providing further troubleshooting advice.\n\nPlease reply to this email with the requested details, and we'll do our best to help you as quickly as possible. If you prefer to speak with someone directly, please don't hesitate to call us at [Your Company Phone Number] during business hours, or visit our support portal at [Your Company Support URL] for more resources.\n\nThank you for your patience, and we look forward to assisting you.\n\nSincerely,\n\nThe [Your Company Name] Support Team\n---",
+                "response_schema": null
+              },
+              "name": "adk_request_input"
+            }
+          }
+        ]
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/request_human_review@1"
+      },
+      "longRunningToolIds": [
+        "fc-1"
+      ],
+      "id": "e-6"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-1",
+              "name": "adk_request_input",
+              "response": {
+                "result": "shorter"
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": ""
+      },
+      "id": "e-7"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "feedback": "shorter"
+        },
+        "route": "revise"
+      },
+      "nodeInfo": {
+        "path": "request_input@1/handle_human_review@1"
+      },
+      "id": "e-9"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Subject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm sorry to hear your phone broke. We understand this is frustrating and want to help you resolve it quickly.\n\nTo determine the best solution (troubleshooting, repair, or replacement), please provide us with a few more details:\n\n*   What is the make and model of your phone?\n*   When did you purchase it?\n*   What exactly happened?\n\nOnce we have this information, we can guide you through the next steps.\n\nPlease reply to this email with the details. You can also call us at [Your Company Phone Number] or visit [Your Company Support URL] for more options.\n\nThank you,\n\nThe [Your Company Name] Support Team"
+          }
+        ],
+        "role": "model"
+      },
+      "finishReason": "STOP",
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "stateDelta": {
+          "draft": "Subject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm sorry to hear your phone broke. We understand this is frustrating and want to help you resolve it quickly.\n\nTo determine the best solution (troubleshooting, repair, or replacement), please provide us with a few more details:\n\n*   What is the make and model of your phone?\n*   When did you purchase it?\n*   What exactly happened?\n\nOnce we have this information, we can guide you through the next steps.\n\nPlease reply to this email with the details. You can also call us at [Your Company Phone Number] or visit [Your Company Support URL] for more options.\n\nThank you,\n\nThe [Your Company Name] Support Team"
+        }
+      },
+      "nodeInfo": {
+        "path": "request_input@1/draft_email@1",
+        "outputFor": [
+          "request_input@1/draft_email@1"
+        ],
+        "messageAsOutput": true
+      },
+      "branch": "node:request_input@1/draft_email@1.draft_email",
+      "id": "e-11"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionCall": {
+              "id": "fc-2",
+              "args": {
+                "interrupt_id": "fc-2",
+                "payload": null,
+                "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: We're Sorry to Hear About Your Phone - Let's Get It Fixed\n\nDear Valued Customer,\n\nI'm sorry to hear your phone broke. We understand this is frustrating and want to help you resolve it quickly.\n\nTo determine the best solution (troubleshooting, repair, or replacement), please provide us with a few more details:\n\n*   What is the make and model of your phone?\n*   When did you purchase it?\n*   What exactly happened?\n\nOnce we have this information, we can guide you through the next steps.\n\nPlease reply to this email with the details. You can also call us at [Your Company Phone Number] or visit [Your Company Support URL] for more options.\n\nThank you,\n\nThe [Your Company Name] Support Team\n---",
+                "response_schema": null
+              },
+              "name": "adk_request_input"
+            }
+          }
+        ]
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/request_human_review@2"
+      },
+      "longRunningToolIds": [
+        "fc-2"
+      ],
+      "id": "e-13"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "functionResponse": {
+              "id": "fc-2",
+              "name": "adk_request_input",
+              "response": {
+                "result": "approve"
+              }
+            }
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "user",
+      "nodeInfo": {
+        "path": ""
+      },
+      "id": "e-14"
+    },
+    {
+      "invocationId": "i-1",
+      "author": "request_input",
+      "actions": {
+        "route": "approved"
+      },
+      "nodeInfo": {
+        "path": "request_input@1/handle_human_review@2"
+      },
+      "id": "e-16"
+    },
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "Draft approved and sent successfully."
+          }
+        ],
+        "role": "user"
+      },
+      "invocationId": "i-1",
+      "author": "request_input",
+      "nodeInfo": {
+        "path": "request_input@1/send_email@1"
+      },
+      "id": "e-17"
+    }
+  ]
+}

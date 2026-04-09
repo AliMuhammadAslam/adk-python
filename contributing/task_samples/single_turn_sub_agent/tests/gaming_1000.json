@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -30,8 +29,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1",
-        "runId": "1"
+        "path": "root_agent@1"
       },
       "id": "e-3"
     },
@@ -47,8 +45,7 @@
       "invocationId": "i-2",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-5"
     },
@@ -73,8 +70,7 @@
       "invocationId": "i-2",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1",
-        "runId": "1"
+        "path": "root_agent@1"
       },
       "longRunningToolIds": [],
       "id": "e-7"
@@ -98,8 +94,7 @@
       "invocationId": "i-2",
       "author": "phone_recommender",
       "nodeInfo": {
-        "path": "phone_recommender@1",
-        "runId": "1"
+        "path": "phone_recommender@1"
       },
       "longRunningToolIds": [],
       "branch": "node:phone_recommender@1.phone_recommender",
@@ -123,8 +118,7 @@
       "invocationId": "i-2",
       "author": "phone_recommender",
       "nodeInfo": {
-        "path": "phone_recommender@1",
-        "runId": "1"
+        "path": "phone_recommender@1"
       },
       "branch": "node:phone_recommender@1.phone_recommender",
       "id": "e-12"
@@ -150,8 +144,7 @@
       "invocationId": "i-2",
       "author": "phone_recommender",
       "nodeInfo": {
-        "path": "phone_recommender@1",
-        "runId": "1"
+        "path": "phone_recommender@1"
       },
       "longRunningToolIds": [],
       "branch": "node:phone_recommender@1.phone_recommender",
@@ -184,8 +177,7 @@
         }
       },
       "nodeInfo": {
-        "path": "phone_recommender@1",
-        "runId": "1"
+        "path": "phone_recommender@1"
       },
       "branch": "node:phone_recommender@1.phone_recommender",
       "id": "e-16"
@@ -203,7 +195,6 @@
       "author": "phone_recommender",
       "nodeInfo": {
         "path": "phone_recommender@1",
-        "runId": "1",
         "outputFor": [
           "phone_recommender@1"
         ],
@@ -232,8 +223,7 @@
       "invocationId": "i-2",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1",
-        "runId": "1"
+        "path": "root_agent@1"
       },
       "id": "e-20"
     },
@@ -250,8 +240,7 @@
       "invocationId": "i-2",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1",
-        "runId": "1"
+        "path": "root_agent@1"
       },
       "id": "e-27"
     }

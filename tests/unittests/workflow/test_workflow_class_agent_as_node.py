@@ -70,8 +70,8 @@ async def test_run_async_with_agent_nodes(request: pytest.FixtureRequest):
     events.append(event)
 
   assert simplify_events_with_node(events) == [
-      ('AgentA', 'Hello'),
-      ('AgentB', 'World'),
+      ('wf_with_agents@1/AgentA@1', 'Hello'),
+      ('wf_with_agents@1/AgentB@1', 'World'),
   ]
 
 

@@ -78,7 +78,7 @@ async def test_nested_workflow_agent_as_node(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
   assert simplified_events == [
       (
           'outer_agent/nested_agent/nested_func',
@@ -128,9 +128,7 @@ async def test_nested_workflow_agent_as_node_resumable(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
-  simplified_events = simplify_events_with_node_and_agent_state(
-      events, use_node_path=True
-  )
+  simplified_events = simplify_events_with_node_and_agent_state(events)
   assert simplified_events == [
       (
           'outer_agent',
@@ -236,7 +234,7 @@ async def test_nested_workflow_agent_with_join_node(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
   assert sorted(simplified_events[0:2], key=lambda x: x[1]['node_name']) == [
       (
           'outer_agent/nested_agent/nested_node_a',
@@ -302,7 +300,7 @@ async def test_nested_agent_updates_state_outer_reads(
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
   assert simplified_events == [
       (
           'outer_agent/nested_agent/nested_state_updater',
@@ -367,7 +365,7 @@ async def test_nested_workflow_agent_intermediate_nodes(
   assert output_node.received_inputs == ['Inner Final']
 
   # Verify the event stream
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
   assert simplified_events == [
       (
           'outer_agent/nested_agent/NodeA',
@@ -542,7 +540,7 @@ async def test_nested_workflow_agent_with_hitl(
   ]
 
   events1_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
+      copy.deepcopy(events1)
   )
   assert events1_simplified == (
       expected_events1
@@ -678,7 +676,7 @@ async def test_nested_workflow_agent_with_hitl(
   ]
 
   events2_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events2), use_node_path=True
+      copy.deepcopy(events2)
   )
   assert events2_simplified == (
       expected_events2
@@ -746,7 +744,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
   assert interrupt_id == 'request_input'
 
   simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
+      copy.deepcopy(events1)
   )
 
   expected_events1 = [
@@ -795,7 +793,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
   ]
 
   events1_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events1), use_node_path=True
+      copy.deepcopy(events1)
   )
   assert events1_simplified == (
       expected_events1
@@ -881,7 +879,7 @@ async def test_nested_workflow_agent_with_request_input_event_hitl(
   ]
 
   events2_simplified = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events2), use_node_path=True
+      copy.deepcopy(events2)
   )
   assert events2_simplified == (
       expected_events2
@@ -1041,7 +1039,7 @@ async def test_nested_workflow_agent_with_tool_calls(
 
   assert tool_call_count == 1
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
 
   # Extract the dynamically generated function_call_id from call_llm output.
   call_llm_output = simplified_events[1][1]
@@ -1132,7 +1130,7 @@ async def test_three_level_nested_workflow(request: pytest.FixtureRequest):
   runner = testing_utils.InMemoryRunner(app=app)
   events = await runner.run_async(testing_utils.get_user_content('hello'))
 
-  simplified_events = simplify_events_with_node(events, use_node_path=True)
+  simplified_events = simplify_events_with_node(events)
   assert simplified_events == [
       (
           'outer_agent/middle_agent/inner_agent/inner_func',
@@ -1207,7 +1205,7 @@ async def test_duplicate_grandchild_workflow_agent_names(
   events = await runner.run_async(user_content)
 
   simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events), use_node_path=True
+      copy.deepcopy(events)
   )
   assert simplified_events == [
       (
@@ -1354,7 +1352,7 @@ async def test_duplicate_name_in_ancestral_path(
   events = await runner.run_async(user_content)
 
   simplified_events = simplify_events_with_node_and_agent_state(
-      copy.deepcopy(events), use_node_path=True
+      copy.deepcopy(events)
   )
   assert simplified_events == [
       (

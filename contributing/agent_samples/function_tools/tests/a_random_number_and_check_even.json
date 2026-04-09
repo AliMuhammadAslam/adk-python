@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -34,8 +33,7 @@
       "invocationId": "i-1",
       "author": "function_tools",
       "nodeInfo": {
-        "path": "function_tools@1",
-        "runId": "1"
+        "path": "function_tools@1"
       },
       "longRunningToolIds": [],
       "id": "e-3"
@@ -58,8 +56,7 @@
       "invocationId": "i-1",
       "author": "function_tools",
       "nodeInfo": {
-        "path": "function_tools@1",
-        "runId": "1"
+        "path": "function_tools@1"
       },
       "id": "e-5"
     },
@@ -82,8 +79,7 @@
       "invocationId": "i-1",
       "author": "function_tools",
       "nodeInfo": {
-        "path": "function_tools@1",
-        "runId": "1"
+        "path": "function_tools@1"
       },
       "longRunningToolIds": [],
       "id": "e-7"
@@ -106,8 +102,7 @@
       "invocationId": "i-1",
       "author": "function_tools",
       "nodeInfo": {
-        "path": "function_tools@1",
-        "runId": "1"
+        "path": "function_tools@1"
       },
       "id": "e-9"
     },
@@ -124,8 +119,7 @@
       "invocationId": "i-1",
       "author": "function_tools",
       "nodeInfo": {
-        "path": "function_tools@1",
-        "runId": "1"
+        "path": "function_tools@1"
       },
       "id": "e-11"
     }

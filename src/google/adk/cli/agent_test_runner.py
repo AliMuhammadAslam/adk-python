@@ -149,6 +149,7 @@ def normalize_events(events, is_json=False):
                 "model_version",
                 "finish_reason",
                 "usage_metadata",
+                "avg_logprobs",
             },
             exclude_none=True,
         )
@@ -170,6 +171,7 @@ def normalize_events(events, is_json=False):
                 "model_version",
                 "finish_reason",
                 "usage_metadata",
+                "avg_logprobs",
             },
             exclude_none=True,
         )
@@ -184,6 +186,7 @@ def normalize_events(events, is_json=False):
                 "model_version",
                 "finish_reason",
                 "usage_metadata",
+                "avg_logprobs",
             },
             exclude_none=True,
         )
@@ -782,7 +785,12 @@ def rebuild_tests(path: str):
               mode="json",
               by_alias=True,
               exclude_none=True,
-              exclude={"timestamp", "usage_metadata", "model_version"},
+              exclude={
+                  "timestamp",
+                  "usage_metadata",
+                  "model_version",
+                  "avg_logprobs",
+              },
           )
           for e in new_events
       ]

@@ -20,8 +20,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -31,8 +30,6 @@
       "output": "GO",
       "nodeInfo": {
         "path": "root_agent@1/make_uppercase@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/make_uppercase@1"
         ]
@@ -45,8 +42,6 @@
       "output": 2,
       "nodeInfo": {
         "path": "root_agent@1/count_characters@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/count_characters@1"
         ]
@@ -59,8 +54,6 @@
       "output": "og",
       "nodeInfo": {
         "path": "root_agent@1/reverse_string@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/reverse_string@1"
         ]
@@ -78,9 +71,7 @@
         }
       },
       "nodeInfo": {
-        "path": "root_agent@1/join_for_results@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/join_for_results@1"
       },
       "id": "e-6"
     },
@@ -96,9 +87,7 @@
         }
       },
       "nodeInfo": {
-        "path": "root_agent@1/join_for_results@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/join_for_results@1"
       },
       "id": "e-7"
     },
@@ -117,8 +106,6 @@
       },
       "nodeInfo": {
         "path": "root_agent@1/join_for_results@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/join_for_results@1"
         ]
@@ -137,9 +124,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/aggregate@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/aggregate@1"
       },
       "id": "e-9"
     }

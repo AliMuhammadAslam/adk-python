@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -30,9 +29,7 @@
       "invocationId": "i-1",
       "author": "task_in_workflow",
       "nodeInfo": {
-        "path": "task_in_workflow@1/intake_agent@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "task_in_workflow@1/intake_agent@1"
       },
       "id": "e-3"
     },
@@ -48,8 +45,7 @@
       "invocationId": "i-2",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-5"
     },
@@ -73,9 +69,7 @@
       "invocationId": "i-2",
       "author": "task_in_workflow",
       "nodeInfo": {
-        "path": "task_in_workflow@1/intake_agent@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "task_in_workflow@1/intake_agent@1"
       },
       "longRunningToolIds": [],
       "id": "e-8"
@@ -111,8 +105,6 @@
       },
       "nodeInfo": {
         "path": "task_in_workflow@1/intake_agent@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "task_in_workflow@1/intake_agent@1"
         ]
@@ -131,9 +123,7 @@
         }
       },
       "nodeInfo": {
-        "path": "task_in_workflow@1/find_orders@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "task_in_workflow@1/find_orders@1"
       },
       "id": "e-12"
     },
@@ -151,8 +141,6 @@
       "author": "task_in_workflow",
       "nodeInfo": {
         "path": "task_in_workflow@1/generate_instruction@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "task_in_workflow@1/generate_instruction@1"
         ],
@@ -173,9 +161,7 @@
       "invocationId": "i-2",
       "author": "task_in_workflow",
       "nodeInfo": {
-        "path": "task_in_workflow@1/send_message@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "task_in_workflow@1/send_message@1"
       },
       "id": "e-15"
     }

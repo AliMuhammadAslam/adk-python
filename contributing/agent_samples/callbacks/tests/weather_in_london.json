@@ -12,8 +12,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -39,8 +38,7 @@
       "invocationId": "i-1",
       "author": "callback_demo_agent",
       "nodeInfo": {
-        "path": "callback_demo_agent@1",
-        "runId": "1"
+        "path": "callback_demo_agent@1"
       },
       "longRunningToolIds": [],
       "id": "e-3"
@@ -63,8 +61,7 @@
       "invocationId": "i-1",
       "author": "callback_demo_agent",
       "nodeInfo": {
-        "path": "callback_demo_agent@1",
-        "runId": "1"
+        "path": "callback_demo_agent@1"
       },
       "id": "e-5"
     },
@@ -84,8 +81,7 @@
       "invocationId": "i-1",
       "author": "callback_demo_agent",
       "nodeInfo": {
-        "path": "callback_demo_agent@1",
-        "runId": "1"
+        "path": "callback_demo_agent@1"
       },
       "id": "e-7"
     }

@@ -29,6 +29,7 @@ from google.adk.agents.invocation_context import InvocationContext as BaseInvoca
 from google.adk.apps.app import ResumabilityConfig
 from google.adk.events.event import Event
 from google.adk.events.request_input import RequestInput
+from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow import BaseNode
 from google.adk.workflow._workflow_graph import RouteValue
@@ -40,12 +41,9 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from .testing_utils import END_OF_AGENT
 from .testing_utils import _split_name_and_run_id
+from .testing_utils import END_OF_AGENT
 from .testing_utils import simplify_content
-
-
-from google.adk.runners import Runner
 
 
 async def run_workflow(wf, message='start'):
@@ -202,7 +200,6 @@ def simplify_event_with_node(
     event: Event,
     node_name_map: dict[str, str] | None = None,
     include_state_delta: bool = False,
-    include_run_id: bool = False,
 ) -> Any | None:
   if node_name_map is None:
     node_name_map = {}
@@ -243,13 +240,6 @@ def simplify_event_with_node(
 
     if include_state_delta and event.actions.state_delta:
       simplified_event['state_delta'] = event.actions.state_delta
-    if include_run_id and hasattr(event, 'node_info'):
-      run_id_str = event.node_info.run_id
-      if not run_id_str:
-        # Extract from the node_name or path for manual standalone test runs
-        raw_name = event.node_name
-        _, run_id_str = _split_name_and_run_id(raw_name)
-      simplified_event['run_id'] = run_id_str
 
     return simplified_event
   elif event.content:
@@ -260,9 +250,7 @@ def simplify_events_with_node(
     events: list[Event],
     *,
     include_state_delta: bool = False,
-    include_run_id: bool = False,
     map_dynamic_node_to_the_source: bool = False,
-    use_node_path: bool = False,
     include_workflow_output: bool = False,
 ) -> list[tuple[str, Any]]:
   results = []
@@ -285,20 +273,12 @@ def simplify_events_with_node(
       continue
 
     simplified_event = simplify_event_with_node(
-        event, node_name_map, include_state_delta, include_run_id
+        event, node_name_map, include_state_delta
     )
     if simplified_event:
       # Map the author to the source node name if it exists.
-      if use_node_path and hasattr(event, 'node_info'):
+      if hasattr(event, 'node_info') and event.node_info.path:
         author = event.node_info.path
-        if not include_run_id:
-          # Strip run IDs from all parts of the path
-          parts = author.split('/')
-          new_parts = []
-          for p in parts:
-            p_base, _ = _split_name_and_run_id(p)
-            new_parts.append(p_base)
-          author = '/'.join(new_parts)
       else:
         author = node_name_map.get(event.author, event.author)
         # Strip auto-generated dynamic execution run IDs or counter numeric indices
@@ -315,18 +295,14 @@ def simplify_events_with_node_and_agent_state(
     include_state_delta: bool = False,
     include_inputs_and_triggers: bool = False,
     include_resume_inputs: bool = False,
-    include_run_id: bool = False,
     map_dynamic_node_to_the_source: bool = False,
-    use_node_path: bool = False,
     include_workflow_output: bool = False,
 ):
-  fields_to_exclude = set()
+  fields_to_exclude = {'run_id'}
   if not include_inputs_and_triggers:
     fields_to_exclude.update({'input', 'triggered_by'})
   if not include_resume_inputs:
     fields_to_exclude.add('resume_inputs')
-  if not include_run_id:
-    fields_to_exclude.add('run_id')
 
   results = []
   node_name_map = {}
@@ -344,11 +320,11 @@ def simplify_events_with_node_and_agent_state(
     ):
       continue
     simplified_event = simplify_event_with_node(
-        event, node_name_map, include_state_delta, include_run_id
+        event, node_name_map, include_state_delta
     )
 
     # Map the author to the source node name if it exists.
-    if use_node_path and hasattr(event, 'node_info'):
+    if hasattr(event, 'node_info') and event.node_info.path:
       author = event.node_info.path
     else:
       author = node_name_map.get(event.author, event.author)

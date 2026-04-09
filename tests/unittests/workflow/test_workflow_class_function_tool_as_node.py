@@ -64,6 +64,12 @@ async def test_run_async_with_function_tools():
     events.append(event)
 
   assert simplify_events_with_node(events) == [
-      ('wf_with_tools', {'node_name': '_func_a', 'output': {'val': 'Hello'}}),
-      ('wf_with_tools', {'node_name': '_func_b', 'output': 'Hello_world'}),
+      (
+          'wf_with_tools@1/_func_a@1',
+          {'node_name': '_func_a', 'output': {'val': 'Hello'}},
+      ),
+      (
+          'wf_with_tools@1/_func_b@1',
+          {'node_name': '_func_b', 'output': 'Hello_world'},
+      ),
   ]

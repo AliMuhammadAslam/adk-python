@@ -3,7 +3,13 @@
   "appName": "loop_self",
   "userId": "user",
   "mocks": {
-    "random.randint": [10, 1, 0, 4, 3]
+    "random.randint": [
+      10,
+      1,
+      0,
+      4,
+      3
+    ]
   },
   "state": {
     "__session_metadata__": {
@@ -24,8 +30,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -38,9 +43,7 @@
         }
       },
       "nodeInfo": {
-        "path": "root_agent@1/validate_input@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/validate_input@1"
       },
       "id": "e-3"
     },
@@ -56,9 +59,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@1"
       },
       "id": "e-4"
     },
@@ -69,9 +70,7 @@
         "route": "guessed_wrong"
       },
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@1"
       },
       "id": "e-5"
     },
@@ -87,9 +86,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@2",
-        "runId": "2",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@2"
       },
       "id": "e-6"
     },
@@ -100,9 +97,7 @@
         "route": "guessed_wrong"
       },
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@2",
-        "runId": "2",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@2"
       },
       "id": "e-7"
     },
@@ -118,9 +113,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@3",
-        "runId": "3",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@3"
       },
       "id": "e-8"
     },
@@ -131,9 +124,7 @@
         "route": "guessed_wrong"
       },
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@3",
-        "runId": "3",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@3"
       },
       "id": "e-9"
     },
@@ -149,9 +140,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@4",
-        "runId": "4",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@4"
       },
       "id": "e-10"
     },
@@ -162,9 +151,7 @@
         "route": "guessed_wrong"
       },
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@4",
-        "runId": "4",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@4"
       },
       "id": "e-11"
     },
@@ -180,9 +167,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@5",
-        "runId": "5",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@5"
       },
       "id": "e-12"
     },
@@ -198,9 +183,7 @@
       "invocationId": "i-1",
       "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/guess_number@5",
-        "runId": "5",
-        "parentRunId": "1"
+        "path": "root_agent@1/guess_number@5"
       },
       "id": "e-13"
     }

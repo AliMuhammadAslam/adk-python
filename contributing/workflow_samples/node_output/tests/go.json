@@ -20,8 +20,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -31,8 +30,6 @@
       "output": "Processed input: go",
       "nodeInfo": {
         "path": "root_agent@1/generate_string_output@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_string_output@1"
         ]
@@ -45,8 +42,6 @@
       "output": "Event wrapped output: Processed input: go",
       "nodeInfo": {
         "path": "root_agent@1/generate_event_output@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_event_output@1"
         ]
@@ -67,8 +62,6 @@
       "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/generate_pydantic_output@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/generate_pydantic_output@1"
         ],
@@ -83,8 +76,6 @@
       "output": "Received Pydantic Model!\nTitle: The Infinite Impulse of 'Go': Navigating Uncharted Territories\nDescription: Explore the multifaceted concept of 'go' as a catalyst for action, innovation, and discovery, from the first step in a journey to the launch of a revolutionary idea. Delve into its implications across technology, adventure, and personal growth.\nCategory: Innovation & Exploration",
       "nodeInfo": {
         "path": "root_agent@1/consume_pydantic_output@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "root_agent@1/consume_pydantic_output@1",
           "root_agent@1"

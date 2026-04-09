@@ -20,8 +20,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-1"
     },
@@ -55,9 +54,7 @@
       "invocationId": "i-1",
       "author": "auth_config",
       "nodeInfo": {
-        "path": "auth_config@1/fetch_weather@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "auth_config@1/fetch_weather@1"
       },
       "longRunningToolIds": [
         "fc-1"
@@ -82,8 +79,7 @@
       "invocationId": "i-1",
       "author": "user",
       "nodeInfo": {
-        "path": "",
-        "runId": ""
+        "path": ""
       },
       "id": "e-4"
     },
@@ -98,8 +94,6 @@
       },
       "nodeInfo": {
         "path": "auth_config@1/fetch_weather@1",
-        "runId": "1",
-        "parentRunId": "1",
         "outputFor": [
           "auth_config@1/fetch_weather@1"
         ]
@@ -118,9 +112,7 @@
       "invocationId": "i-1",
       "author": "auth_config",
       "nodeInfo": {
-        "path": "auth_config@1/summarize@1",
-        "runId": "1",
-        "parentRunId": "1"
+        "path": "auth_config@1/summarize@1"
       },
       "id": "e-7"
     }
