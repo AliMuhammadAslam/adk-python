@@ -141,35 +141,15 @@ def append_user_content(
   return event
 
 
-def _is_run_id_suffix(part: str) -> bool:
-  """Checks if a string part looks like an auto-generated run ID suffix."""
-  return len(part) == 15 or part.isdigit()
-
-
-def _split_name_and_run_id(name: str) -> tuple[str, str | None]:
-  """Splits a node name into base name and run ID suffix if present."""
-  for sep in ('@', '_'):
-    if sep in name:
-      parts = name.split(sep)
-      if _is_run_id_suffix(parts[-1]):
-        return sep.join(parts[:-1]), parts[-1]
-  return name, None
-
-
 # Extracts the contents from the events and transform them into a list of
 # (author, simplified_content) tuples.
-def simplify_events(
-    events: list[Event], *, strip_run_id: bool = False
-) -> list[tuple[str, types.Part]]:
+def simplify_events(events: list[Event]) -> list[tuple[str, types.Part]]:
   res = []
   for event in events:
     if event.content:
       author = event.author
-      if strip_run_id:
-        author, _ = _split_name_and_run_id(author)
       res.append((author, simplify_content(event.content)))
   return res
-
 
 
 END_OF_AGENT = 'end_of_agent'

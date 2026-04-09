@@ -41,7 +41,6 @@ from pydantic import ConfigDict
 from pydantic import Field
 from typing_extensions import override
 
-from .testing_utils import _split_name_and_run_id
 from .testing_utils import END_OF_AGENT
 from .testing_utils import simplify_content
 
@@ -183,19 +182,6 @@ async def create_parent_invocation_context(
   )
 
 
-def _build_node_name_map(events: list[Event]) -> dict[str, str]:
-  """Builds a map from node name to source node name from state updates."""
-  node_name_map = {}
-  for event in events:
-    if event.actions.agent_state:
-      nodes = event.actions.agent_state.get('nodes', {})
-      for node_name, node_state in nodes.items():
-        source_name = node_state.get('source_node_name')
-        if source_name:
-          node_name_map[node_name] = source_name
-  return node_name_map
-
-
 def simplify_event_with_node(
     event: Event,
     include_state_delta: bool = False,
@@ -240,14 +226,9 @@ def simplify_events_with_node(
     events: list[Event],
     *,
     include_state_delta: bool = False,
-    map_dynamic_node_to_the_source: bool = False,
     include_workflow_output: bool = False,
 ) -> list[tuple[str, Any]]:
   results = []
-  node_name_map = {}
-
-  if map_dynamic_node_to_the_source:
-    node_name_map = _build_node_name_map(events)
 
   # Second pass: Simplify events
   for event in events:
@@ -268,11 +249,7 @@ def simplify_events_with_node(
       if hasattr(event, 'node_info') and event.node_info.path:
         author = event.node_info.path
       else:
-        author = node_name_map.get(event.author, event.author)
-        # Strip auto-generated dynamic execution run IDs or counter numeric indices
-        # from dynamic child/standalone parallel execution authors so assertions
-        # match base node definition names consistently.
-        author, _ = _split_name_and_run_id(author)
+        author = event.author
       results.append((author, simplified_event))
   return results
 
@@ -283,7 +260,6 @@ def simplify_events_with_node_and_agent_state(
     include_state_delta: bool = False,
     include_inputs_and_triggers: bool = False,
     include_resume_inputs: bool = False,
-    map_dynamic_node_to_the_source: bool = False,
     include_workflow_output: bool = False,
 ):
   fields_to_exclude = {'run_id'}
@@ -293,10 +269,6 @@ def simplify_events_with_node_and_agent_state(
     fields_to_exclude.add('resume_inputs')
 
   results = []
-  node_name_map = {}
-
-  if map_dynamic_node_to_the_source:
-    node_name_map = _build_node_name_map(events)
 
   for event in events:
     # Optionally skip top-level workflow output events.
@@ -313,7 +285,7 @@ def simplify_events_with_node_and_agent_state(
     if hasattr(event, 'node_info') and event.node_info.path:
       author = event.node_info.path
     else:
-      author = node_name_map.get(event.author, event.author)
+      author = event.author
 
     if simplified_event:
       results.append((author, simplified_event))
