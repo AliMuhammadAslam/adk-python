@@ -114,6 +114,9 @@ async def test_tracer_start_as_current_span(
     #   workflow/) but are workflow-internal node functions.
     # - _run_node_async, _consume_event_queue: live in runners.py
     #   but are part of the new workflow node runtime path.
+    # - start_as_current_node_span: @asynccontextmanager in
+    #   telemetry/node_tracing.py; cleanup is handled by
+    #   __aexit__, not Aclosing.
     if coro.__name__ in (
         'use_inference_span',
         '_use_native_generate_content_span',
@@ -123,6 +126,7 @@ async def test_tracer_start_as_current_span(
         'run_node_impl',
         'call_llm',
         'execute_tools',
+        'start_as_current_node_span',
     ):
       firstiter(coro)
       return
@@ -151,6 +155,7 @@ async def test_tracer_start_as_current_span(
       'generate_content mock',
       'generate_content mock',
       'invoke_agent some_root_agent',
+      'invoke_node some_root_agent',
   ]
 
 
