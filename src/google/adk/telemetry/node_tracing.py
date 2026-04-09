@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from opentelemetry import context as context_api
@@ -33,18 +33,22 @@ from .tracing import tracer
 if TYPE_CHECKING:
   from ..agents.base_agent import BaseAgent
   from ..workflow._workflow_class import Workflow
+  from ..events.event import Event
 
 
-@dataclass
+@dataclass(frozen=True)
 class TelemetryContext:
-  """Telemetry specific context tied to the lifetime of the span.
-
-  Created to accommodate possible future of capturing of Agent
-  inputs and outputs, similar to how tracing for inference is
-  implemented in `google.adk.telemetry.tracing`.
-  """
+  """Telemetry specific context tied to the lifetime of the span."""
 
   otel_context: context_api.Context
+  """OTel context holding the current trace span."""
+
+  _associated_event_ids: list[str] = field(default_factory=list)
+  """Event IDs added to the event queue within a given node."""
+
+  def add_event(self, event: Event) -> None:
+    """Adds an event ID to the associated events list."""
+    self._associated_event_ids.append(event.id)
 
 
 @dataclass
@@ -83,15 +87,22 @@ async def start_as_current_node_span(
 
   span_metadata = _span_metadata(context, node)
   if span_metadata is None:
-    yield TelemetryContext(otel_context=context.otel_context)
+    yield TelemetryContext(otel_context=context.telemetry_context.otel_context)
     return
 
   with tracer.start_as_current_span(
       span_metadata.name,
       attributes=span_metadata.attributes,
-      context=context.otel_context,
-  ):
-    yield TelemetryContext(otel_context=context_api.get_current())
+      context=context.telemetry_context.otel_context,
+  ) as span:
+    telemetry_context = TelemetryContext(otel_context=context_api.get_current())
+    yield telemetry_context
+
+    if span.is_recording() and len(telemetry_context._associated_event_ids) > 0:
+      span.set_attribute(
+          "gcp.vertex.agent.associated_event_ids",
+          telemetry_context._associated_event_ids,
+      )
 
 
 def _span_metadata(context: Context, node: BaseNode) -> _SpanMetadata | None:
@@ -106,16 +117,11 @@ def _span_metadata(context: Context, node: BaseNode) -> _SpanMetadata | None:
     return _default_node_span_metadata(context, node)
 
 
-def _agent_span_metadata(
-    context: Context, agent_node: BaseAgent
-) -> _SpanMetadata:
-  from ..agents.base_agent import BaseAgent
-
-  agent = agent_node
+def _agent_span_metadata(context: Context, agent: BaseAgent) -> _SpanMetadata:
   return _SpanMetadata(
-      name=f'invoke_agent {agent.name}',
+      name=f"invoke_agent {agent.name}",
       attributes={
-          GEN_AI_OPERATION_NAME: 'invoke_agent',
+          GEN_AI_OPERATION_NAME: "invoke_agent",
           GEN_AI_AGENT_DESCRIPTION: agent.description,
           GEN_AI_AGENT_NAME: agent.name,
           GEN_AI_CONVERSATION_ID: context.session.id,
@@ -127,10 +133,10 @@ def _workflow_span_metadata(
     context: Context, workflow: Workflow
 ) -> _SpanMetadata:
   return _SpanMetadata(
-      name=f'invoke_workflow {workflow.name}',
+      name=f"invoke_workflow {workflow.name}",
       attributes={
-          GEN_AI_OPERATION_NAME: 'invoke_workflow',
-          'gen_ai.workflow.name': workflow.name,
+          GEN_AI_OPERATION_NAME: "invoke_workflow",
+          "gen_ai.workflow.name": workflow.name,
           GEN_AI_CONVERSATION_ID: context.session.id,
       },
   )
@@ -140,9 +146,9 @@ def _default_node_span_metadata(
     context: Context, node: BaseNode
 ) -> _SpanMetadata:
   return _SpanMetadata(
-      name=f'invoke_node {node.name}',
+      name=f"invoke_node {node.name}",
       attributes={
-          GEN_AI_OPERATION_NAME: 'invoke_node',
+          GEN_AI_OPERATION_NAME: "invoke_node",
           GEN_AI_CONVERSATION_ID: context.session.id,
       },
   )

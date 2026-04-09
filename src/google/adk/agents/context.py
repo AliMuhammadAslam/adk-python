@@ -41,6 +41,7 @@ if TYPE_CHECKING:
   from ..memory.memory_entry import MemoryEntry
   from ..sessions.session import Session
   from ..sessions.state import State
+  from ..telemetry.node_tracing import TelemetryContext
   from ..tools.tool_confirmation import ToolConfirmation
   from ..workflow._base_node import BaseNode
   from ..workflow._definitions import NodeLike
@@ -150,7 +151,7 @@ class Context(ReadonlyContext):
       output_for_ancestors: list[str] | None = None,
       event_author: str = '',
       state_schema: type[BaseModel] | None = None,
-      otel_context: context_api.Context | None = None,
+      telemetry_context: TelemetryContext | None = None,
   ) -> None:
     """Initializes the Context.
 
@@ -169,11 +170,13 @@ class Context(ReadonlyContext):
       resume_inputs: Inputs for resuming node, keyed by interrupt id.
       node_rerun_on_resume: Whether the node reruns on resume.
       retry_count: Number of times this node has been retried.
+      telemetry_context: The telemetry context.
     """
     super().__init__(invocation_context)
 
     from ..events.event_actions import EventActions
     from ..sessions.state import State
+    from ..telemetry.node_tracing import TelemetryContext
 
     # TODO: clean up: group the below private fields with categories.
 
@@ -206,7 +209,9 @@ class Context(ReadonlyContext):
     self._route_value: RouteValue | list[RouteValue] | None = None
     self._interrupt_ids: set[str] = set()
     self._event_author = event_author
-    self._otel_context = otel_context or context_api.get_current()
+    self._telemetry_context = telemetry_context or TelemetryContext(
+        otel_context=context_api.get_current()
+    )
     self._output_for_ancestors: list[str] = output_for_ancestors or []
     """Ancestor node paths whose output this node's output also represents.
 
@@ -382,12 +387,9 @@ class Context(ReadonlyContext):
     self._event_author = value
 
   @property
-  def otel_context(self) -> context_api.Context:
-    """Returns OpenTelemetry context.
-
-    The OpenTelemetry context holds the current OTel span and baggage.
-    """
-    return self._otel_context
+  def telemetry_context(self) -> TelemetryContext:
+    """Returns the telemetry context."""
+    return self._telemetry_context
 
   def get_invocation_context(self) -> InvocationContext:
     """Returns a copy of the invocation context with the proxy session."""

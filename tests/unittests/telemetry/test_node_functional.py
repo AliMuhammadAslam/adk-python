@@ -45,6 +45,7 @@ from ..testing_utils import TestInMemoryRunner
 NON_DETERMINISTIC_ATTRIBUTE_KEYS = {
     'gcp.vertex.agent.event_id',
     'gen_ai.tool.call.id',
+    'gcp.vertex.agent.associated_event_ids',
 }
 
 # We replace the non deterministic fields that are difficult to extract
@@ -188,13 +189,19 @@ async def test_tracer_start_as_current_span(
   invocation_id = captured_events[0].invocation_id
 
   # Assert
-  span_tree = SpanDigest.build(span_exporter.get_finished_spans())
+  finished_spans = span_exporter.get_finished_spans()
+  _verify_associated_events(finished_spans, captured_events)
+
+  span_tree = SpanDigest.build(finished_spans)
   assert span_tree == SpanDigest(
       name='invoke_workflow my_workflow',
       attributes={
           'gen_ai.conversation.id': session.id,
           'gen_ai.operation.name': 'invoke_workflow',
           'gen_ai.workflow.name': 'my_workflow',
+          # Workflow in this test doesn't emit any events directly.
+          # Commented exists to to document this behavior.
+          # 'gcp.vertex.agent.associated_event_ids': PRESENT,
       },
       children=[
           SpanDigest(
@@ -204,6 +211,7 @@ async def test_tracer_start_as_current_span(
                   'gen_ai.agent.name': 'some_root_agent',
                   'gen_ai.conversation.id': session.id,
                   'gen_ai.operation.name': 'invoke_agent',
+                  'gcp.vertex.agent.associated_event_ids': PRESENT,
               },
               children=[
                   SpanDigest(
@@ -331,10 +339,45 @@ async def test_tracer_start_as_current_span(
               attributes={
                   'gen_ai.conversation.id': session.id,
                   'gen_ai.operation.name': 'invoke_node',
+                  'gcp.vertex.agent.associated_event_ids': 'PRESENT',
               },
           ),
       ],
   )
+
+
+def _verify_associated_events(
+    spans: tuple[ReadableSpan, ...], events: list[Event]
+):
+  def _nodelike_name(span: ReadableSpan) -> str:
+    for prefix in ['invoke_node ', 'invoke_workflow ', 'invoke_agent ']:
+      if span.name.startswith(prefix):
+        return span.name.replace(prefix, '')
+    return ''
+
+  def _emitting_node_name(event: Event) -> str:
+    # Strip out
+    # 1. Path except for the last node (everything before "/")
+    # 2. Retry count (everything after "@")
+    return event.node_info.path.split('/')[-1].split('@')[0]
+
+  events_by_id = {event.id: event for event in events}
+  for span in spans:
+    if not span.attributes:
+      continue
+
+    associated_ids = span.attributes.get(
+        'gcp.vertex.agent.associated_event_ids', None
+    )
+    if associated_ids is None:
+      continue
+
+    assert isinstance(associated_ids, tuple)
+    assert len(associated_ids) > 0, f'Span name {span.name} emitted no events'
+
+    for event_id in associated_ids:
+      event = events_by_id[str(event_id)]
+      assert _nodelike_name(span) == _emitting_node_name(event)
 
 
 @pytest.mark.asyncio
@@ -375,6 +418,7 @@ async def test_exception_preserves_attributes(
 
   # Assert
   spans = span_exporter.get_finished_spans()
+  _verify_associated_events(spans, captured_events)
   spans_by_name = {span.name: span for span in spans}
 
   assert 'execute_tool some_tool' in spans_by_name

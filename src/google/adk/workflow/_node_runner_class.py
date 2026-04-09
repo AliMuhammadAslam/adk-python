@@ -132,7 +132,7 @@ class NodeRunner:
         async with node_tracing.start_as_current_node_span(
             self._parent_ctx, self._node
         ) as telemetry_context:
-          ctx._otel_context = telemetry_context.otel_context
+          ctx._telemetry_context = telemetry_context
           await self._execute_node(ctx, node_input)
           await self._flush_output_and_deltas(ctx)
           logger.info("node %s end.", ctx.node_path)
@@ -328,6 +328,7 @@ class NodeRunner:
       ctx._interrupt_ids.update(event.long_running_tool_ids)
     if event.actions.route is not None:
       ctx.route = event.actions.route
+    ctx.telemetry_context.add_event(event)
 
     # Validate state_delta if schema is present
     if (
