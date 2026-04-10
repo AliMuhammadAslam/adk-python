@@ -62,20 +62,6 @@ if TYPE_CHECKING:
 # already been executed.
 #
 # It returns a future that will resolve to the output of the node.
-class ScheduleDynamicNode(Protocol):
-  """Signature for the function that schedules a dynamic node."""
-
-  def __call__(
-      self,
-      ctx: 'Context',
-      node: Any,
-      run_id: str,
-      node_input: Any,
-      *,
-      node_name: str | None = None,
-      use_as_output: bool = False,
-  ) -> asyncio.Future[Any]:
-    ...
 
 
 class _SessionProxy:
@@ -158,9 +144,6 @@ class Context(ReadonlyContext):
       triggered_by: str = '',
       in_nodes: set[str] | None = None,
       resume_inputs: dict[str, Any] | None = None,
-      schedule_dynamic_node: (
-          ScheduleDynamicNode | None
-      ) = None,  # TODO: remove after migrating to new Workflow
       schedule_dynamic_node_internal: ScheduleDynamicNodeInternal | None = None,
       node_rerun_on_resume: bool = True,
       attempt_count: int = 1,
@@ -184,7 +167,6 @@ class Context(ReadonlyContext):
       triggered_by: The name of the node that triggered the current node.
       in_nodes: Names of predecessor nodes.
       resume_inputs: Inputs for resuming node, keyed by interrupt id.
-      schedule_dynamic_node: Function to schedule dynamic nodes.
       node_rerun_on_resume: Whether the node reruns on resume.
       retry_count: Number of times this node has been retried.
     """
@@ -212,7 +194,6 @@ class Context(ReadonlyContext):
         frozenset(in_nodes) if in_nodes is not None else frozenset()
     )
     self._resume_inputs = resume_inputs or {}
-    self.schedule_dynamic_node = schedule_dynamic_node
     self._schedule_dynamic_node_internal = schedule_dynamic_node_internal
     self._node_rerun_on_resume = node_rerun_on_resume
     self._child_run_counters: dict[str, int] = {}
@@ -544,18 +525,6 @@ class Context(ReadonlyContext):
         self._interrupt_ids.update(child_ctx.interrupt_ids)
         raise NodeInterruptedError()
       return child_ctx.output
-
-    # Fall back to the early-2.0 scheduler (used by _workflow.py,
-    # LoopAgent, ParallelAgent, SequentialAgent).
-    if self.schedule_dynamic_node:
-      run_id = self.get_next_child_run_id(built_node.name, is_static_name=False)
-      return await self.schedule_dynamic_node(
-          self,
-          built_node,
-          run_id,
-          node_input,
-          use_as_output=use_as_output,
-      )
 
     # No orchestrator scheduler — run the node directly.
     result = await self._run_node_via_runner(
