@@ -1,14 +1,8 @@
 {
-  "id": "ba40366e-0563-469f-a4b2-09e007adf6ff",
   "appName": "use_as_output",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "go"
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -17,14 +11,14 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -34,30 +28,36 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-2",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/summarizer@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/orchestrate@1/summarizer@1",
           "root_agent@1/orchestrate@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-4"
+        "path": "root_agent@1/orchestrate@1/summarizer@1"
+      }
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "final: Please provide the text you would like me to summarize!",
+      "id": "e-3",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/finalize@1",
         "outputFor": [
           "root_agent@1/finalize@1",
           "root_agent@1"
-        ]
+        ],
+        "path": "root_agent@1/finalize@1"
       },
-      "id": "e-7"
+      "output": "final: Please provide the text you would like me to summarize!"
     }
-  ]
+  ],
+  "id": "ba40366e-0563-469f-a4b2-09e007adf6ff",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "userId": "user"
 }

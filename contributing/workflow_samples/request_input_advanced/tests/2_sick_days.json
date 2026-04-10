@@ -1,18 +1,8 @@
 {
-  "id": "131bfe8b-de90-47bd-b442-957f27dc58a6",
   "appName": "request_input_advanced",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "2 sick days"
-    },
-    "request": {
-      "days": 2,
-      "reason": "sick days"
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -21,14 +11,22 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
+      "actions": {
+        "stateDelta": {
+          "request": {
+            "days": 2,
+            "reason": "sick"
+          }
+        }
+      },
+      "author": "request_input_advanced",
       "content": {
         "parts": [
           {
@@ -38,38 +36,29 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-2",
       "invocationId": "i-1",
-      "author": "request_input_advanced",
-      "actions": {
-        "stateDelta": {
-          "request": {
-            "days": 2,
-            "reason": "sick"
-          }
-        }
-      },
       "nodeInfo": {
-        "path": "request_input_advanced@1/process_request@1",
+        "messageAsOutput": true,
         "outputFor": [
           "request_input_advanced@1/process_request@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-4"
+        "path": "request_input_advanced@1/process_request@1"
+      }
     },
     {
+      "author": "request_input_advanced",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-1",
               "args": {
                 "interrupt_id": "fc-1",
+                "message": "Please review this time off request.",
                 "payload": {
                   "days": 2,
                   "reason": "sick"
                 },
-                "message": "Please review this time off request.",
                 "response_schema": {
                   "description": "The structured response we expect back from the human manager.",
                   "properties": {
@@ -99,22 +88,23 @@
                   "type": "object"
                 }
               },
+              "id": "fc-1",
               "name": "adk_request_input"
             }
           }
         ]
       },
+      "id": "e-3",
       "invocationId": "i-1",
-      "author": "request_input_advanced",
-      "nodeInfo": {
-        "path": "request_input_advanced@1/evaluate_request@1"
-      },
       "longRunningToolIds": [
         "fc-1"
       ],
-      "id": "e-6"
+      "nodeInfo": {
+        "path": "request_input_advanced@1/evaluate_request@1"
+      }
     },
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -129,14 +119,14 @@
         ],
         "role": "user"
       },
+      "id": "e-4",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-7"
+      }
     },
     {
+      "author": "request_input_advanced",
       "content": {
         "parts": [
           {
@@ -145,12 +135,22 @@
         ],
         "role": "user"
       },
+      "id": "e-5",
       "invocationId": "i-1",
-      "author": "request_input_advanced",
       "nodeInfo": {
         "path": "request_input_advanced@1/process_decision@1"
-      },
-      "id": "e-9"
+      }
     }
-  ]
+  ],
+  "id": "131bfe8b-de90-47bd-b442-957f27dc58a6",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "2 sick days"
+    },
+    "request": {
+      "days": 2,
+      "reason": "sick days"
+    }
+  },
+  "userId": "user"
 }

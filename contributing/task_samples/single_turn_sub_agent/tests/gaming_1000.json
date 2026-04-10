@@ -1,6 +1,7 @@
 {
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -9,14 +10,14 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -26,14 +27,14 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-2",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1"
-      },
-      "id": "e-3"
+      }
     },
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -42,24 +43,24 @@
         ],
         "role": "user"
       },
+      "id": "e-3",
       "invocationId": "i-2",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-5"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-1",
               "args": {
                 "budget": 1000,
                 "preferred_size": "large",
                 "primary_use": "gaming"
               },
+              "id": "fc-1",
               "name": "phone_recommender"
             }
           }
@@ -67,23 +68,23 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-4",
       "invocationId": "i-2",
-      "author": "root_agent",
+      "longRunningToolIds": [],
       "nodeInfo": {
         "path": "root_agent@1"
-      },
-      "longRunningToolIds": [],
-      "id": "e-7"
+      }
     },
     {
+      "author": "phone_recommender",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-2",
               "args": {
                 "model_name": "Pixel 10 Pro XL"
               },
+              "id": "fc-2",
               "name": "check_phone_price"
             }
           }
@@ -91,15 +92,15 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-5",
       "invocationId": "i-2",
-      "author": "phone_recommender",
+      "longRunningToolIds": [],
       "nodeInfo": {
         "path": "phone_recommender@1"
-      },
-      "longRunningToolIds": [],
-      "id": "e-10"
+      }
     },
     {
+      "author": "phone_recommender",
       "content": {
         "parts": [
           {
@@ -114,24 +115,24 @@
         ],
         "role": "user"
       },
+      "id": "e-6",
       "invocationId": "i-2",
-      "author": "phone_recommender",
       "nodeInfo": {
         "path": "phone_recommender@1"
-      },
-      "id": "e-12"
+      }
     },
     {
+      "author": "phone_recommender",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-3",
               "args": {
                 "model_name": "Pixel 10 Pro XL",
-                "reason": "The Pixel 10 Pro XL offers a large screen and powerful performance, making it ideal for an immersive gaming experience. At $799, it is well within your budget.",
-                "price": 799
+                "price": 799,
+                "reason": "The Pixel 10 Pro XL offers a large screen and powerful performance, making it ideal for an immersive gaming experience. At $799, it is well within your budget."
               },
+              "id": "fc-3",
               "name": "set_model_response"
             }
           }
@@ -139,15 +140,22 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-7",
       "invocationId": "i-2",
-      "author": "phone_recommender",
+      "longRunningToolIds": [],
       "nodeInfo": {
         "path": "phone_recommender@1"
-      },
-      "longRunningToolIds": [],
-      "id": "e-14"
+      }
     },
     {
+      "actions": {
+        "setModelResponse": {
+          "model_name": "Pixel 10 Pro XL",
+          "price": 799.0,
+          "reason": "The Pixel 10 Pro XL offers a large screen and powerful performance, making it ideal for an immersive gaming experience. At $799, it is well within your budget."
+        }
+      },
+      "author": "phone_recommender",
       "content": {
         "parts": [
           {
@@ -164,21 +172,14 @@
         ],
         "role": "user"
       },
+      "id": "e-8",
       "invocationId": "i-2",
-      "author": "phone_recommender",
-      "actions": {
-        "setModelResponse": {
-          "model_name": "Pixel 10 Pro XL",
-          "price": 799.0,
-          "reason": "The Pixel 10 Pro XL offers a large screen and powerful performance, making it ideal for an immersive gaming experience. At $799, it is well within your budget."
-        }
-      },
       "nodeInfo": {
         "path": "phone_recommender@1"
-      },
-      "id": "e-16"
+      }
     },
     {
+      "author": "phone_recommender",
       "content": {
         "parts": [
           {
@@ -187,18 +188,18 @@
         ],
         "role": "model"
       },
+      "id": "e-9",
       "invocationId": "i-2",
-      "author": "phone_recommender",
       "nodeInfo": {
-        "path": "phone_recommender@1",
+        "messageAsOutput": true,
         "outputFor": [
           "phone_recommender@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-18"
+        "path": "phone_recommender@1"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -215,14 +216,14 @@
         ],
         "role": "user"
       },
+      "id": "e-10",
       "invocationId": "i-2",
-      "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1"
-      },
-      "id": "e-20"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -232,12 +233,11 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-11",
       "invocationId": "i-2",
-      "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1"
-      },
-      "id": "e-27"
+      }
     }
   ]
 }

@@ -1313,7 +1313,7 @@ class AdkWebServer:
       test_file_path = os.path.join(tests_dir, test_name)
 
       with open(test_file_path, "w") as f:
-        json.dump(req.session_data, f, indent=2)
+        json.dump(req.session_data, f, indent=2, sort_keys=True)
 
       return {"status": "success", "file": test_name}
 

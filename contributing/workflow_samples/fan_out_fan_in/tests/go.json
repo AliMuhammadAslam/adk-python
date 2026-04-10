@@ -1,14 +1,8 @@
 {
-  "id": "de416178-357c-4f4c-bf32-ff19e39f33db",
   "appName": "fan_out_fan_in",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "go"
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -17,116 +11,116 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "GO",
+      "branch": "make_uppercase@1",
+      "id": "e-2",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/make_uppercase@1",
         "outputFor": [
           "root_agent@1/make_uppercase@1"
-        ]
+        ],
+        "path": "root_agent@1/make_uppercase@1"
       },
-      "branch": "make_uppercase@1",
-      "id": "e-3"
+      "output": "GO"
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": 2,
+      "branch": "count_characters@1",
+      "id": "e-3",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/count_characters@1",
         "outputFor": [
           "root_agent@1/count_characters@1"
-        ]
+        ],
+        "path": "root_agent@1/count_characters@1"
       },
-      "branch": "count_characters@1",
-      "id": "e-4"
+      "output": 2
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "og",
+      "branch": "reverse_string@1",
+      "id": "e-4",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/reverse_string@1",
         "outputFor": [
           "root_agent@1/reverse_string@1"
-        ]
+        ],
+        "path": "root_agent@1/reverse_string@1"
       },
-      "branch": "reverse_string@1",
-      "id": "e-5"
+      "output": "og"
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": {
             "make_uppercase": {
-              "input": "GO",
-              "branch": "make_uppercase@1"
+              "branch": "make_uppercase@1",
+              "input": "GO"
             }
           }
         }
       },
-      "nodeInfo": {
-        "path": "root_agent@1/join_for_results@1"
-      },
+      "author": "root_agent",
       "branch": "make_uppercase@1",
-      "id": "e-6"
+      "id": "e-5",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/join_for_results@1"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": {
-            "make_uppercase": {
-              "input": "GO",
-              "branch": "make_uppercase@1"
-            },
             "count_characters": {
-              "input": 2,
-              "branch": "count_characters@1"
+              "branch": "count_characters@1",
+              "input": 2
+            },
+            "make_uppercase": {
+              "branch": "make_uppercase@1",
+              "input": "GO"
             }
           }
         }
       },
+      "author": "root_agent",
+      "branch": "count_characters@1",
+      "id": "e-6",
+      "invocationId": "i-1",
       "nodeInfo": {
         "path": "root_agent@1/join_for_results@1"
-      },
-      "branch": "count_characters@1",
-      "id": "e-7"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_results@1_join_state": null
         }
       },
-      "output": {
-        "make_uppercase": "GO",
-        "count_characters": 2,
-        "reverse_string": "og"
-      },
+      "author": "root_agent",
+      "id": "e-7",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/join_for_results@1",
         "outputFor": [
           "root_agent@1/join_for_results@1"
-        ]
+        ],
+        "path": "root_agent@1/join_for_results@1"
       },
-      "id": "e-8"
+      "output": {
+        "count_characters": 2,
+        "make_uppercase": "GO",
+        "reverse_string": "og"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -135,12 +129,18 @@
         ],
         "role": "user"
       },
+      "id": "e-8",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/aggregate@1"
-      },
-      "id": "e-9"
+      }
     }
-  ]
+  ],
+  "id": "de416178-357c-4f4c-bf32-ff19e39f33db",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "userId": "user"
 }

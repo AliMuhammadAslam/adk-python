@@ -1,14 +1,8 @@
 {
-  "id": "82ce71ce-e580-4ae2-b291-f82e90221bbd",
   "appName": "node_output",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "go"
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -17,38 +11,38 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "Processed input: go",
+      "id": "e-2",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/generate_string_output@1",
         "outputFor": [
           "root_agent@1/generate_string_output@1"
-        ]
+        ],
+        "path": "root_agent@1/generate_string_output@1"
       },
-      "id": "e-3"
+      "output": "Processed input: go"
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "Event wrapped output: Processed input: go",
+      "id": "e-3",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/generate_event_output@1",
         "outputFor": [
           "root_agent@1/generate_event_output@1"
-        ]
+        ],
+        "path": "root_agent@1/generate_event_output@1"
       },
-      "id": "e-4"
+      "output": "Event wrapped output: Processed input: go"
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -58,29 +52,35 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-4",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/generate_pydantic_output@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/generate_pydantic_output@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-6"
+        "path": "root_agent@1/generate_pydantic_output@1"
+      }
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "Received Pydantic Model!\nTitle: The Impulse to Go: Decoding Humanity's Perpetual Motion\nDescription: Investigating the fundamental human drive to 'go' - exploring its manifestations from ancient migrations and pioneering expeditions to the relentless pursuit of progress in science, technology, and personal growth, and what happens when we pause.\nCategory: Human Behavior & Future Studies",
+      "id": "e-5",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/consume_pydantic_output@1",
         "outputFor": [
           "root_agent@1/consume_pydantic_output@1",
           "root_agent@1"
-        ]
+        ],
+        "path": "root_agent@1/consume_pydantic_output@1"
       },
-      "id": "e-8"
+      "output": "Received Pydantic Model!\nTitle: The Impulse to Go: Decoding Humanity's Perpetual Motion\nDescription: Investigating the fundamental human drive to 'go' - exploring its manifestations from ancient migrations and pioneering expeditions to the relentless pursuit of progress in science, technology, and personal growth, and what happens when we pause.\nCategory: Human Behavior & Future Studies"
     }
-  ]
+  ],
+  "id": "82ce71ce-e580-4ae2-b291-f82e90221bbd",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "go"
+    }
+  },
+  "userId": "user"
 }

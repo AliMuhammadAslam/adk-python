@@ -1,19 +1,8 @@
 {
-  "id": "1cf606cf-0c65-4512-96c2-07ccb0181853",
   "appName": "dynamic_nodes",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "flower"
-    },
-    "topic": "flower",
-    "feedback": {
-      "grade": "tech-related",
-      "feedback": "This headline is already very tech-focused, mentioning 'AI-Powered' and 'Smart Technology' in the context of innovation."
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -22,27 +11,27 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "topic": "flower"
         }
       },
+      "author": "root_agent",
+      "id": "e-2",
+      "invocationId": "i-1",
       "nodeInfo": {
         "path": "root_agent@1/orchestrate@1"
-      },
-      "id": "e-3"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -52,18 +41,26 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-3",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/generate_headline@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/orchestrate@1/generate_headline@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-4"
+        "path": "root_agent@1/orchestrate@1/generate_headline@1"
+      }
     },
     {
+      "actions": {
+        "stateDelta": {
+          "feedback": {
+            "feedback": "This headline sounds like it's about botany, gardening, or a natural theme. To make it more tech-focused, consider incorporating terms like 'AI', 'software', 'virtual reality', 'digital', 'engineering', 'innovation', 'data', or 'development'. For example, 'The AI-Powered World of Digital Petals' or 'Engineering a Virtual Reality of Petals'.",
+            "grade": "unrelated"
+          }
+        }
+      },
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -73,26 +70,18 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-4",
       "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "stateDelta": {
-          "feedback": {
-            "grade": "unrelated",
-            "feedback": "This headline sounds like it's about botany, gardening, or a natural theme. To make it more tech-focused, consider incorporating terms like 'AI', 'software', 'virtual reality', 'digital', 'engineering', 'innovation', 'data', or 'development'. For example, 'The AI-Powered World of Digital Petals' or 'Engineering a Virtual Reality of Petals'."
-          }
-        }
-      },
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/evaluate_headline@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/orchestrate@1/evaluate_headline@1"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-7"
+        "path": "root_agent@1/orchestrate@1/evaluate_headline@1"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -102,18 +91,26 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-5",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/generate_headline@2",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/orchestrate@1/generate_headline@2"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-10"
+        "path": "root_agent@1/orchestrate@1/generate_headline@2"
+      }
     },
     {
+      "actions": {
+        "stateDelta": {
+          "feedback": {
+            "feedback": "This headline is clearly tech-related, specifically mentioning 'Engineering' and 'AI-Enhanced', which are direct ties to technology and software engineering.",
+            "grade": "tech-related"
+          }
+        }
+      },
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -123,37 +120,40 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-6",
       "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "stateDelta": {
-          "feedback": {
-            "grade": "tech-related",
-            "feedback": "This headline is clearly tech-related, specifically mentioning 'Engineering' and 'AI-Enhanced', which are direct ties to technology and software engineering."
-          }
-        }
-      },
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1/evaluate_headline@2",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/orchestrate@1/evaluate_headline@2"
         ],
-        "messageAsOutput": true
-      },
-      "id": "e-13"
+        "path": "root_agent@1/orchestrate@1/evaluate_headline@2"
+      }
     },
     {
-      "invocationId": "i-1",
       "author": "root_agent",
-      "output": "**Digital Petals: Engineering AI-Enhanced Blooms**",
+      "id": "e-7",
+      "invocationId": "i-1",
       "nodeInfo": {
-        "path": "root_agent@1/orchestrate@1",
         "outputFor": [
           "root_agent@1/orchestrate@1",
           "root_agent@1"
-        ]
+        ],
+        "path": "root_agent@1/orchestrate@1"
       },
-      "id": "e-15"
+      "output": "**Digital Petals: Engineering AI-Enhanced Blooms**"
     }
-  ]
+  ],
+  "id": "1cf606cf-0c65-4512-96c2-07ccb0181853",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "flower"
+    },
+    "feedback": {
+      "feedback": "This headline is already very tech-focused, mentioning 'AI-Powered' and 'Smart Technology' in the context of innovation.",
+      "grade": "tech-related"
+    },
+    "topic": "flower"
+  },
+  "userId": "user"
 }

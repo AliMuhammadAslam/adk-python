@@ -745,6 +745,10 @@ def rebuild_tests(path: str):
       # Filter out partial events if any
       new_events = [e for e in new_events if not getattr(e, "partial", False)]
 
+      # Re-assign sequential IDs based on saved events
+      for i, e in enumerate(new_events, 1):
+        e.id = f"e-{i}"
+
       # Post-process all events to inject deterministic function IDs
       final_fc_counter = 0
       for e in new_events:
@@ -818,7 +822,7 @@ def rebuild_tests(path: str):
 
       # Write back to file
       with open(test_file, "w") as f:
-        json.dump(session_data, f, indent=2)
+        json.dump(session_data, f, indent=2, sort_keys=True)
 
       print(f"Successfully rebuilt {test_file}")
 

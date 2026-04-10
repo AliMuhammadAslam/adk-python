@@ -1,6 +1,7 @@
 {
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -9,29 +10,29 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
+      "author": "function_tools",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-1",
               "args": {},
+              "id": "fc-1",
               "name": "generate_random_number"
             }
           },
           {
             "functionCall": {
-              "id": "fc-2",
               "args": {
                 "number": 5
               },
+              "id": "fc-2",
               "name": "is_even"
             }
           }
@@ -39,15 +40,15 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-2",
       "invocationId": "i-1",
-      "author": "function_tools",
+      "longRunningToolIds": [],
       "nodeInfo": {
         "path": "function_tools@1"
-      },
-      "longRunningToolIds": [],
-      "id": "e-3"
+      }
     },
     {
+      "author": "function_tools",
       "content": {
         "parts": [
           {
@@ -71,14 +72,14 @@
         ],
         "role": "user"
       },
+      "id": "e-3",
       "invocationId": "i-1",
-      "author": "function_tools",
       "nodeInfo": {
         "path": "function_tools@1"
-      },
-      "id": "e-7"
+      }
     },
     {
+      "author": "function_tools",
       "content": {
         "parts": [
           {
@@ -88,12 +89,11 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-4",
       "invocationId": "i-1",
-      "author": "function_tools",
       "nodeInfo": {
         "path": "function_tools@1"
-      },
-      "id": "e-9"
+      }
     }
   ]
 }

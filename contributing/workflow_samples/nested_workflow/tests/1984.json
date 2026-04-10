@@ -1,14 +1,8 @@
 {
-  "id": "b7848178-784d-4fe3-a11f-568b3419acb7",
   "appName": "nested_workflow",
-  "userId": "user",
-  "state": {
-    "__session_metadata__": {
-      "displayName": "1984"
-    }
-  },
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -17,27 +11,28 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "year": "1984"
         }
       },
+      "author": "root_agent",
+      "id": "e-2",
+      "invocationId": "i-1",
       "nodeInfo": {
         "path": "root_agent@1/process_input@1"
-      },
-      "id": "e-3"
+      }
     },
     {
+      "author": "find_famous_person",
+      "branch": "find_famous_person@1",
       "content": {
         "parts": [
           {
@@ -47,19 +42,19 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-3",
       "invocationId": "i-1",
-      "author": "find_famous_person",
       "nodeInfo": {
-        "path": "root_agent@1/find_famous_person@1/find_name@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/find_famous_person@1/find_name@1"
         ],
-        "messageAsOutput": true
-      },
-      "branch": "find_famous_person@1",
-      "id": "e-4"
+        "path": "root_agent@1/find_famous_person@1/find_name@1"
+      }
     },
     {
+      "author": "find_famous_person",
+      "branch": "find_famous_person@1",
       "content": {
         "parts": [
           {
@@ -69,20 +64,20 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-4",
       "invocationId": "i-1",
-      "author": "find_famous_person",
       "nodeInfo": {
-        "path": "root_agent@1/find_famous_person@1/generate_bio@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/find_famous_person@1/generate_bio@1",
           "root_agent@1/find_famous_person@1"
         ],
-        "messageAsOutput": true
-      },
-      "branch": "find_famous_person@1",
-      "id": "e-7"
+        "path": "root_agent@1/find_famous_person@1/generate_bio@1"
+      }
     },
     {
+      "author": "root_agent",
+      "branch": "find_historical_event@1",
       "content": {
         "parts": [
           {
@@ -92,58 +87,57 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-5",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
-        "path": "root_agent@1/find_historical_event@1",
+        "messageAsOutput": true,
         "outputFor": [
           "root_agent@1/find_historical_event@1"
         ],
-        "messageAsOutput": true
-      },
-      "branch": "find_historical_event@1",
-      "id": "e-9"
+        "path": "root_agent@1/find_historical_event@1"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_aggregation@1_join_state": {
             "find_famous_person": {
-              "input": "LeBron James, often hailed as \"King James,\" is a legendary basketball player widely considered one of the greatest of all time. With four NBA championships, four MVP awards, and the league's all-time scoring record, he has consistently shattered expectations and redefined player longevity. Beyond the court, James is a powerful voice for social justice and a successful entrepreneur and philanthropist through initiatives like the I PROMISE program.",
-              "branch": "find_famous_person@1"
+              "branch": "find_famous_person@1",
+              "input": "LeBron James, often hailed as \"King James,\" is a legendary basketball player widely considered one of the greatest of all time. With four NBA championships, four MVP awards, and the league's all-time scoring record, he has consistently shattered expectations and redefined player longevity. Beyond the court, James is a powerful voice for social justice and a successful entrepreneur and philanthropist through initiatives like the I PROMISE program."
             }
           }
         }
       },
+      "author": "root_agent",
+      "branch": "find_famous_person@1",
+      "id": "e-6",
+      "invocationId": "i-1",
       "nodeInfo": {
         "path": "root_agent@1/join_for_aggregation@1"
-      },
-      "branch": "find_famous_person@1",
-      "id": "e-11"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "root_agent",
       "actions": {
         "stateDelta": {
           "root_agent@1/join_for_aggregation@1_join_state": null
         }
       },
+      "author": "root_agent",
+      "id": "e-7",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "outputFor": [
+          "root_agent@1/join_for_aggregation@1"
+        ],
+        "path": "root_agent@1/join_for_aggregation@1"
+      },
       "output": {
         "find_famous_person": "LeBron James, often hailed as \"King James,\" is a legendary basketball player widely considered one of the greatest of all time. With four NBA championships, four MVP awards, and the league's all-time scoring record, he has consistently shattered expectations and redefined player longevity. Beyond the court, James is a powerful voice for social justice and a successful entrepreneur and philanthropist through initiatives like the I PROMISE program.",
         "find_historical_event": "The Bhopal disaster occurred in December when a deadly leak of methyl isocyanate gas from a Union Carbide pesticide plant instantly killed thousands and sickened hundreds of thousands more. This catastrophic industrial accident remains one of the world's worst, profoundly influencing international environmental regulations and corporate accountability."
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/join_for_aggregation@1",
-        "outputFor": [
-          "root_agent@1/join_for_aggregation@1"
-        ]
-      },
-      "id": "e-12"
+      }
     },
     {
+      "author": "root_agent",
       "content": {
         "parts": [
           {
@@ -152,12 +146,18 @@
         ],
         "role": "user"
       },
+      "id": "e-8",
       "invocationId": "i-1",
-      "author": "root_agent",
       "nodeInfo": {
         "path": "root_agent@1/aggregate_results@1"
-      },
-      "id": "e-13"
+      }
     }
-  ]
+  ],
+  "id": "b7848178-784d-4fe3-a11f-568b3419acb7",
+  "state": {
+    "__session_metadata__": {
+      "displayName": "1984"
+    }
+  },
+  "userId": "user"
 }

@@ -1,6 +1,7 @@
 {
   "events": [
     {
+      "author": "user",
       "content": {
         "parts": [
           {
@@ -9,23 +10,23 @@
         ],
         "role": "user"
       },
+      "id": "e-1",
       "invocationId": "i-1",
-      "author": "user",
       "nodeInfo": {
         "path": ""
-      },
-      "id": "e-1"
+      }
     },
     {
+      "author": "task_in_workflow",
       "content": {
         "parts": [
           {
             "functionCall": {
-              "id": "fc-1",
               "args": {
                 "name": "Jane Doe",
                 "phone_number": "555-1234"
               },
+              "id": "fc-1",
               "name": "finish_task"
             }
           }
@@ -33,15 +34,23 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-2",
       "invocationId": "i-1",
-      "author": "task_in_workflow",
+      "longRunningToolIds": [],
       "nodeInfo": {
         "path": "task_in_workflow@1/intake_agent@1"
-      },
-      "longRunningToolIds": [],
-      "id": "e-3"
+      }
     },
     {
+      "actions": {
+        "finishTask": {
+          "output": {
+            "name": "Jane Doe",
+            "phone_number": "555-1234"
+          }
+        }
+      },
+      "author": "task_in_workflow",
       "content": {
         "parts": [
           {
@@ -56,31 +65,20 @@
         ],
         "role": "user"
       },
+      "id": "e-3",
       "invocationId": "i-1",
-      "author": "task_in_workflow",
-      "actions": {
-        "finishTask": {
-          "output": {
-            "name": "Jane Doe",
-            "phone_number": "555-1234"
-          }
-        }
+      "nodeInfo": {
+        "outputFor": [
+          "task_in_workflow@1/intake_agent@1"
+        ],
+        "path": "task_in_workflow@1/intake_agent@1"
       },
       "output": {
         "name": "Jane Doe",
         "phone_number": "555-1234"
-      },
-      "nodeInfo": {
-        "path": "task_in_workflow@1/intake_agent@1",
-        "outputFor": [
-          "task_in_workflow@1/intake_agent@1"
-        ]
-      },
-      "id": "e-5"
+      }
     },
     {
-      "invocationId": "i-1",
-      "author": "task_in_workflow",
       "actions": {
         "stateDelta": {
           "orders": [
@@ -89,12 +87,16 @@
           ]
         }
       },
+      "author": "task_in_workflow",
+      "id": "e-4",
+      "invocationId": "i-1",
       "nodeInfo": {
         "path": "task_in_workflow@1/find_orders@1"
-      },
-      "id": "e-7"
+      }
     },
     {
+      "author": "task_in_workflow",
+      "branch": "node:task_in_workflow@1/generate_instruction@1.generate_instruction",
       "content": {
         "parts": [
           {
@@ -104,19 +106,18 @@
         "role": "model"
       },
       "finishReason": "STOP",
+      "id": "e-5",
       "invocationId": "i-1",
-      "author": "task_in_workflow",
       "nodeInfo": {
-        "path": "task_in_workflow@1/generate_instruction@1",
+        "messageAsOutput": true,
         "outputFor": [
           "task_in_workflow@1/generate_instruction@1"
         ],
-        "messageAsOutput": true
-      },
-      "branch": "node:task_in_workflow@1/generate_instruction@1.generate_instruction",
-      "id": "e-8"
+        "path": "task_in_workflow@1/generate_instruction@1"
+      }
     },
     {
+      "author": "task_in_workflow",
       "content": {
         "parts": [
           {
@@ -125,12 +126,11 @@
         ],
         "role": "user"
       },
+      "id": "e-6",
       "invocationId": "i-1",
-      "author": "task_in_workflow",
       "nodeInfo": {
         "path": "task_in_workflow@1/send_message@1"
-      },
-      "id": "e-10"
+      }
     }
   ]
 }

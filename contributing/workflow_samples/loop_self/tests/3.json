@@ -1,7 +1,177 @@
 {
-  "id": "1f627a81-1341-43b7-b971-c8809ff8f6d1",
   "appName": "loop_self",
-  "userId": "user",
+  "events": [
+    {
+      "author": "user",
+      "content": {
+        "parts": [
+          {
+            "text": "3"
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-1",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": ""
+      }
+    },
+    {
+      "actions": {
+        "stateDelta": {
+          "target_number": 3
+        }
+      },
+      "author": "root_agent",
+      "id": "e-2",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/validate_input@1"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 10..."
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-3",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@1"
+      }
+    },
+    {
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "author": "root_agent",
+      "id": "e-4",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@1"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 1..."
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-5",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@2"
+      }
+    },
+    {
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "author": "root_agent",
+      "id": "e-6",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@2"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 0..."
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-7",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@3"
+      }
+    },
+    {
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "author": "root_agent",
+      "id": "e-8",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@3"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 4..."
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-9",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@4"
+      }
+    },
+    {
+      "actions": {
+        "route": "guessed_wrong"
+      },
+      "author": "root_agent",
+      "id": "e-10",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@4"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Guessing 3..."
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-11",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@5"
+      }
+    },
+    {
+      "author": "root_agent",
+      "content": {
+        "parts": [
+          {
+            "text": "Correct!"
+          }
+        ],
+        "role": "user"
+      },
+      "id": "e-12",
+      "invocationId": "i-1",
+      "nodeInfo": {
+        "path": "root_agent@1/guess_number@5"
+      }
+    }
+  ],
+  "id": "1f627a81-1341-43b7-b971-c8809ff8f6d1",
   "mocks": {
     "random.randint": [
       10,
@@ -17,175 +187,5 @@
     },
     "target_number": 3
   },
-  "events": [
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "3"
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "user",
-      "nodeInfo": {
-        "path": ""
-      },
-      "id": "e-1"
-    },
-    {
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "stateDelta": {
-          "target_number": 3
-        }
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/validate_input@1"
-      },
-      "id": "e-3"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Guessing 10..."
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@1"
-      },
-      "id": "e-4"
-    },
-    {
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "route": "guessed_wrong"
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@1"
-      },
-      "id": "e-5"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Guessing 1..."
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@2"
-      },
-      "id": "e-6"
-    },
-    {
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "route": "guessed_wrong"
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@2"
-      },
-      "id": "e-7"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Guessing 0..."
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@3"
-      },
-      "id": "e-8"
-    },
-    {
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "route": "guessed_wrong"
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@3"
-      },
-      "id": "e-9"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Guessing 4..."
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@4"
-      },
-      "id": "e-10"
-    },
-    {
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "actions": {
-        "route": "guessed_wrong"
-      },
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@4"
-      },
-      "id": "e-11"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Guessing 3..."
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@5"
-      },
-      "id": "e-12"
-    },
-    {
-      "content": {
-        "parts": [
-          {
-            "text": "Correct!"
-          }
-        ],
-        "role": "user"
-      },
-      "invocationId": "i-1",
-      "author": "root_agent",
-      "nodeInfo": {
-        "path": "root_agent@1/guess_number@5"
-      },
-      "id": "e-13"
-    }
-  ]
+  "userId": "user"
 }
