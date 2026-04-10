@@ -151,5 +151,5 @@ class TestScenarioGenerator:
     _, kwargs = mock_generate.call_args
     assert kwargs["agent_info"] == "mock_agent_info"
     passed_config = kwargs["config"]
-    assert passed_config.user_scenario_count == 2
-    assert passed_config.simulation_instruction == "Test generation"
+    assert passed_config.count == 2
+    assert passed_config.generation_instruction == "Test generation"
