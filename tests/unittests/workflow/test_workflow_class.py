@@ -1996,3 +1996,170 @@ async def test_run_id_reused_on_resume():
   ]
   assert len(resumed_events) == 1
   assert resumed_events[0].node_info.run_id == original_run_id
+
+
+@pytest.mark.asyncio
+async def test_route_without_output_triggers_downstream_on_resume():
+  """Node with route but no output triggers downstream on resume.
+
+  Setup:
+    START -> NodeA (yields route='next') -> NodeB (interrupts).
+  Act:
+    - Turn 1: Run workflow. NodeA completes with route, NodeB interrupts.
+    - Turn 2: Resume workflow by resolving NodeB's interrupt.
+  Assert:
+    - Turn 1: NodeB was triggered (indicated by interrupt).
+    - Turn 2: NodeB runs and produces output (proving it was triggered).
+  """
+  class _TestRouteNode(BaseNode):
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield Event(route='next')
+
+  class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-123' in ctx.resume_inputs:
+        yield Event(output='done')
+        return
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='approve', args={}, id='fc-123'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-123'},
+      )
+
+  route_node = _TestRouteNode(name='route_node')
+  target_node = _InterruptOnce(name='target_node')
+  wf = Workflow(
+      name='wf',
+      edges=[
+          (START, route_node),
+          (route_node, {'next': target_node}),
+      ],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  assert any(e.long_running_tool_ids for e in events1)
+
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id='fc-123', response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'done' in outputs
+
+
+@pytest.mark.asyncio
+async def test_route_and_output_triggers_downstream_on_resume():
+  """Node with route and output triggers downstream on resume.
+
+  Setup:
+    START -> NodeA (yields route='next', output='A') -> NodeB (interrupts).
+  Act:
+    - Turn 1: Run workflow. NodeA completes with route and output, NodeB interrupts.
+    - Turn 2: Resume workflow by resolving NodeB's interrupt.
+  Assert:
+    - Turn 1: NodeB was triggered (indicated by interrupt).
+    - Turn 2: NodeB runs and produces output (proving it was triggered).
+  """
+  class _RouteAndOutputNode(BaseNode):
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield Event(route='next', output='A')
+
+  class _InterruptOnce(BaseNode):
+    rerun_on_resume: bool = True
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      if ctx.resume_inputs and 'fc-123' in ctx.resume_inputs:
+        assert node_input == 'A'
+        yield Event(output='done')
+        return
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='approve', args={}, id='fc-123'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-123'},
+      )
+
+  route_node = _RouteAndOutputNode(name='route_node')
+  target_node = _InterruptOnce(name='target_node')
+  wf = Workflow(
+      name='wf',
+      edges=[
+          (START, route_node),
+          (route_node, {'next': target_node}),
+      ],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  msg1 = types.Content(parts=[types.Part(text='go')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  assert any(e.long_running_tool_ids for e in events1)
+
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='approve', id='fc-123', response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'done' in outputs

@@ -70,6 +70,9 @@ class _ChildScanState:
   output: Any = None
   """Output value from the latest run, if any."""
 
+  route: str | None = None
+  """Route value from the latest run, if any."""
+
   interrupt_ids: set[str] = field(default_factory=set)
   """Interrupt IDs emitted during the latest run."""
 
@@ -548,7 +551,7 @@ class Workflow(BaseNode):
 
     nodes: dict[str, NodeState] = {}
     node_outputs: dict[str, Any] = {}
-    nodes_to_trigger: list[tuple[str, Any]] = []
+    nodes_to_trigger: list[tuple[str, Any, str | None]] = []
 
     for child_name, child in children.items():
       unresolved = child.interrupt_ids - child.resolved_ids
@@ -577,6 +580,19 @@ class Workflow(BaseNode):
               run_id=existing_evt_run_id,
               run_counter=run_counter,
           )
+      elif child.route is not None:
+        # Node produced a route in a previous run. Trigger downstream to populate
+        # node_inputs for downstream nodes that might be resuming in this run.
+        # (Needed until we implement edge walking to restore inputs).
+        nodes[child_name] = NodeState(
+            status=NodeStatus.COMPLETED,
+            run_id=existing_evt_run_id,
+            run_counter=run_counter,
+        )
+        if child.output is not None:
+          node_outputs[child_name] = child.output
+        # Mark that we need to trigger downstream for this node
+        nodes_to_trigger.append((child_name, child.output, child.route))
       elif child.output is not None:
         # Node's all interrupts are resolved and had output in previous run.
         nodes[child_name] = NodeState(
@@ -596,7 +612,7 @@ class Workflow(BaseNode):
           )
           node_outputs[child_name] = self._extract_resume_output(child, ctx)
           # Mark that we need to trigger downstream for this node
-          nodes_to_trigger.append((child_name, node_outputs[child_name]))
+          nodes_to_trigger.append((child_name, node_outputs[child_name], None))
         else:
           nodes[child_name] = NodeState(
               status=NodeStatus.PENDING,
@@ -633,8 +649,8 @@ class Workflow(BaseNode):
     loop_state.node_outputs = node_outputs
 
     # Trigger downstream for nodes that were completed during resume
-    for child_name, output in nodes_to_trigger:
-      self._buffer_downstream_triggers(loop_state, child_name, output, None)
+    for child_name, output, route in nodes_to_trigger:
+      self._buffer_downstream_triggers(loop_state, child_name, output, route)
     # Gather all active interrupts from waiting nodes.
     loop_state.interrupt_ids = {
         interrupt_id
@@ -735,15 +751,17 @@ class Workflow(BaseNode):
       ):
         child.run_id = evt_run_id
         child.output = None
+        child.route = None
         child.interrupt_ids.clear()
         child.resolved_ids.clear()
 
-      # Output only from direct children (not nested descendants)
-      if (
-          is_direct_child(event.node_info.path, workflow_path)
-          and event.output is not None
-      ):
-        child.output = event.output
+      # Output and route only from direct children (not nested descendants)
+      if is_direct_child(event.node_info.path, workflow_path):
+        if event.output is not None:
+          child.output = event.output
+
+        if event.actions and event.actions.route is not None:
+          child.route = event.actions.route
 
       # Interrupt from any descendant → attributed to direct child.
       if event.long_running_tool_ids:
