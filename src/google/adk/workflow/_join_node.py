@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""JoinNode implementation for workflow orchestration."""
+
 from __future__ import annotations
 
 import logging
@@ -31,9 +33,7 @@ def _get_common_branch_prefix(branches: list[str]) -> str:
   """Find the common prefix of dot-separated branch strings."""
   if not branches:
     return ''
-  split_branches = [b.split('.') for b in branches if b]
-  if not split_branches:
-    return ''
+  split_branches = [b.split('.') if b else [] for b in branches]
 
   common = []
   for segments in zip(*split_branches):
@@ -45,7 +45,8 @@ def _get_common_branch_prefix(branches: list[str]) -> str:
 
 
 class JoinNode(BaseNode):
-  """A node that waits for all specified predecessors to trigger it before outputting."""
+  """A node that waits for all specified predecessors to trigger it before
+  outputting."""
 
   wait_for_output: bool = True
 
@@ -96,8 +97,7 @@ class JoinNode(BaseNode):
       for k, v in join_state.items():
         if isinstance(v, dict) and 'input' in v:
           outputs[k] = v['input']
-          if v.get('branch'):
-            branches.append(v['branch'])
+          branches.append(v.get('branch') or '')
         else:
           # Fallback for old state structure
           outputs[k] = v

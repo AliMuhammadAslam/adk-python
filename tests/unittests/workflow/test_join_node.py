@@ -63,6 +63,16 @@ def test_get_state_key():
   assert node._get_state_key('path/to/node') == 'path/to/node_join_state'
 
 
+def test_get_common_branch_prefix():
+  """Tests _get_common_branch_prefix."""
+  assert join_node._get_common_branch_prefix(['A@1', 'A@2']) == ''
+  assert join_node._get_common_branch_prefix(['A@1.B@1', 'A@1.B@2']) == 'A@1'
+  assert join_node._get_common_branch_prefix(['A@1', 'A@1']) == 'A@1'
+  assert join_node._get_common_branch_prefix(['A@1', '']) == ''
+  assert join_node._get_common_branch_prefix(['', '']) == ''
+  assert join_node._get_common_branch_prefix([]) == ''
+
+
 @pytest.mark.asyncio
 async def test_join_node_waits_for_all_inputs(request: pytest.FixtureRequest):
   """Tests JoinNode with fan-in."""
