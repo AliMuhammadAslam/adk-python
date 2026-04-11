@@ -476,10 +476,9 @@ def _scan_node_events(
     )
 
     if group_by_direct_child:
-      # Workflow's is_direct_child has reversed args!
-      # def is_direct_child(child_path: str | None, parent_path: str | None)
+      # Workflow's is_direct_child uses (parent_path, child_path)
       if (
-          is_direct_child(event_node_path, base_path)
+          is_direct_child(base_path, event_node_path)
           and evt_run_id
           and child.run_id != evt_run_id
       ):
@@ -495,7 +494,7 @@ def _scan_node_events(
     # 4. Extract output and route
     is_direct = False
     if group_by_direct_child:
-      is_direct = is_direct_child(event_node_path, base_path)
+      is_direct = is_direct_child(base_path, event_node_path)
     else:
       is_direct = event_node_path == base_path
 

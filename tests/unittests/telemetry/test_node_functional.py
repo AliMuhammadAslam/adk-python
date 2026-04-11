@@ -28,9 +28,8 @@ from google.adk.telemetry import node_tracing
 from google.adk.telemetry import tracing
 from google.adk.tools.function_tool import FunctionTool
 from google.adk.workflow._base_node import START
-from google.genai.types import Content
 from google.adk.workflow._workflow_class import Workflow
-from google.adk.telemetry import node_tracing
+from google.genai.types import Content
 from google.genai.types import Part
 from opentelemetry.sdk.trace import ReadableSpan
 from opentelemetry.sdk.trace import TracerProvider

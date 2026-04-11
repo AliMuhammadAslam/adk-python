@@ -1,10 +1,10 @@
-import sys
-import inspect
-import gc
-from types import CodeType
 from collections.abc import AsyncGenerator
-from typing import Any
 from contextlib import aclosing
+import gc
+import inspect
+import sys
+from types import CodeType
+from typing import Any
 
 
 def set_aclosing_wrapping_assertions():

@@ -44,14 +44,14 @@ def test_join_paths():
 
 def test_is_direct_child():
   assert node_path_utils.is_direct_child(
-      'workflow/agent/node', 'workflow/agent'
+      'workflow/agent', 'workflow/agent/node'
   )
   assert not node_path_utils.is_direct_child(
-      'workflow/agent/node/temp', 'workflow/agent'
+      'workflow/agent', 'workflow/agent/node/temp'
   )
-  assert not node_path_utils.is_direct_child('node', 'workflow/agent')
-  assert node_path_utils.is_direct_child('node', '')
-  assert not node_path_utils.is_direct_child(None, 'workflow/agent')
+  assert not node_path_utils.is_direct_child('workflow/agent', 'node')
+  assert node_path_utils.is_direct_child('', 'node')
+  assert not node_path_utils.is_direct_child('workflow/agent', None)
 
 
 def test_direct_child_name():

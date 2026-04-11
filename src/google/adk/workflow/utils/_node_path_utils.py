@@ -82,18 +82,15 @@ def join_paths(parent: str | None, child: str) -> str:
   return f'{parent}/{child}'
 
 
-def is_direct_child(child_path: str | None, parent_path: str | None) -> bool:
+def is_direct_child(parent_path: str | None, child_path: str | None) -> bool:
   """Checks if the child path is a direct child of the parent path.
 
-  Example: is_direct_child('wf@1/nodeA@1', 'wf@1') → True
-           is_direct_child('wf@1/inner@1/nodeA@1', 'wf@1') → False
-
-  TODO: Fix parameter order to (parent_path, child_path) to match
-  is_descendant() and direct_child_name() conventions.
+  Example: is_direct_child('wf@1', 'wf@1/nodeA@1') → True
+           is_direct_child('wf@1', 'wf@1/inner@1/nodeA@1') → False
 
   Args:
-    child_path: The child node path.
     parent_path: The parent node path.
+    child_path: The child node path.
 
   Returns:
     True if child_path is a direct child of parent_path.

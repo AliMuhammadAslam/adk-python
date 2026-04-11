@@ -1118,7 +1118,7 @@ async def test_output_schema_inferred_validates_dict(
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == {'name': 'test', 'value': 42}
@@ -1190,7 +1190,7 @@ async def test_output_schema_inferred_coerces_defaults(
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == {
@@ -1220,7 +1220,7 @@ async def test_output_schema_inferred_from_return_hint(
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == {'name': 'inferred', 'value': 1}
@@ -1254,7 +1254,7 @@ async def test_output_schema_inferred_type_coercion(
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == {'name': 'coerce', 'value': 42}
@@ -1281,7 +1281,7 @@ async def test_output_schema_none_return(request: pytest.FixtureRequest):
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == 'got: None'
@@ -1307,7 +1307,7 @@ async def test_output_schema_validates_returned_event_data(
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert len(data_events) == 1
   assert data_events[0].output == {'name': 'evt', 'value': 7}
@@ -1442,7 +1442,7 @@ async def test_input_schema_none_passthrough(request: pytest.FixtureRequest):
       for e in events
       if isinstance(e, Event)
       and e.output is not None
-      and is_direct_child(e.node_info.path, 'wf@1')
+      and is_direct_child('wf@1', e.node_info.path)
   ]
   assert any(e.output == 'got: None' for e in data_events)
 
