@@ -207,7 +207,7 @@ class Workflow(BaseNode):
     # TODO: resume from checkpoint event.
     if ctx.resume_inputs:
       loop_state = _LoopState()
-      self._restore_static_nodes_from_events(loop_state, ctx)
+      self._restore_static_nodes_from_events(loop_state, ctx, node_input)
       if loop_state.nodes:
         self._process_resume(loop_state, ctx)
       else:
@@ -502,10 +502,43 @@ class Workflow(BaseNode):
       if node_state.status == NodeStatus.WAITING and node_state.interrupts:
         loop_state.interrupt_ids.update(node_state.interrupts)
 
+  def _find_predecessor_input(
+      self,
+      child_name: str,
+      node_outputs: dict[str, Any],
+      workflow_input: Any = None,
+  ) -> tuple[Any, str]:
+    """Walk graph edges backward to find input for a resuming node.
+
+    Returns (input_value, triggered_by). Falls back to
+    (None, '') if no predecessor is found, or (None, triggered_by)
+    if a predecessor is found but has no cached output.
+    """
+    incoming_edges = [
+        e for e in self.graph.edges if e.to_node.name == child_name
+    ]
+    if not incoming_edges:
+      return None, ''
+
+    # Prefer a predecessor whose output we have cached (not START).
+    for edge in incoming_edges:
+      triggered_by = edge.from_node.name
+      if triggered_by != START.name and triggered_by in node_outputs:
+        return node_outputs[triggered_by], triggered_by
+
+    # If no cached predecessor, check for START.
+    for edge in incoming_edges:
+      if edge.from_node.name == START.name:
+        return workflow_input, START.name
+
+    # Fallback: use the first predecessor even if output is unavailable.
+    triggered_by = incoming_edges[0].from_node.name
+    return node_outputs.get(triggered_by), triggered_by
+
   # --- Resume ---
 
   def _restore_static_nodes_from_events(
-      self, loop_state: _LoopState, ctx: Context
+      self, loop_state: _LoopState, ctx: Context, node_input: Any = None
   ) -> None:
     """Reconstruct child node statuses and outputs from session events.
 
@@ -514,7 +547,8 @@ class Workflow(BaseNode):
     output, interrupt IDs, and resolved IDs (from FR events). Then
     derives NodeState per child.
 
-    TODO (next CL): Restore node_input via edge walking.
+    After inference, PENDING nodes get their input and triggered_by
+    populated via backward edge walking (see _find_predecessor_input).
     """
     logger.info('node %s rehydrate start.', ctx.node_path)
     children = self._scan_child_events(ctx)
@@ -536,6 +570,16 @@ class Workflow(BaseNode):
 
     # wait_for_output nodes that were triggered but produced no output
     self._add_wait_for_output_nodes(nodes, children)
+
+    # Populate input and triggered_by for PENDING nodes by walking
+    # graph edges backward to find their predecessor's output.
+    for child_name, node_state in nodes.items():
+      if node_state.status == NodeStatus.PENDING:
+        pred_input, triggered_by = self._find_predecessor_input(
+            child_name, node_outputs, node_input
+        )
+        node_state.input = pred_input
+        node_state.triggered_by = triggered_by
 
     loop_state.nodes = nodes
     loop_state.node_outputs = node_outputs
@@ -607,7 +651,6 @@ class Workflow(BaseNode):
     # Case 2: Node produced a route in a previous run.
     # It is considered COMPLETED. We must trigger downstream to populate
     # node_inputs for downstream nodes that might be resuming in this run.
-    # (Needed until we implement edge walking to restore inputs).
     elif child.route is not None:
       node_state = NodeState(
           status=NodeStatus.COMPLETED,

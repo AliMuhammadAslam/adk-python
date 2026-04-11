@@ -1538,3 +1538,318 @@ async def test_second_auth_node_skips_auth_when_credential_exists(
   # Both nodes ran — node_b did NOT pause for a second auth request.
   assert call_log == ['first', 'second']
   assert sink.received_inputs == [{'status': 'done'}]
+
+
+# --- Tests for input/triggered_by restoration on resume ---
+
+
+class _InputCapturingRerunNode(BaseNode):
+  """A rerun_on_resume node that captures node_input and triggered_by."""
+
+  model_config = ConfigDict(arbitrary_types_allowed=True)
+
+  rerun_on_resume: bool = Field(default=True)
+  captured_inputs: list[Any] = Field(default_factory=list)
+  captured_triggered_by: list[str] = Field(default_factory=list)
+
+  @override
+  async def _run_impl(
+      self, *, ctx: Context, node_input: Any
+  ) -> AsyncGenerator[Any, None]:
+    self.captured_inputs.append(node_input)
+    self.captured_triggered_by.append(ctx.triggered_by)
+
+    if resume_input := ctx.resume_inputs.get('approval'):
+      yield Event(output={'approved': resume_input})
+    else:
+      yield RequestInput(message='Need approval', interrupt_id='approval')
+
+
+@pytest.mark.parametrize(
+    'resumable',
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(reason='Fails in non-resumable mode'),
+        ),
+        True,
+    ],
+)
+@pytest.mark.asyncio
+async def test_resume_preserves_node_input(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """After resume, a rerun node receives the predecessor's output as input."""
+  node_a = _TestingNode(name='NodeA', message='output_from_a')
+  node_b = _InputCapturingRerunNode(name='NodeB')
+  node_c = InputCapturingNode(name='NodeC')
+
+  agent = Workflow(
+      name='test_agent',
+      edges=[
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
+          Edge(from_node=node_b, to_node=node_c),
+      ],
+  )
+  app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: NodeA completes, NodeB interrupts.
+  events1 = await runner.run_async(testing_utils.get_user_content('go'))
+  invocation_id = events1[0].invocation_id
+  req_events = workflow_testing_utils.get_request_input_events(events1)
+  assert len(req_events) == 1
+  interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
+
+  # First run should have received NodeA's output.
+  assert len(node_b.captured_inputs) == 1
+  assert node_b.captured_inputs[0] == 'output_from_a'
+  assert node_b.captured_triggered_by[0] == 'NodeA'
+
+  # Run 2: resume with approval.
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(interrupt_id, {'yes': True})
+      ),
+      invocation_id=invocation_id,
+  )
+
+  # Second run (rerun on resume) should also receive NodeA's output.
+  assert len(node_b.captured_inputs) == 2
+  assert node_b.captured_inputs[1] == 'output_from_a'
+  assert node_b.captured_triggered_by[1] == 'NodeA'
+
+  # NodeC should have received NodeB's output.
+  assert len(node_c.received_inputs) == 1
+  assert node_c.received_inputs[0] == {'approved': {'yes': True}}
+
+
+@pytest.mark.parametrize(
+    'resumable',
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(reason='Fails in non-resumable mode'),
+        ),
+        True,
+    ],
+)
+@pytest.mark.asyncio
+async def test_resume_preserves_input_from_start(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """After resume, a node directly after START receives workflow input."""
+  node_a = _InputCapturingRerunNode(name='NodeA')
+
+  agent = Workflow(
+      name='test_agent',
+      edges=[Edge(from_node=START, to_node=node_a)],
+  )
+  app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: NodeA interrupts.
+  events1 = await runner.run_async(testing_utils.get_user_content('hello'))
+  invocation_id = events1[0].invocation_id
+  req_events = workflow_testing_utils.get_request_input_events(events1)
+  assert len(req_events) == 1
+  interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
+
+  # First run: triggered_by should be START.
+  assert len(node_a.captured_inputs) == 1
+  assert node_a.captured_triggered_by[0] == '__START__'
+
+  # Run 2: resume.
+  await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(interrupt_id, {'ok': True})
+      ),
+      invocation_id=invocation_id,
+  )
+
+  # Second run: triggered_by should still be START.
+  assert len(node_a.captured_inputs) == 2
+  assert node_a.captured_triggered_by[1] == '__START__'
+
+
+@pytest.mark.parametrize(
+    'resumable',
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(reason='Fails in non-resumable mode'),
+        ),
+        True,
+    ],
+)
+@pytest.mark.asyncio
+async def test_resume_fan_in_both_predecessors_completed(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """Fan-in: node C has two predecessors (A, B) that both completed.
+
+  After resume, _find_predecessor_input should pick one of the available
+  predecessor outputs for C.
+  """
+  node_a = _TestingNode(name='NodeA', message='output_from_a')
+  node_b = _TestingNode(name='NodeB', message='output_from_b')
+  node_c = _InputCapturingRerunNode(name='NodeC')
+
+  agent = Workflow(
+      name='test_agent',
+      edges=[
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=START, to_node=node_b),
+          Edge(from_node=node_a, to_node=node_c),
+          Edge(from_node=node_b, to_node=node_c),
+      ],
+  )
+  app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: A and B complete, C interrupts.
+  events1 = await runner.run_async(testing_utils.get_user_content('go'))
+  invocation_id = events1[0].invocation_id
+
+  # C should have been triggered twice (once per predecessor).
+  req_events = workflow_testing_utils.get_request_input_events(events1)
+  assert len(req_events) >= 1
+  interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
+
+  # First run: C's input should come from one of its predecessors.
+  assert len(node_c.captured_inputs) >= 1
+  assert node_c.captured_inputs[0] in ('output_from_a', 'output_from_b')
+  assert node_c.captured_triggered_by[0] in ('NodeA', 'NodeB')
+
+  # Run 2: resume with approval.
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(interrupt_id, {'yes': True})
+      ),
+      invocation_id=invocation_id,
+  )
+
+  # After resume, C should again receive a valid predecessor output.
+  assert len(node_c.captured_inputs) >= 2
+  assert node_c.captured_inputs[-1] in ('output_from_a', 'output_from_b')
+  assert node_c.captured_triggered_by[-1] in ('NodeA', 'NodeB')
+
+
+@pytest.mark.parametrize(
+    'resumable',
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(reason='Fails in non-resumable mode'),
+        ),
+        True,
+    ],
+)
+@pytest.mark.asyncio
+async def test_resume_loop_receives_latest_input(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """Loop: START -> A -> B --(loop)--> A.
+
+  On the first iteration A receives START input and interrupts.
+  After resume, A completes and triggers B. B routes back to A.
+  On the loop-back iteration, A should receive B's output (not START
+  input) and run_id should increment.
+
+  Captures:
+    [0] = first run (START input, interrupts)
+    [1] = rerun on resume (START input, completes with approval)
+    [2] = loop-back from B (B's output, interrupts again)
+  """
+  from google.adk.workflow._workflow_graph import Edge as GraphEdge
+
+  class _RoutingNode(BaseNode):
+    """A node that produces output with a route."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    route: str = Field(default='')
+    message: str = Field(default='')
+
+    @override
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield Event(output=self.message, route=self.route)
+
+  node_a = _InputCapturingRerunNode(name='NodeA')
+  node_b = _RoutingNode(name='NodeB', message='output_from_b', route='loop')
+
+  agent = Workflow(
+      name='test_agent',
+      edges=[
+          Edge(from_node=START, to_node=node_a),
+          Edge(from_node=node_a, to_node=node_b),
+          GraphEdge(from_node=node_b, to_node=node_a, route='loop'),
+      ],
+  )
+  app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: A interrupts on first iteration.
+  events1 = await runner.run_async(testing_utils.get_user_content('hello'))
+  invocation_id = events1[0].invocation_id
+  req_events = workflow_testing_utils.get_request_input_events(events1)
+  assert len(req_events) == 1
+  interrupt_id = get_request_input_interrupt_ids(req_events[0])[0]
+
+  # First iteration: triggered by START.
+  assert len(node_a.captured_inputs) == 1
+  assert node_a.captured_triggered_by[0] == '__START__'
+
+  # Run 2: resume A -> A completes -> B fires -> B routes 'loop' -> A runs again.
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(interrupt_id, {'ok': True})
+      ),
+      invocation_id=invocation_id,
+  )
+
+  # Three captures: first run, rerun on resume, loop-back from B.
+  assert len(node_a.captured_inputs) == 3
+
+  # Capture[1] = rerun on resume, still triggered by START.
+  assert node_a.captured_triggered_by[1] == '__START__'
+
+  # Capture[2] = loop-back from B with B's output.
+  assert node_a.captured_inputs[2] == 'output_from_b'
+  assert node_a.captured_triggered_by[2] == 'NodeB'
+
+  # run_id should have incremented (visible in event paths).
+  node_a_paths = [
+      e.node_info.path
+      for e in events1 + events2
+      if e.node_info and e.node_info.path and 'NodeA@' in e.node_info.path
+  ]
+  run_ids = sorted({p.split('NodeA@')[1].split('/')[0] for p in node_a_paths})
+  assert len(run_ids) >= 2, f'Expected multiple run_ids, got {run_ids}'
