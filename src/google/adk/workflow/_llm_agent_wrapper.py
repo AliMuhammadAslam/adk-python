@@ -16,10 +16,10 @@
 
 from __future__ import annotations
 
+from contextlib import aclosing
 import json
 from typing import Any
 from typing import AsyncGenerator
-from contextlib import aclosing
 
 from google.genai import types
 from pydantic import BaseModel
@@ -82,7 +82,7 @@ def process_llm_agent_output(agent: Any, ctx: Context, event: Event) -> None:
   ):
     return
 
-  event.node_info.message_as_output = True
+  event.node_info._message_as_output = True
 
   output = None
   text = (
