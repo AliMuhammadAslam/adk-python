@@ -196,6 +196,7 @@
       "id": "e-9",
       "invocationId": "i-2",
       "nodeInfo": {
+        "messageAsOutput": true,
         "outputFor": [
           "phone_recommender@1"
         ],

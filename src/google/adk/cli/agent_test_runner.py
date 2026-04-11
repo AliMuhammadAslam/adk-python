@@ -32,7 +32,18 @@ from google.adk.models.llm_response import LlmResponse
 from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.genai import types
+from pydantic import alias_generators
 import pytest
+
+EXCLUDED_EVENT_FIELDS = {
+    "id",
+    "timestamp",
+    "invocation_id",
+    "model_version",
+    "finish_reason",
+    "usage_metadata",
+    "avg_logprobs",
+}
 
 
 # Read target folder from environment
@@ -137,59 +148,18 @@ def normalize_events(events, is_json=False):
   normalized = []
   for e in events:
     if is_json:
-      try:
-        e_obj = AdkEvent.model_validate(e)
-        d = e_obj.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-                "avg_logprobs",
-            },
-            exclude_none=True,
-        )
-      except Exception:
-        d = dict(e)
-        d.pop("id", None)
-        d.pop("timestamp", None)
-        d.pop("invocationId", None)
+      d = dict(e)
+      for k in EXCLUDED_EVENT_FIELDS:
+        d.pop(k, None)
+        d.pop(alias_generators.to_camel(k), None)
+      d = {k: v for k, v in d.items() if v is not None}
     else:
-      try:
-        e_obj = AdkEvent.model_validate(e.model_dump())
-        d = e_obj.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-                "avg_logprobs",
-            },
-            exclude_none=True,
-        )
-      except Exception:
-        d = e.model_dump(
-            mode="json",
-            by_alias=True,
-            exclude={
-                "id",
-                "timestamp",
-                "invocation_id",
-                "model_version",
-                "finish_reason",
-                "usage_metadata",
-                "avg_logprobs",
-            },
-            exclude_none=True,
-        )
+      d = e.model_dump(
+          mode="json",
+          by_alias=True,
+          exclude=EXCLUDED_EVENT_FIELDS,
+          exclude_none=True,
+      )
 
     if "content" in d and isinstance(d["content"], dict):
       content = d["content"]
@@ -199,11 +169,11 @@ def normalize_events(events, is_json=False):
             del part["thoughtSignature"]
 
     if "longRunningToolIds" in d:
-      if (
-          isinstance(d["longRunningToolIds"], list)
-          and not d["longRunningToolIds"]
-      ):
-        del d["longRunningToolIds"]
+      if isinstance(d["longRunningToolIds"], list):
+        if not d["longRunningToolIds"]:
+          del d["longRunningToolIds"]
+        else:
+          d["longRunningToolIds"] = sorted(d["longRunningToolIds"])
 
     if "actions" in d:
       actions = d["actions"]
@@ -441,12 +411,13 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
     # Extract all function call IDs from old events
     old_fc_ids = []
     for ev in events_data:
-      try:
-        e_obj = AdkEvent.model_validate(ev)
-        for fc in e_obj.get_function_calls():
-          old_fc_ids.append(fc.id)
-      except Exception:
-        pass
+      content = ev.get("content", {})
+      parts = content.get("parts", []) if isinstance(content, dict) else []
+      for p in parts:
+        if isinstance(p, dict) and "functionCall" in p:
+          fc = p["functionCall"]
+          if isinstance(fc, dict) and "id" in fc:
+            old_fc_ids.append(fc["id"])
 
     orig_to_new_id = {}
     fc_counter = 0
@@ -665,18 +636,18 @@ def rebuild_tests(path: str):
       old_fc_ids = []
       old_fr_ids = []
       for ev in events_data:
-        try:
-          e_obj = AdkEvent.model_validate(ev)
-          for fc in e_obj.get_function_calls():
-            old_fc_ids.append(fc.id)
-
-          if ev.get("author") == "user" and "content" in ev:
-            content = ev["content"]
-            for part in content.get("parts", []):
-              if "functionResponse" in part:
-                old_fr_ids.append(part["functionResponse"]["id"])
-        except Exception:
-          pass
+        content = ev.get("content", {})
+        parts = content.get("parts", []) if isinstance(content, dict) else []
+        for p in parts:
+          if isinstance(p, dict):
+            if "functionCall" in p:
+              fc = p["functionCall"]
+              if isinstance(fc, dict) and "id" in fc:
+                old_fc_ids.append(fc["id"])
+            elif "functionResponse" in p:
+              fr = p["functionResponse"]
+              if isinstance(fr, dict) and "id" in fr:
+                old_fr_ids.append(fr["id"])
 
       def get_next_fc_id():
         nonlocal fc_counter
@@ -778,10 +749,10 @@ def rebuild_tests(path: str):
                   part.function_response.id
               ]
 
-      # Convert to dicts, forcing validation to derive run_id and parent_run_id
+      # Convert to dicts
       # Also exclude timestamp to make it deterministic
       new_events_dicts = [
-          AdkEvent.model_validate(e.model_dump()).model_dump(
+          e.model_dump(
               mode="json",
               by_alias=True,
               exclude_none=True,

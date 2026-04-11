@@ -163,6 +163,7 @@
       "id": "e-7",
       "invocationId": "i-1",
       "nodeInfo": {
+        "messageAsOutput": true,
         "outputFor": [
           "phone_recommender@1"
         ],
