@@ -194,7 +194,10 @@ class DynamicNodeScheduler:
 
       if not node.rerun_on_resume:
         # All resolved, no rerun → auto-complete with resume_inputs.
-        output = dict(state.resume_inputs)
+        if len(state.resume_inputs) == 1:
+          output = list(state.resume_inputs.values())[0]
+        else:
+          output = dict(state.resume_inputs)
         state.status = NodeStatus.COMPLETED
         run.output = output
         logger.info(

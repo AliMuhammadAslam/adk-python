@@ -955,9 +955,9 @@ async def test_dynamic_node_rerun_on_resume_false():
 
   # Child should NOT have re-executed (run_count stays 1).
   assert run_count[0] == 1
-  # Parent receives the FR response as child's output.
+  # Parent receives the FR response as child's output (unwrapped).
   outputs = _outputs(events2)
-  assert any('answer' in str(o) for o in outputs)
+  assert "parent: {'answer': 42}" in outputs
 
 
 # =========================================================================
