@@ -35,7 +35,9 @@ intake_agent = Agent(
     instruction="""\
 You are a medical lab intake assistant. Your job is to chat with
 the user to get their full name and phone number. Do not make up
-information. Once you have both, finish your task.""",
+information. Once you have both, finish your task.
+If identity check failed, ask for another name.
+""",
 )
 
 
