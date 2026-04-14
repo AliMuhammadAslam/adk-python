@@ -15,7 +15,7 @@
 from __future__ import annotations
 
 
-class _NodePath:
+class _NodePathBuilder:
   """Represents a path to a node in a hierarchical workflow.
 
   A node path is a sequence of segments, each identifying a node instance,
@@ -23,12 +23,12 @@ class _NodePath:
   """
 
   def __init__(self, segments: list[str]):
-    """Initializes a _NodePath with a list of segments."""
+    """Initializes a _NodePathBuilder with a list of segments."""
     self._segments = segments
 
   @classmethod
-  def from_string(cls, path_str: str) -> _NodePath:
-    """Parses a _NodePath from a string representation (e.g., 'wf@1/node@2')."""
+  def from_string(cls, path_str: str) -> _NodePathBuilder:
+    """Parses a _NodePathBuilder from a string representation (e.g., 'wf@1/node@2')."""
     if not path_str:
       return cls([])
     return cls(path_str.split('/'))
@@ -36,6 +36,12 @@ class _NodePath:
   def __str__(self) -> str:
     """Returns the string representation of the path."""
     return '/'.join(self._segments)
+
+  def __eq__(self, other: object) -> bool:
+    """Returns True if segments are equal."""
+    if not isinstance(other, _NodePathBuilder):
+      return NotImplemented
+    return self._segments == other._segments
 
   @property
   def node_name(self) -> str:
@@ -53,35 +59,35 @@ class _NodePath:
     return parts[1] if len(parts) > 1 else None
 
   @property
-  def parent(self) -> _NodePath | None:
-    """Returns the parent _NodePath, or None if this is a root path."""
+  def parent(self) -> _NodePathBuilder | None:
+    """Returns the parent _NodePathBuilder, or None if this is a root path."""
     if len(self._segments) <= 1:
       return None
-    return _NodePath(self._segments[:-1])
+    return _NodePathBuilder(self._segments[:-1])
 
-  def append(self, node_name: str, run_id: str | None = None) -> _NodePath:
-    """Returns a new _NodePath with the child segment appended."""
+  def append(self, node_name: str, run_id: str | None = None) -> _NodePathBuilder:
+    """Returns a new _NodePathBuilder with the child segment appended."""
     segment = node_name
     if run_id:
       segment = f'{node_name}@{run_id}'
-    return _NodePath(self._segments + [segment])
+    return _NodePathBuilder(self._segments + [segment])
 
-  def is_descendant_of(self, ancestor: _NodePath) -> bool:
+  def is_descendant_of(self, ancestor: _NodePathBuilder) -> bool:
     """Checks if this path is a descendant of the ancestor path."""
     if len(self._segments) <= len(ancestor._segments):
       return False
     return self._segments[: len(ancestor._segments)] == ancestor._segments
 
-  def is_direct_child_of(self, parent: _NodePath) -> bool:
+  def is_direct_child_of(self, parent: _NodePathBuilder) -> bool:
     """Checks if this path is a direct child of the parent path."""
     if len(self._segments) != len(parent._segments) + 1:
       return False
     return self._segments[:-1] == parent._segments
 
-  def get_direct_child_name(self, descendant: _NodePath) -> str:
-    """Extracts the first-level child name from a descendant path relative to this path."""
+  def get_direct_child(self, descendant: _NodePathBuilder) -> _NodePathBuilder:
+    """Returns a new _NodePathBuilder for the direct child towards the descendant."""
     if len(descendant._segments) <= len(self._segments):
       raise ValueError('Descendant path is not longer than self path')
     if descendant._segments[: len(self._segments)] != self._segments:
       raise ValueError('Descendant path does not start with self path')
-    return descendant._segments[len(self._segments)]
+    return _NodePathBuilder(descendant._segments[: len(self._segments) + 1])

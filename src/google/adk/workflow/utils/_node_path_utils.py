@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 
-from .._node_path import _NodePath
+from .._node_path_builder import _NodePathBuilder
 
 """Node path utilities.
 
@@ -54,7 +54,7 @@ def get_node_name_from_path(path: str) -> str:
   Returns:
     The node name.
   """
-  return _NodePath.from_string(path).node_name
+  return _NodePathBuilder.from_string(path).node_name
 
 
 def get_parent_path(path: str) -> str:
@@ -66,7 +66,7 @@ def get_parent_path(path: str) -> str:
   Returns:
     The parent path.
   """
-  parent = _NodePath.from_string(path).parent
+  parent = _NodePathBuilder.from_string(path).parent
   return str(parent) if parent else ''
 
 
@@ -82,7 +82,7 @@ def join_paths(parent: str | None, child: str) -> str:
   """
   if not parent:
     return child
-  return str(_NodePath.from_string(parent).append(child))
+  return str(_NodePathBuilder.from_string(parent).append(child))
 
 
 def is_direct_child(parent_path: str | None, child_path: str | None) -> bool:
@@ -100,8 +100,8 @@ def is_direct_child(parent_path: str | None, child_path: str | None) -> bool:
   """
   if not child_path:
     return False
-  return _NodePath.from_string(child_path).is_direct_child_of(
-      _NodePath.from_string(parent_path)
+  return _NodePathBuilder.from_string(child_path).is_direct_child_of(
+      _NodePathBuilder.from_string(parent_path)
   )
 
 
@@ -110,9 +110,10 @@ def direct_child_name(parent_path: str, descendant_path: str) -> str:
 
   Example: direct_child_name('wf@1', 'wf@1/inner@1/nodeA@1') → 'inner@1'
   """
-  return _NodePath.from_string(parent_path).get_direct_child_name(
-      _NodePath.from_string(descendant_path)
+  child = _NodePathBuilder.from_string(parent_path).get_direct_child(
+      _NodePathBuilder.from_string(descendant_path)
   )
+  return child.node_name if child else ''
 
 
 def is_descendant(ancestor_path: str, descendant_path: str | None) -> bool:
@@ -127,6 +128,6 @@ def is_descendant(ancestor_path: str, descendant_path: str | None) -> bool:
   """
   if not descendant_path:
     return False
-  return _NodePath.from_string(descendant_path).is_descendant_of(
-      _NodePath.from_string(ancestor_path)
+  return _NodePathBuilder.from_string(descendant_path).is_descendant_of(
+      _NodePathBuilder.from_string(ancestor_path)
   )

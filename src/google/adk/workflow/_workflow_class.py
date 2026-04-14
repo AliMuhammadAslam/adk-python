@@ -41,9 +41,6 @@ from ._trigger import Trigger
 from ._trigger_processor import _get_next_pending_nodes
 from ._workflow_graph import EdgeItem
 from ._workflow_graph import WorkflowGraph
-from .utils._node_path_utils import direct_child_name
-from .utils._node_path_utils import is_descendant
-from .utils._node_path_utils import is_direct_child
 from .utils._workflow_hitl_utils import _ChildScanState
 from .utils._workflow_hitl_utils import _scan_node_events
 from .utils._workflow_hitl_utils import unwrap_response as _unwrap_fr_response

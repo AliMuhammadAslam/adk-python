@@ -30,6 +30,7 @@ from typing import Any
 from typing import TYPE_CHECKING
 
 from ..telemetry import node_tracing
+from ._node_path_builder import _NodePathBuilder
 
 if TYPE_CHECKING:
   from ..agents.context import Context
@@ -189,10 +190,9 @@ class NodeRunner:
 
   def _build_node_path(self) -> str:
     """Construct this node's path from parent context."""
-    from .utils._node_path_utils import join_paths
-
-    path_with_run = f"{self._node.name}@{self.run_id}"
-    return join_paths(self._parent_ctx.node_path or None, path_with_run)
+    parent_path = self._parent_ctx.node_path
+    base_path_builder = _NodePathBuilder.from_string(parent_path) if parent_path else _NodePathBuilder([])
+    return str(base_path_builder.append(self._node.name, self.run_id))
 
   def _create_child_context(
       self,

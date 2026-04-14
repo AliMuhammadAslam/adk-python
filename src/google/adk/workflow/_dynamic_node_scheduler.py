@@ -30,8 +30,7 @@ from typing import TYPE_CHECKING
 
 from ._node_state import NodeState
 from ._node_status import NodeStatus
-from .utils._node_path_utils import is_descendant
-from .utils._node_path_utils import join_paths
+from ._node_path_builder import _NodePathBuilder
 from .utils._workflow_hitl_utils import _ChildScanState
 from .utils._workflow_hitl_utils import _scan_node_events
 
@@ -138,7 +137,8 @@ class DynamicNodeScheduler:
     # node_name is always provided by ctx.run_node() (either
     # user-specified or auto-generated via _next_child_name).
     name = node_name or node.name
-    node_path = join_paths(ctx.node_path, f'{name}@{run_id}')
+    base_path_builder = _NodePathBuilder.from_string(ctx.node_path) if ctx.node_path else _NodePathBuilder([])
+    node_path = str(base_path_builder.append(name, run_id))
 
     # Runtime schema validation.
     if node_input is not None:

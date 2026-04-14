@@ -23,7 +23,6 @@ from ._node_status import NodeStatus
 from ._trigger import Trigger
 from ._workflow_graph import DEFAULT_ROUTE
 from ._workflow_graph import WorkflowGraph
-from .utils._node_path_utils import join_paths
 
 if TYPE_CHECKING:
   from ..agents.invocation_context import InvocationContext

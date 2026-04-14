@@ -34,9 +34,7 @@ from ...auth.auth_tool import AuthToolArguments
 from ...events.event import Event
 from ...events.request_input import RequestInput
 from ...utils._schema_utils import schema_to_json_schema
-from ._node_path_utils import direct_child_name
-from ._node_path_utils import is_descendant
-from ._node_path_utils import is_direct_child
+from .._node_path_builder import _NodePathBuilder
 
 if TYPE_CHECKING:
   from ...auth.auth_credential import AuthCredential
@@ -428,16 +426,18 @@ def _scan_node_events(
   interrupt_owner: dict[str, str] = {}
   schemas_by_id: dict[str, Any] = {}
 
-  def get_owner_key(event_path: str) -> str | None:
+  base_path_builder = _NodePathBuilder.from_string(base_path)
+
+  def get_owner_key(event_path_builder: _NodePathBuilder) -> str | None:
     if group_by_direct_child:
-      if not is_descendant(base_path, event_path):
+      if not event_path_builder.is_descendant_of(base_path_builder):
         return None
-      child_name = direct_child_name(base_path, event_path)
-      if not child_name:
-        return None
-      return child_name.rsplit('@', 1)[0]
+      child_path = base_path_builder.get_direct_child(event_path_builder)
+      return child_path.node_name
     else:
-      if event_path == base_path or is_descendant(base_path, event_path):
+      if event_path_builder == base_path_builder or event_path_builder.is_descendant_of(
+          base_path_builder
+      ):
         return base_path
       return None
 
@@ -467,7 +467,8 @@ def _scan_node_events(
 
     # 2. Match events under base_path
     event_node_path = event.node_info.path or ''
-    owner_key = get_owner_key(event_node_path)
+    event_path_builder = _NodePathBuilder.from_string(event_node_path)
+    owner_key = get_owner_key(event_path_builder)
 
     if not owner_key:
       continue
@@ -478,14 +479,11 @@ def _scan_node_events(
     child = results[owner_key]
 
     # 3. Handle run_id reset (only for group_by_direct_child and direct child events)
-    evt_run_id = (
-        event_node_path.rsplit('@', 1)[-1] if '@' in event_node_path else ''
-    )
+    evt_run_id = event_path_builder.run_id or ''
 
     if group_by_direct_child:
-      # Workflow's is_direct_child uses (parent_path, child_path)
       if (
-          is_direct_child(base_path, event_node_path)
+          event_path_builder.is_direct_child_of(base_path_builder)
           and evt_run_id
           and child.run_id != evt_run_id
       ):
@@ -501,9 +499,9 @@ def _scan_node_events(
     # 4. Extract output and route
     is_direct = False
     if group_by_direct_child:
-      is_direct = is_direct_child(base_path, event_node_path)
+      is_direct = event_path_builder.is_direct_child_of(base_path_builder)
     else:
-      is_direct = event_node_path == base_path
+      is_direct = event_path_builder == base_path_builder
 
     has_output = event.output is not None
     use_message_as_output = False
