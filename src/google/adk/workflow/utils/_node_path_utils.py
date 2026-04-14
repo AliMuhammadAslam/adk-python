@@ -14,6 +14,8 @@
 
 from __future__ import annotations
 
+from .._node_path import _NodePath
+
 """Node path utilities.
 
 Node paths are slash-separated strings that uniquely identify a node within a
@@ -52,7 +54,7 @@ def get_node_name_from_path(path: str) -> str:
   Returns:
     The node name.
   """
-  return path.split('/')[-1].rsplit('@', 1)[0]
+  return _NodePath.from_string(path).node_name
 
 
 def get_parent_path(path: str) -> str:
@@ -64,7 +66,8 @@ def get_parent_path(path: str) -> str:
   Returns:
     The parent path.
   """
-  return path.rpartition('/')[0]
+  parent = _NodePath.from_string(path).parent
+  return str(parent) if parent else ''
 
 
 def join_paths(parent: str | None, child: str) -> str:
@@ -79,7 +82,7 @@ def join_paths(parent: str | None, child: str) -> str:
   """
   if not parent:
     return child
-  return f'{parent}/{child}'
+  return str(_NodePath.from_string(parent).append(child))
 
 
 def is_direct_child(parent_path: str | None, child_path: str | None) -> bool:
@@ -97,8 +100,9 @@ def is_direct_child(parent_path: str | None, child_path: str | None) -> bool:
   """
   if not child_path:
     return False
-  parent = parent_path or ''
-  return child_path.rpartition('/')[0] == parent
+  return _NodePath.from_string(child_path).is_direct_child_of(
+      _NodePath.from_string(parent_path)
+  )
 
 
 def direct_child_name(parent_path: str, descendant_path: str) -> str:
@@ -106,9 +110,9 @@ def direct_child_name(parent_path: str, descendant_path: str) -> str:
 
   Example: direct_child_name('wf@1', 'wf@1/inner@1/nodeA@1') → 'inner@1'
   """
-  if not parent_path:
-    return descendant_path.split('/')[0]
-  return descendant_path[len(parent_path) + 1 :].split('/')[0]
+  return _NodePath.from_string(parent_path).get_direct_child_name(
+      _NodePath.from_string(descendant_path)
+  )
 
 
 def is_descendant(ancestor_path: str, descendant_path: str | None) -> bool:
@@ -123,6 +127,6 @@ def is_descendant(ancestor_path: str, descendant_path: str | None) -> bool:
   """
   if not descendant_path:
     return False
-  if not ancestor_path:
-    return True
-  return descendant_path.startswith(f'{ancestor_path}/')
+  return _NodePath.from_string(descendant_path).is_descendant_of(
+      _NodePath.from_string(ancestor_path)
+  )
