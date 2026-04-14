@@ -34,7 +34,6 @@ from google.adk.workflow._node_status import NodeStatus
 from google.adk.workflow._retry_config import RetryConfig
 from google.adk.workflow._workflow_class import Workflow
 from google.adk.workflow._workflow_graph import WorkflowGraph
-from google.adk.workflow.utils._node_path_utils import join_paths
 from google.genai import types
 from pydantic import ConfigDict
 from pydantic import Field

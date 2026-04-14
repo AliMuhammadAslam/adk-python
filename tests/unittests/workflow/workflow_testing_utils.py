@@ -33,7 +33,6 @@ from google.adk.runners import Runner
 from google.adk.sessions.in_memory_session_service import InMemorySessionService
 from google.adk.workflow import BaseNode
 from google.adk.workflow._workflow_graph import RouteValue
-from google.adk.workflow.utils._node_path_utils import is_direct_child
 from google.adk.workflow.utils._workflow_hitl_utils import has_auth_request_function_call
 from google.adk.workflow.utils._workflow_hitl_utils import has_request_input_function_call
 from google.genai import types
