@@ -20,8 +20,10 @@ import logging
 import os
 from pathlib import Path
 import shutil
-import sys
 from typing import Any
+from typing import AsyncIterator
+from typing import Awaitable
+from typing import Callable
 from typing import Literal
 from typing import Mapping
 from typing import Optional
@@ -29,11 +31,18 @@ from typing import Optional
 import click
 from fastapi import FastAPI
 from fastapi import HTTPException
+from fastapi import Request
 from fastapi import UploadFile
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import FileResponse
+from fastapi.responses import JSONResponse
 from fastapi.responses import PlainTextResponse
+from fastapi.responses import StreamingResponse
+from opentelemetry import context
+from opentelemetry import trace
 from opentelemetry.sdk.trace import export
 from opentelemetry.sdk.trace import TracerProvider
+from pydantic import BaseModel
 from starlette.types import Lifespan
 from watchdog.observers import Observer
 
@@ -43,6 +52,7 @@ from ..evaluation.local_eval_sets_manager import LocalEvalSetsManager
 from ..runners import Runner
 from .adk_web_server import AdkWebServer
 from .service_registry import load_services_module
+from .utils import _telemetry as telemetry_utils
 from .utils import envs
 from .utils import evals
 from .utils.agent_change_handler import AgentChangeEventHandler
@@ -51,6 +61,12 @@ from .utils.base_agent_loader import BaseAgentLoader
 from .utils.service_factory import create_artifact_service_from_options
 from .utils.service_factory import create_memory_service_from_options
 from .utils.service_factory import create_session_service_from_options
+
+
+class _QueryRequest(BaseModel):
+  input: dict[str, Any] | None = None
+  class_method: str | None = None
+
 
 logger = logging.getLogger("google_adk." + __name__)
 
@@ -97,6 +113,7 @@ def get_fast_api_app(
     logo_image_url: Optional[str] = None,
     auto_create_session: bool = False,
     trigger_sources: Optional[list[Literal["pubsub", "eventarc"]]] = None,
+    gemini_enterprise_app_name: Optional[str] = None,
 ) -> FastAPI:
   """Constructs and returns a FastAPI application for serving ADK agents.
 
@@ -143,6 +160,8 @@ def get_fast_api_app(
     trigger_sources: List of trigger sources to enable (e.g. ["pubsub",
       "eventarc"]). When set, registers /trigger/* endpoints for batch and
       event-driven agent invocations. None disables all trigger endpoints.
+    gemini_enterprise_app_name: The app_name to register with Gemini Enterprise
+      via https://docs.cloud.google.com/gemini/enterprise/docs/register-and-manage-an-adk-agent
 
   Returns:
     The configured FastAPI application instance.
@@ -656,5 +675,145 @@ def get_fast_api_app(
         except Exception as e:
           logger.error("Failed to setup A2A agent %s: %s", app_name, e)
           # Continue with other agents even if one fails
+  if gemini_enterprise_app_name:
+    if gemini_enterprise_app_name not in agent_loader.list_agents():
+      raise ValueError(
+          f"App {gemini_enterprise_app_name} not found in dir: {agents_dir}"
+      )
+
+    import inspect
+    import json
+
+    from google.adk.agents import Agent
+    import vertexai
+    from vertexai import agent_engines
+
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", None)
+    location = os.environ.get(
+        "GOOGLE_CLOUD_AGENT_ENGINE_LOCATION",
+        os.environ.get("GOOGLE_CLOUD_LOCATION", None),
+    )
+    api_key = os.environ.get("GOOGLE_API_KEY", None)
+    if project:
+      vertexai.init(project=project, location=location)
+    elif api_key:
+      vertexai.init(api_key=api_key)
+    else:
+      raise ValueError(
+          "No GOOGLE_CLOUD_PROJECT or GOOGLE_API_KEY found in environment"
+          " variables."
+      )
+    # The tmp agent will be replaced by the adk server's runner and services.
+    adk_app = agent_engines.AdkApp(
+        agent=Agent(name="tmp"),
+        enable_tracing=trace_to_cloud,
+    )
+    adk_app.set_up()  # for the (existing) necessary instrumentation setup.
+    adk_app._tmpl_attrs["runner"] = None
+    adk_app._tmpl_attrs["app_name"] = gemini_enterprise_app_name
+    adk_app._tmpl_attrs["session_service"] = session_service
+    adk_app._tmpl_attrs["memory_service"] = memory_service
+    adk_app._tmpl_attrs["artifact_service"] = artifact_service
+
+    def _encode_chunk_to_json(chunk: Any) -> str | None:
+      """Encodes a chunk to a JSON string with a newline."""
+      try:
+        json_chunk = jsonable_encoder(chunk)
+        return f"{json.dumps(json_chunk)}\n"
+      except Exception:
+        logging.exception("Failed to encode chunk")
+        return None
+
+    async def json_generator(output: AsyncIterator[Any]) -> AsyncIterator[str]:
+      async for chunk in output:
+        encoded_chunk = _encode_chunk_to_json(chunk)
+        if encoded_chunk is None:
+          break
+        yield encoded_chunk
+
+    async def _invoke_callable_or_raise(
+        invocation_callable: Callable[..., Any],
+        invocation_payload: dict[str, Any],
+    ) -> Any:
+      if inspect.iscoroutinefunction(invocation_callable):
+        return await invocation_callable(**invocation_payload)
+      else:
+        return invocation_callable(**invocation_payload)
+
+    # Implement a FastAPI middleware to extract and attach OpenTelemetry trace
+    # context from a custom Google-Agent-Engine-Traceparent header in incoming
+    # requests. This enables distributed tracing.
+    tracer_provider = trace.get_tracer_provider()
+    if isinstance(tracer_provider, TracerProvider):
+      tracer_provider.add_span_processor(telemetry_utils.TopSpanProcessor())
+    else:
+      logging.warning(
+          "OpenTelemetry tracing is not enabled. Please set the"
+          " `OTEL_PYTHON_TRACER_PROVIDER` environment variable to enable"
+          " tracing."
+      )
+
+    @app.middleware("http")
+    async def context_propagation(
+        request: Request, call_next: Callable[[Request], Awaitable[Any]]
+    ) -> Any:
+      ctx = telemetry_utils.get_propagated_context(request)
+      context.attach(ctx)
+      try:
+        response = await call_next(request)
+        return response
+      finally:
+        context.detach(ctx)
+
+    @app.post(
+        "/api/reasoning_engine",
+        response_model_exclude_none=True,
+        response_class=JSONResponse,
+    )
+    async def query(request: _QueryRequest):
+      if not adk_app._tmpl_attrs.get("runner"):
+        adk_app._tmpl_attrs["runner"] = await adk_web_server.get_runner_async(
+            app_name=gemini_enterprise_app_name
+        )
+      if request.class_method is None:
+        raise HTTPException(
+            status_code=400, detail="class_method cannot be None"
+        )
+      method = getattr(adk_app, request.class_method)
+      output = await _invoke_callable_or_raise(method, request.input or {})
+
+      try:
+        json_serialized_content = jsonable_encoder({"output": output})
+      except ValueError as encoding_error:
+        logging.exception(
+            "FastAPI could not JSON-encode the response from invocation method"
+            " %s. Error: %s. Invocation method's original response: %r",
+            request.class_method,
+            encoding_error,
+            output,
+        )
+        raise encoding_error
+      return JSONResponse(content=json_serialized_content)
+
+    @app.post(
+        "/api/stream_reasoning_engine",
+        response_model_exclude_none=True,
+        response_class=StreamingResponse,
+    )
+    async def stream_query(request: _QueryRequest):
+      if not adk_app._tmpl_attrs.get("runner"):
+        adk_app._tmpl_attrs["runner"] = await adk_web_server.get_runner_async(
+            app_name=gemini_enterprise_app_name
+        )
+      if request.class_method is None:
+        raise HTTPException(
+            status_code=400, detail="class_method cannot be None"
+        )
+      method = getattr(adk_app, request.class_method)
+      output = await _invoke_callable_or_raise(method, request.input or {})
+      return StreamingResponse(
+          content=json_generator(output),
+          media_type="application/json",
+      )
 
   return app
