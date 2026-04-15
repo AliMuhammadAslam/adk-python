@@ -617,15 +617,22 @@ class Runner:
         if event.node_info.message_as_output and event.content is not None:
           event = event.model_copy()
           event.output = None
-        await self.session_service.append_event(session=ic.session, event=event)
 
+      _apply_run_config_custom_metadata(event, ic.run_config)
       modified_event = await ic.plugin_manager.run_on_event_callback(
           invocation_context=ic, event=event
       )
-      if modified_event:
-        yield modified_event
-      else:
-        yield event
+      output_event = self._get_output_event(
+          original_event=event,
+          modified_event=modified_event,
+          run_config=ic.run_config,
+      )
+
+      if not event.partial:
+        await self.session_service.append_event(
+            session=ic.session, event=output_event
+        )
+      yield output_event
 
       if isinstance(processed_signal, asyncio.Event):
         processed_signal.set()
