@@ -207,7 +207,7 @@ class Workflow(BaseNode):
       loop_state = _LoopState()
       self._restore_static_nodes_from_events(loop_state, ctx, node_input)
       if loop_state.nodes:
-        self._process_resume(loop_state, ctx)
+        self._process_resume(loop_state)
       else:
         logger.warning(
             'Workflow %s: resume_inputs provided but no resumable state found.',
@@ -785,7 +785,7 @@ class Workflow(BaseNode):
       if predecessors & known_names:
         nodes[graph_node.name] = NodeState(status=NodeStatus.WAITING)
 
-  def _process_resume(self, loop_state: _LoopState, ctx: Context) -> None:
+  def _process_resume(self, loop_state: _LoopState) -> None:
     """Seed triggers for PENDING nodes and collect interrupt IDs."""
     for node_name, node_state in loop_state.nodes.items():
       if node_state.status == NodeStatus.PENDING:
@@ -880,7 +880,7 @@ class Workflow(BaseNode):
               loop_state.nodes[name].status = NodeStatus.CANCELLED
               break
           # Mark dynamic nodes as CANCELLED
-          for node_path, run in loop_state.runs.items():
+          for _, run in loop_state.runs.items():
             if run.task is task:
               run.state.status = NodeStatus.CANCELLED
               break

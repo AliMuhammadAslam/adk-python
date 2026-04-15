@@ -21,7 +21,6 @@ from collections.abc import Set
 from typing import Annotated
 from typing import Any
 from typing import get_args
-from typing import TypeAlias
 
 from pydantic import BaseModel
 from pydantic import ConfigDict

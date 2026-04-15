@@ -334,27 +334,6 @@ class Context(ReadonlyContext):
     )
     return ctx_with_proxy
 
-  def get_next_child_run_id(
-      self, node_name: str, *, is_static_name: bool = False
-  ) -> str:
-    """Generates the next deterministic child run ID.
-
-    Args:
-      node_name: The name of the child node.
-      is_static_name: If True, derive the ID from the name alone (no
-        counter). This produces the same ID regardless of call order,
-        which is required for parallel ``run_node`` calls that may
-        start in non-deterministic order.
-    """
-    if is_static_name:
-      unique_string = f'{self._run_id}-{node_name}'
-    else:
-      self._child_run_counter += 1
-      unique_string = f'{self._run_id}-{self._child_run_counter}-{node_name}'
-    # TODO(swapnilag): use a better hash method.
-    hashed_id = hashlib.sha256(unique_string.encode('utf-8')).hexdigest()[:15]
-    return f'{node_name}_{hashed_id}'
-
   async def run_node(
       self,
       node: NodeLike,
@@ -471,34 +450,6 @@ class Context(ReadonlyContext):
     )
     return result.output
 
-  async def _run_node_internal(
-      self,
-      node: NodeLike,
-      node_input: Any = None,
-      *,
-      run_id: str | None = None,
-  ) -> Context:
-    """Internal: run a node and return its child Context.
-
-    Unlike run_node() which returns just the output, this returns the
-    child Context for orchestrators that need output, route, and
-    interrupt info.
-    """
-    from ..workflow.utils._workflow_graph_utils import build_node
-
-    built_node = build_node(node)
-    if self._workflow_scheduler:
-      return await self._workflow_scheduler(
-          self,
-          node,
-          node_input,
-          node_name=node.name,
-          run_id=run_id or '1',
-      )
-
-    return await self._run_node_standalone(
-        built_node, node_input, run_id=run_id
-    )
 
   async def _run_node_standalone(
       self,
