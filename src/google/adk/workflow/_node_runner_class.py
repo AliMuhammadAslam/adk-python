@@ -328,6 +328,7 @@ class NodeRunner:
       ctx._interrupt_ids.update(event.long_running_tool_ids)
     if event.actions.route is not None:
       ctx.route = event.actions.route
+      ctx._route_emitted = True
     ctx.telemetry_context.add_event(event)
 
     # Validate state_delta if schema is present
@@ -373,14 +374,18 @@ class NodeRunner:
         and not ctx._output_emitted
         and not ctx._output_delegated
     )
+    has_unflushed_route = (
+        ctx._route_value is not None and not ctx._route_emitted
+    )
     has_deltas = bool(state_delta or artifact_delta)
 
-    if not has_deferred_output and not has_deltas:
+    if not has_deferred_output and not has_deltas and not has_unflushed_route:
       return
 
-    # Build the event — output + deltas, or deltas only.
+    # Build the event — output + route + deltas, or a subset.
     event = Event(
         output=ctx._output_value if has_deferred_output else None,
+        route=ctx._route_value if has_unflushed_route else None,
     )
     if has_deltas:
       event.actions = EventActions(
@@ -394,6 +399,8 @@ class NodeRunner:
     await ctx._invocation_context.enqueue_event(event)
     if has_deferred_output:
       ctx._output_emitted = True
+    if has_unflushed_route:
+      ctx._route_emitted = True
 
   def _flush_deltas(self, event: Event, ctx: Context) -> None:
     """Move pending state/artifact deltas from ctx onto the event.

@@ -147,6 +147,7 @@ class Context(ReadonlyContext):
     self._output_value: Any = None
     self._output_emitted: bool = False
     self._route_value: RouteValue | list[RouteValue] | None = None
+    self._route_emitted: bool = False
     self._interrupt_ids: set[str] = set()
     self._event_author = event_author
     self._telemetry_context = telemetry_context or TelemetryContext(
@@ -291,6 +292,7 @@ class Context(ReadonlyContext):
   @route.setter
   def route(self, value: RouteValue | list[RouteValue]) -> None:
     self._route_value = value
+    self._route_emitted = False
 
   @property
   def interrupt_ids(self) -> set[str]:

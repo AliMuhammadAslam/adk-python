@@ -680,7 +680,7 @@ class Workflow(BaseNode):
             run_counter=run_counter,
         )
         node_output = self._extract_resume_output(child, ctx)
-        trigger = (child_name, node_output, None)
+        trigger = (child_name, node_output, child.route)
       # Case 4b: Node supports re-run.
       # Re-run it with resolved responses to produce output.
       else:

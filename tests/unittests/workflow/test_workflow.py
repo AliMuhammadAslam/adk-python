@@ -2082,6 +2082,93 @@ async def test_route_without_output_triggers_downstream_on_resume():
 
 
 @pytest.mark.asyncio
+async def test_rerun_on_resume_false_preserves_route_on_resume():
+  """A rerun_on_resume=False node that sets ctx.route preserves it on resume.
+
+  Setup:
+    START -> RouteAndInterruptNode (sets ctx.route='go', interrupts)
+          -> {'go': TargetNode}
+  Act:
+    - Turn 1: RouteAndInterruptNode sets route and interrupts.
+    - Turn 2: Resume by resolving the interrupt.
+  Assert:
+    - Turn 2: TargetNode fires (proving the route survived the resume)
+              and produces output 'reached'.
+  """
+
+  class _RouteAndInterruptNode(BaseNode):
+    """Sets ctx.route directly and interrupts. rerun_on_resume=False."""
+
+    rerun_on_resume: bool = False
+
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      ctx.route = 'go'
+      yield Event(
+          content=types.Content(
+              parts=[
+                  types.Part(
+                      function_call=types.FunctionCall(
+                          name='confirm', args={}, id='fc-route-1'
+                      )
+                  )
+              ]
+          ),
+          long_running_tool_ids={'fc-route-1'},
+      )
+
+  class _TargetNode(BaseNode):
+    async def _run_impl(
+        self, *, ctx: Context, node_input: Any
+    ) -> AsyncGenerator[Any, None]:
+      yield Event(output='reached')
+
+  route_node = _RouteAndInterruptNode(name='route_node')
+  target_node = _TargetNode(name='target_node')
+  wf = Workflow(
+      name='wf',
+      edges=[
+          (START, route_node),
+          (route_node, {'go': target_node}),
+      ],
+  )
+  ss = InMemorySessionService()
+  runner = Runner(app_name='test', node=wf, session_service=ss)
+  session = await ss.create_session(app_name='test', user_id='u')
+
+  # Turn 1: route_node sets route and interrupts.
+  msg1 = types.Content(parts=[types.Part(text='start')], role='user')
+  events1: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg1
+  ):
+    events1.append(event)
+
+  assert any(e.long_running_tool_ids for e in events1)
+
+  # Turn 2: resolve the interrupt.
+  msg2 = types.Content(
+      parts=[
+          types.Part(
+              function_response=types.FunctionResponse(
+                  name='confirm', id='fc-route-1', response={'ok': True}
+              )
+          )
+      ],
+      role='user',
+  )
+  events2: list[Event] = []
+  async for event in runner.run_async(
+      user_id='u', session_id=session.id, new_message=msg2
+  ):
+    events2.append(event)
+
+  # target_node should have fired via the 'go' route.
+  outputs = [e.output for e in events2 if e.output is not None]
+  assert 'reached' in outputs
+
+@pytest.mark.asyncio
 async def test_route_and_output_triggers_downstream_on_resume():
   """Node with route and output triggers downstream on resume.
 
