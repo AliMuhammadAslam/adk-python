@@ -138,7 +138,7 @@ class Context(ReadonlyContext):
         frozenset(in_nodes) if in_nodes is not None else frozenset()
     )
     self._resume_inputs = resume_inputs or {}
-    self._schedule_dynamic_node_internal = schedule_dynamic_node_internal
+    self._workflow_scheduler = schedule_dynamic_node_internal
     self._node_rerun_on_resume = node_rerun_on_resume
     self._child_run_counters: dict[str, int] = {}
     self._child_run_counter = 0
@@ -407,9 +407,9 @@ class Context(ReadonlyContext):
     if isinstance(node, BaseAgent) and isinstance(built_node, BaseAgent):
       built_node.parent_agent = node.parent_agent
 
-    # Prefer the internal scheduler (new Workflow architecture) which
-    # returns child Context. Fall back to the legacy scheduler.
-    if self._schedule_dynamic_node_internal:
+    # Mode 1: Running within a Workflow graph.
+    # The workflow orchestrator provides a scheduler to handle resume, dedup, etc.
+    if self._workflow_scheduler:
       from ..workflow._errors import NodeInterruptedError
 
       # Output delegation: once set, the calling node's own output
@@ -435,7 +435,7 @@ class Context(ReadonlyContext):
         )
         run_id = str(self._child_run_counters[built_node.name])
 
-      child_ctx = await self._schedule_dynamic_node_internal(
+      child_ctx = await self._workflow_scheduler(
           self,
           built_node,
           node_input,
@@ -459,8 +459,9 @@ class Context(ReadonlyContext):
         raise NodeInterruptedError()
       return child_ctx.output
 
-    # No orchestrator scheduler — run the node directly.
-    result = await self._run_node_via_runner(
+    # Mode 2: Standalone execution (outside of workflow).
+    # Run the node directly via NodeRunner.
+    result = await self._run_node_standalone(
         built_node,
         node_input,
         use_as_output=use_as_output,
@@ -484,8 +485,8 @@ class Context(ReadonlyContext):
     from ..workflow.utils._workflow_graph_utils import build_node
 
     built_node = build_node(node)
-    if self._schedule_dynamic_node_internal:
-      return await self._schedule_dynamic_node_internal(
+    if self._workflow_scheduler:
+      return await self._workflow_scheduler(
           self,
           node,
           node_input,
@@ -493,11 +494,11 @@ class Context(ReadonlyContext):
           run_id=run_id or '1',
       )
 
-    return await self._run_node_via_runner(
+    return await self._run_node_standalone(
         built_node, node_input, run_id=run_id
     )
 
-  async def _run_node_via_runner(
+  async def _run_node_standalone(
       self,
       node: BaseNode,
       node_input: Any,

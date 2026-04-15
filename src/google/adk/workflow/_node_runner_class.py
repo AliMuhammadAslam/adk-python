@@ -217,7 +217,7 @@ class NodeRunner:
     # Inherit the parent's dynamic-node scheduler. If none exists
     # (standalone node, no Workflow), create a DefaultNodeScheduler so that
     # ctx.run_node() works correctly on re-run with resume.
-    scheduler = self._parent_ctx._schedule_dynamic_node_internal
+    scheduler = self._parent_ctx._workflow_scheduler
     if scheduler is None:
       from ._dynamic_node_scheduler import DynamicNodeScheduler
       from ._dynamic_node_scheduler import DynamicNodeState

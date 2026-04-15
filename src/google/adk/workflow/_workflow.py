@@ -222,7 +222,7 @@ class Workflow(BaseNode):
     loop_state.schedule_dynamic_node = self._make_schedule_dynamic_node(
         loop_state
     )
-    ctx._schedule_dynamic_node_internal = loop_state.schedule_dynamic_node
+    ctx._workflow_scheduler = loop_state.schedule_dynamic_node
 
     # --- LOOP ---
     try:

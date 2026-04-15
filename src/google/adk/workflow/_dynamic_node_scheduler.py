@@ -310,7 +310,7 @@ class DynamicNodeScheduler:
         node_path=node_path,
         run_id=run_id,
         event_author=ctx.event_author,
-        schedule_dynamic_node_internal=(ctx._schedule_dynamic_node_internal),
+        schedule_dynamic_node_internal=(ctx._workflow_scheduler),
     )
     run = self._state.runs[node_path]
     if run.output is not None:

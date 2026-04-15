@@ -58,7 +58,7 @@ def _make_parent_ctx(events=None):
   ctx.node_path = 'wf/parent'
   ctx.run_id = 'run-parent'
   ctx.event_author = 'wf'
-  ctx._schedule_dynamic_node_internal = None
+  ctx._workflow_scheduler = None
   ctx._output_for_ancestors = []
   ctx._output_delegated = False
   return ctx, collected
