@@ -32,7 +32,7 @@ from pydantic import Field
 
 from ._base_node import BaseNode
 from ._base_node import START
-from ._definitions import RouteValue
+from ._graph_definitions import RouteValue
 from ._dynamic_node_scheduler import DynamicNodeScheduler
 from ._dynamic_node_scheduler import DynamicNodeState
 from ._node_runner_class import NodeRunner
@@ -40,7 +40,7 @@ from ._node_state import NodeState
 from ._node_status import NodeStatus
 from ._trigger import Trigger
 from ._trigger_processor import _get_next_pending_nodes
-from ._workflow_graph import EdgeItem
+from ._graph_definitions import EdgeItem
 from ._workflow_graph import WorkflowGraph
 from .utils._workflow_hitl_utils import _ChildScanState
 from .utils._workflow_hitl_utils import _scan_node_events

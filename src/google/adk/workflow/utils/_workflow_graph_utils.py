@@ -21,7 +21,7 @@ from typing import Any
 from ...tools.base_tool import BaseTool
 from .._base_node import BaseNode
 from .._base_node import START
-from .._definitions import NodeLike
+from .._graph_definitions import NodeLike
 from .._function_node import FunctionNode
 from .._retry_config import RetryConfig
 from .._tool_node import _ToolNode

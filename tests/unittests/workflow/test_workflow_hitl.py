@@ -1780,7 +1780,7 @@ async def test_resume_loop_receives_latest_input(
     [1] = rerun on resume (START input, completes with approval)
     [2] = loop-back from B (B's output, interrupts again)
   """
-  from google.adk.workflow._workflow_graph import Edge as GraphEdge
+  from google.adk.workflow._graph_definitions import Edge as GraphEdge
 
   class _RoutingNode(BaseNode):
     """A node that produces output with a route."""

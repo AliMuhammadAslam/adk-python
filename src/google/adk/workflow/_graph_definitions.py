@@ -17,12 +17,19 @@ from __future__ import annotations
 """Type definitions for building workflow graphs."""
 
 from collections.abc import Callable
+from typing import Annotated
 from typing import Any
 from typing import Literal
 from typing import TypeAlias
 
+from pydantic import BaseModel
+from pydantic import ConfigDict
+from pydantic import Field
+from pydantic import SerializeAsAny
+
 from ..tools.base_tool import BaseTool
 from ._base_node import BaseNode
+
 
 RouteValue: TypeAlias = bool | int | str
 """Type alias for valid routing values used in conditional graph edges."""
@@ -40,4 +47,38 @@ Examples::
 
     {"route_a": node_a, "route_b": node_b}
     {"route_x": (node_a, node_b)}  # fan-out: both triggered
+"""
+
+
+class Edge(BaseModel):
+    """An edge in the workflow graph."""
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
+
+    from_node: Annotated[BaseNode, SerializeAsAny()]
+    """The from node."""
+
+    to_node: Annotated[BaseNode, SerializeAsAny()]
+    """The to node."""
+
+    route: RouteValue | list[RouteValue] | None = Field(
+        description=(
+            "The route(s) that this edge is associated with."
+            " A single value or a list of values. The edge is followed when the"
+            " emitted route matches any value in the list."
+        ),
+        default=None,
+    )
+
+
+ChainElement: TypeAlias = NodeLike | tuple[NodeLike, ...] | RoutingMap
+"""Type alias for an element in a workflow chain.
+
+Can be a single NodeLike, a tuple of NodeLike (fan-out), or a RoutingMap.
+"""
+
+EdgeItem: TypeAlias = Edge | tuple[ChainElement, ...]
+"""Type alias for an item that can be parsed into workflow edges.
+
+Can be an explicit Edge object, or a tuple representing a chain of elements.
 """

@@ -44,8 +44,8 @@ if TYPE_CHECKING:
   from ..telemetry.node_tracing import TelemetryContext
   from ..tools.tool_confirmation import ToolConfirmation
   from ..workflow._base_node import BaseNode
-  from ..workflow._definitions import NodeLike
-  from ..workflow._definitions import RouteValue
+  from ..workflow._graph_definitions import NodeLike
+  from ..workflow._graph_definitions import RouteValue
   from ..workflow._schedule_dynamic_node import ScheduleDynamicNode as ScheduleDynamicNodeInternal
   from .invocation_context import InvocationContext
 

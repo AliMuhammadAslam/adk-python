@@ -681,7 +681,7 @@ async def test_mixed_edge_and_tuple_syntax():
   Maps to: test_run_async_with_implicit_graph_with_edge_combinations
   in test_workflow_agent.py.
   """
-  from google.adk.workflow._workflow_graph import Edge as GraphEdge
+  from google.adk.workflow._graph_definitions import Edge as GraphEdge
 
   a = _OutputNode(name='NodeA', value='A')
   b = _OutputNode(name='NodeB', value='B')
@@ -1164,7 +1164,7 @@ async def test_run_id_sequential_in_loop():
           route='again' if tracker['count'] < 3 else 'done',
       )
 
-  from google.adk.workflow._workflow_graph import Edge as GraphEdge
+  from google.adk.workflow._graph_definitions import Edge as GraphEdge
 
   loop = _LoopNode(name='loop')
   wf = Workflow(

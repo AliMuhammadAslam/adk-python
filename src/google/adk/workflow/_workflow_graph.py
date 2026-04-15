@@ -31,39 +31,16 @@ from pydantic import SerializeAsAny
 
 from ._base_node import BaseNode
 from ._base_node import START
-from ._definitions import NodeLike
-from ._definitions import RouteValue
-from ._definitions import RoutingMap
+from ._graph_definitions import ChainElement
+from ._graph_definitions import Edge
+from ._graph_definitions import EdgeItem
+from ._graph_definitions import NodeLike
+from ._graph_definitions import RouteValue
+from ._graph_definitions import RoutingMap
 from .utils._workflow_graph_utils import build_node
 from .utils._workflow_graph_utils import is_node_like
 
 DEFAULT_ROUTE = "__DEFAULT__"
-
-
-class Edge(BaseModel):
-    """An edge in the workflow graph."""
-
-    model_config = ConfigDict(arbitrary_types_allowed=True, extra="forbid")
-
-    from_node: Annotated[BaseNode, SerializeAsAny()]
-    """The from node."""
-
-    to_node: Annotated[BaseNode, SerializeAsAny()]
-    """The to node."""
-
-    route: RouteValue | list[RouteValue] | None = Field(
-        description=(
-            "The route(s) that this edge is associated with."
-            " A single value or a list of values. The edge is followed when the"
-            " emitted route matches any value in the list."
-        ),
-        default=None,
-    )
-
-    def __init__(
-        self, *, from_node: BaseNode, to_node: BaseNode, **kwargs: Any
-    ) -> None:
-        super().__init__(from_node=from_node, to_node=to_node, **kwargs)
 
 
 def _expand_routing_map(
@@ -400,8 +377,3 @@ class WorkflowGraph(BaseModel):
             for n in self.nodes
             if n.name != START.name and n.name not in from_names
         }
-
-
-ChainElement: TypeAlias = NodeLike | tuple[NodeLike, ...] | RoutingMap
-
-EdgeItem: TypeAlias = Edge | tuple[ChainElement, ...]

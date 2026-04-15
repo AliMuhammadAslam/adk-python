@@ -28,7 +28,7 @@ from pydantic import PrivateAttr
 from typing_extensions import override
 
 from . import _base_node as base_node
-from . import _definitions as definitions
+from . import _graph_definitions as definitions
 from . import _function_node as function_node
 from . import _parallel_worker as parallel_worker_lib
 from ._retry_config import RetryConfig

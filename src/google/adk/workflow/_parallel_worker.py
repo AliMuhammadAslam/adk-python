@@ -27,7 +27,7 @@ from typing_extensions import override
 
 from ..agents.context import Context
 from ._base_node import BaseNode
-from ._definitions import NodeLike
+from ._graph_definitions import NodeLike
 from ._retry_config import RetryConfig
 from .utils._workflow_graph_utils import build_node
 

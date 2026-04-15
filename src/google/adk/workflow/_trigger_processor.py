@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from ._definitions import RouteValue
+from ._graph_definitions import RouteValue
 from ._node_status import NodeStatus
 from ._trigger import Trigger
 from ._workflow_graph import DEFAULT_ROUTE
