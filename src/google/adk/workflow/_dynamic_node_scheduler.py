@@ -28,9 +28,9 @@ import logging
 from typing import Any
 from typing import TYPE_CHECKING
 
+from ..events._node_path_builder import _NodePathBuilder
 from ._node_state import NodeState
 from ._node_status import NodeStatus
-from ..events._node_path_builder import _NodePathBuilder
 from .utils._rehydration_utils import _ChildScanState
 from .utils._rehydration_utils import _reconstruct_node_states
 
@@ -184,7 +184,7 @@ class DynamicNodeScheduler:
     if state.status == NodeStatus.COMPLETED:
       # Already completed → return cached output.
       logger.info('node %s schedule end: Already completed.', node_path)
-      return self._make_cached_ctx(ctx, node_path, run_id)
+      return self._make_cached_ctx(ctx, node, node_path, run_id)
 
     if state.status == NodeStatus.WAITING:
       # Unresolved interrupts remain → propagate to parent.
@@ -195,6 +195,7 @@ class DynamicNodeScheduler:
         )
         return self._make_cached_ctx(
             ctx,
+            node,
             node_path,
             run_id,
             interrupt_ids=set(state.interrupts),
@@ -220,7 +221,7 @@ class DynamicNodeScheduler:
         logger.info(
             'node %s schedule end: Auto-complete with resume_inputs.', node_path
         )
-        return self._make_cached_ctx(ctx, node_path, run_id)
+        return self._make_cached_ctx(ctx, node, node_path, run_id)
 
       # All resolved, rerun → re-execute with resume_inputs.
       logger.info(
@@ -305,6 +306,7 @@ class DynamicNodeScheduler:
   def _make_cached_ctx(
       self,
       ctx: Context,
+      node: BaseNode,
       node_path: str,
       run_id: str,
       interrupt_ids: set[str] | None = None,
@@ -314,10 +316,10 @@ class DynamicNodeScheduler:
 
     child_ctx = Ctx(
         ctx._invocation_context,
+        parent_ctx=ctx,
+        node=node,
         node_path=node_path,
         run_id=run_id,
-        event_author=ctx.event_author,
-        schedule_dynamic_node_internal=(ctx._workflow_scheduler),
     )
     run = self._state.runs[node_path]
     if run.output is not None:

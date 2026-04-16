@@ -44,34 +44,69 @@ if TYPE_CHECKING:
   from ..telemetry.node_tracing import TelemetryContext
   from ..tools.tool_confirmation import ToolConfirmation
   from ..workflow._base_node import BaseNode
+  from ..workflow._dynamic_node_scheduler import DynamicNodeScheduler
   from ..workflow._graph_definitions import NodeLike
   from ..workflow._graph_definitions import RouteValue
   from ..workflow._schedule_dynamic_node import ScheduleDynamicNode as ScheduleDynamicNodeInternal
   from .invocation_context import InvocationContext
 
 
-# This is the signature for the function that schedules a dynamic node in the
-# workflow.
-# First argument is the Context.
-# Second is the node to be scheduled,
-# Third is the run_id of the node to be scheduled.
-# Fourth is the node_input to be passed to the node.
-# Fifth (optional) is the node_name to be used for the dynamic node. If not
-# provided, the run_id will be used as the node_name.
-# Make sure the node_name is unique across all nodes in the workflow.
-# This node_name is also used to skip the node during resume if the node has
-# already been executed.
-#
-# It returns a future that will resolve to the output of the node.
+def _derive_scheduler(
+    parent_ctx: Context | None,
+) -> DynamicNodeScheduler | None:
+  """Derives the dynamic node scheduler from the parent context."""
+  if parent_ctx:
+    scheduler = parent_ctx._workflow_scheduler
+    if scheduler is None:
+      from ..workflow._dynamic_node_scheduler import DynamicNodeScheduler
+      from ..workflow._dynamic_node_scheduler import DynamicNodeState
+
+      scheduler = DynamicNodeScheduler(state=DynamicNodeState())
+    return scheduler
+  return None
+
+
+def _derive_node_path(
+    node_name: str | None,
+    run_id: str,
+    node_path: str | None,
+    parent_path: str | None,
+) -> tuple[str, str]:
+  """Derives the node path and run ID."""
+  # The derivation works by using a path builder initialized with the parent path.
+  # It first respects any explicitly provided `node_path`. If derivation is needed,
+  # it establishes the base path, sets a default run ID of '1', and (unless it is a
+  # root context with no name or parent) appends the current node and run ID to the
+  # base path to generate the new hierarchical path.
+  if node_path:
+    return node_path, run_id
+
+  from ..events._node_path_builder import _NodePathBuilder
+
+  base_path_builder = (
+      _NodePathBuilder.from_string(parent_path)
+      if parent_path
+      else _NodePathBuilder([])
+  )
+
+  derived_run_id = run_id or '1'
+
+  # Root contexts have no node name and no parent path. Return an empty path
+  # to ensure they are correctly identified as the root of the execution hierarchy.
+  if not node_name and not parent_path:
+    return '', derived_run_id
+
+  derived_node_path = str(
+      base_path_builder.append(node_name or '', derived_run_id)
+  )
+  return derived_node_path, derived_run_id
 
 
 class Context(ReadonlyContext):
   """The context within an agent run.
 
-  When used in a workflow, additional fields are available:
-  ``node_path``, ``run_id``, ``in_nodes``,
-  ``resume_inputs``, ``retry_count``,
-  ``run_node()``, and ``get_next_child_run_id()``.
+  When used in a workflow, additional fields under the ``Workflow-specific
+  fields`` section are available.
   """
 
   def __init__(
@@ -82,15 +117,13 @@ class Context(ReadonlyContext):
       function_call_id: str | None = None,
       tool_confirmation: ToolConfirmation | None = None,
       # Workflow-specific fields (optional)
-      node_path: str = '',
+      parent_ctx: Context | None = None,
+      node: BaseNode | None = None,
+      node_path: str | None = None,
       run_id: str = '',
       resume_inputs: dict[str, Any] | None = None,
-      schedule_dynamic_node_internal: ScheduleDynamicNodeInternal | None = None,
-      node_rerun_on_resume: bool = True,
       attempt_count: int = 1,
       output_for_ancestors: list[str] | None = None,
-      event_author: str = '',
-      state_schema: type[BaseModel] | None = None,
       telemetry_context: TelemetryContext | None = None,
   ) -> None:
     """Initializes the Context.
@@ -102,11 +135,15 @@ class Context(ReadonlyContext):
         for tool-specific methods like request_credential and
         request_confirmation.
       tool_confirmation: The tool confirmation of the current tool call.
-      node_path: The path of the current node in the workflow graph.
+      parent_ctx: The parent node's Context.
+      node: The current node.
+      node_path: The path of the current node in the workflow graph. If not
+        provided, it will be derived from parent_ctx and node.
       run_id: The execution ID of the current node.
+
       resume_inputs: Inputs for resuming node, keyed by interrupt id.
-      node_rerun_on_resume: Whether the node reruns on resume.
-      retry_count: Number of times this node has been retried.
+      attempt_count: Number of times this node has been attempted.
+      output_for_ancestors: Ancestor node paths whose output this node's output also represents.
       telemetry_context: The telemetry context.
     """
     super().__init__(invocation_context)
@@ -115,23 +152,33 @@ class Context(ReadonlyContext):
     from ..sessions.state import State
     from ..telemetry.node_tracing import TelemetryContext
 
-    # TODO: clean up: group the below private fields with categories.
-
     self._event_actions = event_actions or EventActions()
+
+    computed_state_schema = None
+    if node and node.state_schema:
+      computed_state_schema = node.state_schema
+    elif parent_ctx:
+      computed_state_schema = parent_ctx.state._schema
+
     self._state = State(
         value=invocation_context.session.state,
         delta=self._event_actions.state_delta,
-        schema=state_schema or invocation_context._state_schema,
+        schema=computed_state_schema or invocation_context._state_schema,
     )
     self._function_call_id = function_call_id
     self._tool_confirmation = tool_confirmation
 
-    # Workflow-specific fields
-    self._node_path = node_path
+    self._node_path, run_id = _derive_node_path(
+        node.name if node else None,
+        run_id,
+        node_path,
+        parent_ctx.node_path if parent_ctx else None,
+    )
     self._run_id = run_id
+
     self._resume_inputs = resume_inputs or {}
-    self._workflow_scheduler = schedule_dynamic_node_internal
-    self._node_rerun_on_resume = node_rerun_on_resume
+    self._workflow_scheduler = _derive_scheduler(parent_ctx)
+    self._node_rerun_on_resume = node.rerun_on_resume if node else True
     self._child_run_counters: dict[str, int] = {}
     self._child_run_counter = 0
     self._attempt_count = attempt_count
@@ -141,7 +188,9 @@ class Context(ReadonlyContext):
     self._route_value: RouteValue | list[RouteValue] | None = None
     self._route_emitted: bool = False
     self._interrupt_ids: set[str] = set()
-    self._event_author = event_author
+
+    self._event_author = parent_ctx.event_author if parent_ctx else ''
+
     self._telemetry_context = telemetry_context or TelemetryContext(
         otel_context=context_api.get_current()
     )

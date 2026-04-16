@@ -62,7 +62,6 @@ def _make_ctx(invocation_id='inv-test', enqueue_events=None, node_path=''):
   ctx = Context(
       invocation_context=ic,
       node_path=node_path,
-      event_author='',
       output_for_ancestors=[],
   )
   return ctx, collected

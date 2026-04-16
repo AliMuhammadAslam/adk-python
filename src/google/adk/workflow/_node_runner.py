@@ -29,8 +29,8 @@ import sys
 from typing import Any
 from typing import TYPE_CHECKING
 
-from ..telemetry import node_tracing
 from ..events._node_path_builder import _NodePathBuilder
+from ..telemetry import node_tracing
 
 if TYPE_CHECKING:
   from ..agents.context import Context
@@ -71,6 +71,7 @@ class NodeRunner:
       run_id: Unique ID for this run. Should be a sequential
         counter string ("1", "2", …) unique per node path.
         Falls back to "1" if not provided.
+
       additional_output_for_ancestor: Ancestor node path whose
         output this node's output also represents (use_as_output).
       prior_output: Output from a previous run, carried
@@ -179,12 +180,6 @@ class NodeRunner:
     await asyncio.sleep(delay)
     return True
 
-  def _build_node_path(self) -> str:
-    """Construct this node's path from parent context."""
-    parent_path = self._parent_ctx.node_path
-    base_path_builder = _NodePathBuilder.from_string(parent_path) if parent_path else _NodePathBuilder([])
-    return str(base_path_builder.append(self._node.name, self.run_id))
-
   def _create_child_context(
       self,
       resume_inputs: dict[str, Any] | None,
@@ -205,16 +200,6 @@ class NodeRunner:
     else:
       ancestors = []
 
-    # Inherit the parent's dynamic-node scheduler. If none exists
-    # (standalone node, no Workflow), create a DefaultNodeScheduler so that
-    # ctx.run_node() works correctly on re-run with resume.
-    scheduler = self._parent_ctx._workflow_scheduler
-    if scheduler is None:
-      from ._dynamic_node_scheduler import DynamicNodeScheduler
-      from ._dynamic_node_scheduler import DynamicNodeState
-
-      scheduler = DynamicNodeScheduler(state=DynamicNodeState())
-
     ic = self._parent_ctx._invocation_context
     base_branch = (
         self._override_branch
@@ -231,15 +216,11 @@ class NodeRunner:
 
     ctx = Context(
         ic,
-        node_path=self._build_node_path(),
+        parent_ctx=self._parent_ctx,
+        node=self._node,
         run_id=self._run_id,
         resume_inputs=resume_inputs,
-        schedule_dynamic_node_internal=scheduler,
-        node_rerun_on_resume=self._node.rerun_on_resume,
         output_for_ancestors=ancestors,
-        event_author=self._parent_ctx.event_author,
-        state_schema=self._node.state_schema
-        or (self._parent_ctx.state._schema if self._parent_ctx else None),
         attempt_count=attempt_count,
     )
 
