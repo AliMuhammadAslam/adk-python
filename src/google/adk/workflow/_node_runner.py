@@ -136,8 +136,8 @@ class NodeRunner:
           # TODO: consider to retry upon dynamic node failures later. This may
           # require thorough design to consider a workflow dynamic node and a
           # normal node.
-          ctx.error = e.error
-          ctx.error_node_path = e.error_node_path
+          ctx._error = e.error
+          ctx._error_node_path = e.error_node_path
           logger.info("node %s end.", ctx.node_path)
           return ctx
 
@@ -151,8 +151,8 @@ class NodeRunner:
         await self._enqueue_event(error_event, ctx)
 
         if not await self._attempt_retry(e, ctx, attempt_count):
-          ctx.error = e
-          ctx.error_node_path = ctx.node_path
+          ctx._error = e
+          ctx._error_node_path = ctx.node_path
           logger.info("node %s end.", ctx.node_path)
           return ctx
         logger.warning(

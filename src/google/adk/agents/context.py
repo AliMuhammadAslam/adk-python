@@ -274,18 +274,10 @@ class Context(ReadonlyContext):
     """The exception raised by the node, if any."""
     return self._error
 
-  @error.setter
-  def error(self, value: Exception | None) -> None:
-    self._error = value
-
   @property
   def error_node_path(self) -> str:
     """The path of the node that failed."""
     return self._error_node_path
-
-  @error_node_path.setter
-  def error_node_path(self, value: str) -> None:
-    self._error_node_path = value
 
   @property
   def output(self) -> Any:

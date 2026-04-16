@@ -287,8 +287,8 @@ class Workflow(BaseNode):
           node_state = loop_state.nodes[name]
           node_state.status = NodeStatus.FAILED
 
-          ctx.error = child_ctx.error
-          ctx.error_node_path = child_ctx.error_node_path
+          ctx._error = child_ctx.error
+          ctx._error_node_path = child_ctx.error_node_path
 
           loop_state.error_shut_down = True
           logger.info('node %s execute loop end.', ctx.node_path)
