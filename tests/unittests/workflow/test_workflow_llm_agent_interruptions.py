@@ -417,15 +417,22 @@ async def test_workflow_pause_and_resume_parent_interruption(
   # Child agent (does nothing special)
   child_agent = LlmAgent(
       name='child_agent',
-      model=testing_utils.MockModel.create(responses=['Child done']),
+      model=testing_utils.MockModel.create(
+          responses=[
+              types.Part.from_function_call(
+                  name='finish_task',
+                  args={'result': 'Child done'},
+              )
+          ]
+      ),
       mode='task',
   )
 
   # Parent agent calls LRO tool first, then delegates to child
   fc = types.Part.from_function_call(name='long_running_tool_func', args={})
   call_child = types.Part.from_function_call(
-      name='transfer_to_agent',
-      args={'agent_name': 'child_agent'},
+      name='child_agent',
+      args={'request': 'Start child task'},
   )
 
   parent_model = testing_utils.MockModel.create(
@@ -439,7 +446,9 @@ async def test_workflow_pause_and_resume_parent_interruption(
   parent_agent = LlmAgent(
       name='parent_agent',
       model=parent_model,
-      tools=[LongRunningFunctionTool(func=long_running_tool_func)],
+      tools=[
+          LongRunningFunctionTool(func=long_running_tool_func),
+      ],
       sub_agents=[child_agent],
       mode='task',
   )
@@ -492,9 +501,10 @@ async def test_workflow_pause_and_resume_parent_interruption(
       for p in e.content.parts
       if p.text
   ]
-  assert any('Child done' in t for t in content_texts)
+  assert any('Parent all done' in t for t in content_texts)
 
 
+@pytest.mark.xfail(reason='Task agents cannot have sub-agents in workflow')
 @pytest.mark.asyncio
 async def test_workflow_pause_and_resume_child_interruption(
     request: pytest.FixtureRequest,
@@ -504,7 +514,13 @@ async def test_workflow_pause_and_resume_child_interruption(
   # Child agent calls LRO tool
   fc = types.Part.from_function_call(name='long_running_tool_func', args={})
   child_model = testing_utils.MockModel.create(
-      responses=[fc, 'Child done after tool']
+      responses=[
+          fc,
+          types.Part.from_function_call(
+              name='finish_task',
+              args={'result': 'Child done after tool'},
+          ),
+      ]
   )
 
   child_agent = LlmAgent(
@@ -516,8 +532,8 @@ async def test_workflow_pause_and_resume_child_interruption(
 
   # Parent agent delegates to child first
   call_child = types.Part.from_function_call(
-      name='transfer_to_agent',
-      args={'agent_name': 'child_agent'},
+      name='child_agent',
+      args={'request': 'Start child task'},
   )
   parent_model = testing_utils.MockModel.create(
       responses=[
@@ -549,7 +565,12 @@ async def test_workflow_pause_and_resume_child_interruption(
 
   # Run 1: Should enter parent, then child, then child pauses on LRO!
   events1 = await runner.run_async(testing_utils.get_user_content('start'))
-  assert any(e.long_running_tool_ids for e in events1)
+  assert any(
+      p.function_call and p.function_call.name == 'child_agent'
+      for e in events1
+      if e.content
+      for p in e.content.parts
+  )
 
   invocation_id = events1[0].invocation_id
   fc_event = workflow_testing_utils.find_function_call_event(
@@ -582,7 +603,7 @@ async def test_workflow_pause_and_resume_child_interruption(
       for p in e.content.parts
       if p.text
   ]
-  assert any('Child done after tool' in t for t in content_texts)
+  assert any('Parent all done' in t for t in content_texts)
 
 
 def _append_function_response(

@@ -979,8 +979,9 @@ class LlmAgent(BaseAgent):
 
       self.tools.append(FinishTaskTool(self))
 
-    # Add single-turn sub-agents as tools
+    # Add sub-agents as tools based on their mode
     from ..tools.agent_tool import _SingleTurnAgentTool
+    from ..tools.agent_tool import _TaskAgentTool
 
     if self.sub_agents:
       for sub_agent in self.sub_agents:
@@ -989,6 +990,8 @@ class LlmAgent(BaseAgent):
             sub_agent.mode = 'chat'
           if sub_agent.mode == 'single_turn':
             self.tools.append(_SingleTurnAgentTool(sub_agent))
+          elif sub_agent.mode == 'task':
+            self.tools.append(_TaskAgentTool(sub_agent))
 
   @classmethod
   @experimental(FeatureName.AGENT_CONFIG)

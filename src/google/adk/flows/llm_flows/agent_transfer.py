@@ -144,6 +144,9 @@ def _build_transfer_instructions(
   Returns:
     Instruction text for the LLM about agent transfers.
   """
+  if agent.mode in ('task', 'single_turn'):
+    return ''
+
   si = _build_transfer_instruction_body(tool_name, target_agents)
 
   if agent.parent_agent and not agent.disallow_transfer_to_parent:
@@ -173,7 +176,7 @@ def _get_transfer_targets(agent: LlmAgent) -> list[BaseAgent]:
   result.extend([
       sub_agent
       for sub_agent in agent.sub_agents
-      if getattr(sub_agent, 'mode', None) != 'single_turn'
+      if agent.mode not in ('single_turn', 'task')
   ])
 
   if not agent.parent_agent or not hasattr(
