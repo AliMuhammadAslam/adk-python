@@ -47,15 +47,18 @@ EXCLUDED_EVENT_FIELDS = {
 
 
 # Read target folder from environment
-def get_test_files(target_folder: str | None = None):
-  """Yields (agent_dir, test_file_path) recursively."""
+def get_test_files(
+    target_folder: str | None = None,
+) -> list[pytest.ParameterSet]:
+  """Returns list of (agent_dir, test_file_path) recursively."""
   folder = target_folder or os.environ.get("ADK_TEST_FOLDER")
   if not folder:
-    return
+    return []
   target_dir = Path(folder)
   if not target_dir.exists():
-    return
+    return []
 
+  results = []
   for test_file in target_dir.rglob("tests/*.json"):
     agent_dir = test_file.parent.parent
     # Verify it looks like an agent directory
@@ -65,9 +68,12 @@ def get_test_files(target_folder: str | None = None):
         or (agent_dir / "root_agent.yaml").exists()
     ):
       if test_file.stem.endswith("_xfail"):
-        yield pytest.param(agent_dir, test_file, marks=pytest.mark.xfail)
+        results.append(
+            pytest.param(agent_dir, test_file, marks=pytest.mark.xfail)
+        )
       else:
-        yield agent_dir, test_file
+        results.append(pytest.param(agent_dir, test_file))
+  return results
 
 
 class MockModel(BaseLlm):
@@ -269,7 +275,7 @@ def _extract_user_content(event: dict) -> Optional[types.Content]:
 
 @pytest.mark.parametrize(
     "agent_dir, test_file",
-    list(get_test_files()),
+    get_test_files(),
     ids=lambda val: val.name if isinstance(val, Path) else val,
 )
 def test_agent_replay(agent_dir, test_file, monkeypatch):
@@ -559,12 +565,13 @@ def rebuild_tests(path: str):
     folder = str(path_obj.parent.parent)
     expected_name = path_obj.name
 
-  test_files = list(get_test_files(folder))
+  test_files = get_test_files(folder)
   if not test_files:
     print(f"No test files found in {folder}")
     return
 
-  for agent_dir, test_file in test_files:
+  for item in test_files:
+    agent_dir, test_file = item.values
     if expected_name and test_file.name != expected_name:
       continue
     print(f"Rebuilding {test_file}...")
