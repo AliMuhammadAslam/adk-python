@@ -273,6 +273,67 @@ def _extract_user_content(event: dict) -> Optional[types.Content]:
   return None
 
 
+def _normalize_ids(events: list[AdkEvent]) -> list[AdkEvent]:
+  """Filters partial events and normalizes event, function call, and response IDs."""
+  events = [e for e in events if not getattr(e, "partial", False)]
+
+  # Re-assign sequential event IDs
+  for i, e in enumerate(events, 1):
+    e.id = f"e-{i}"
+
+  # Post-process all events to inject deterministic function IDs
+  final_fc_counter = 0
+  final_orig_to_new_id = {}
+  for e in events:
+    for fc in e.get_function_calls():
+      orig_id = fc.id
+      final_fc_counter += 1
+      new_id = f"fc-{final_fc_counter}"
+      final_orig_to_new_id[orig_id] = new_id
+      fc.id = new_id
+      if e.long_running_tool_ids:
+        e.long_running_tool_ids = {
+            new_id if tid == orig_id else tid for tid in e.long_running_tool_ids
+        }
+      if fc.args:
+        for k, v in fc.args.items():
+          if v == orig_id:
+            fc.args[k] = new_id
+
+  # Pass 2: Update actions and user responses in all events
+  call_name_to_ids = {}
+  for e in events:
+    for fc in e.get_function_calls():
+      call_name_to_ids.setdefault(fc.name, []).append(fc.id)
+
+    if e.actions and e.actions.request_task:
+      new_req_task = {}
+      for k, v in e.actions.request_task.items():
+        new_k = final_orig_to_new_id.get(k, k)
+        new_req_task[new_k] = v
+      e.actions.request_task = new_req_task
+
+    if getattr(e, "branch", None) and e.branch.startswith("task:"):
+      parts = e.branch.split(":")
+      if len(parts) > 1:
+        fc_id = parts[1]
+        if fc_id in final_orig_to_new_id:
+          e.branch = f"task:{final_orig_to_new_id[fc_id]}"
+
+    if e.content and e.content.parts:
+      for part in e.content.parts:
+        if part.function_response:
+          name = part.function_response.name
+          if name in call_name_to_ids and call_name_to_ids[name]:
+            part.function_response.id = call_name_to_ids[name].pop(0)
+          elif part.function_response.id in final_orig_to_new_id:
+            part.function_response.id = final_orig_to_new_id[
+                part.function_response.id
+            ]
+
+  return events
+
+
 @pytest.mark.parametrize(
     "agent_dir, test_file",
     get_test_files(),
@@ -502,39 +563,7 @@ def test_agent_replay(agent_dir, test_file, monkeypatch):
 
           actual_events.extend(next_run_events)
 
-    actual_events = [
-        e for e in actual_events if not getattr(e, "partial", False)
-    ]
-
-    # Post-process all events to inject deterministic function IDs
-    final_fc_counter = 0
-    final_orig_to_new_id = {}
-    for e in actual_events:
-      for fc in e.get_function_calls():
-        orig_id = fc.id
-        final_fc_counter += 1
-        new_id = f"fc-{final_fc_counter}"
-        final_orig_to_new_id[orig_id] = new_id
-        fc.id = new_id
-        if e.long_running_tool_ids:
-          e.long_running_tool_ids = {
-              new_id if tid == orig_id else tid
-              for tid in e.long_running_tool_ids
-          }
-        if fc.args:
-          for k, v in fc.args.items():
-            if v == orig_id:
-              fc.args[k] = new_id
-
-      if e.author == "user" and e.content and e.content.parts:
-        for part in e.content.parts:
-          if (
-              part.function_response
-              and part.function_response.id in final_orig_to_new_id
-          ):
-            part.function_response.id = final_orig_to_new_id[
-                part.function_response.id
-            ]
+    actual_events = _normalize_ids(actual_events)
 
     actual_dicts = normalize_events(actual_events, is_json=False)
     expected_dicts = normalize_events(expected_events, is_json=True)
@@ -720,41 +749,7 @@ def rebuild_tests(path: str):
           new_events.append(user_ev)
           new_events.extend(run_events)
 
-      # Filter out partial events if any
-      new_events = [e for e in new_events if not getattr(e, "partial", False)]
-
-      # Re-assign sequential IDs based on saved events
-      for i, e in enumerate(new_events, 1):
-        e.id = f"e-{i}"
-
-      # Post-process all events to inject deterministic function IDs
-      final_fc_counter = 0
-      for e in new_events:
-        for fc in e.get_function_calls():
-          orig_id = fc.id
-          final_fc_counter += 1
-          new_id = f"fc-{final_fc_counter}"
-          orig_to_new_id[orig_id] = new_id
-          fc.id = new_id
-          if e.long_running_tool_ids:
-            e.long_running_tool_ids = {
-                new_id if tid == orig_id else tid
-                for tid in e.long_running_tool_ids
-            }
-          if fc.args:
-            for k, v in fc.args.items():
-              if v == orig_id:
-                fc.args[k] = new_id
-
-        if e.author == "user" and e.content and e.content.parts:
-          for part in e.content.parts:
-            if (
-                part.function_response
-                and part.function_response.id in orig_to_new_id
-            ):
-              part.function_response.id = orig_to_new_id[
-                  part.function_response.id
-              ]
+      new_events = _normalize_ids(new_events)
 
       # Convert to dicts
       # Also exclude timestamp to make it deterministic
