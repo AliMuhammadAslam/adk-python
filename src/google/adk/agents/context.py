@@ -47,7 +47,6 @@ if TYPE_CHECKING:
   from ..workflow._dynamic_node_scheduler import DynamicNodeScheduler
   from ..workflow._graph_definitions import NodeLike
   from ..workflow._graph_definitions import RouteValue
-  from ..workflow._schedule_dynamic_node import ScheduleDynamicNode as ScheduleDynamicNodeInternal
   from .invocation_context import InvocationContext
 
 
@@ -117,11 +116,9 @@ class Context(ReadonlyContext):
       *,
       # Core State & Actions
       event_actions: EventActions | None = None,
-
       # Tool Execution
       function_call_id: str | None = None,
       tool_confirmation: ToolConfirmation | None = None,
-
       # Workflow Execution
       parent_ctx: Context | None = None,
       node: BaseNode | None = None,
