@@ -35,6 +35,7 @@ import asyncio
 from google.adk.workflow import node
 from typing_extensions import override
 
+from .workflow_testing_utils import get_outputs as _get_outputs
 from .. import testing_utils
 
 
@@ -48,14 +49,8 @@ def _make_app(name: str, agent: Workflow, resumable: bool) -> App:
   )
 
 
-def _get_outputs(events: list[Event]) -> list[Any]:
-  """Extracts output values from events, skipping non-output events."""
-  return [
-      e.output for e in events if isinstance(e, Event) and e.output is not None
-  ]
-
-
 # ---------------------------------------------------------------------------
+
 # FunctionNode delegates to FunctionNode
 # ---------------------------------------------------------------------------
 

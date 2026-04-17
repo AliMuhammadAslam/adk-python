@@ -777,7 +777,9 @@ async def test_workflow_rerun_with_multiple_inputs(
       ),
       invocation_id=invocation_id,
   )
-  assert all(e.invocation_id == invocation_id for e in events2 if e.invocation_id)
+  assert all(
+      e.invocation_id == invocation_id for e in events2 if e.invocation_id
+  )
   simplified_events2 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events2),
@@ -842,7 +844,9 @@ async def test_workflow_rerun_with_multiple_inputs(
       ),
       invocation_id=invocation_id,
   )
-  assert all(e.invocation_id == invocation_id for e in events3 if e.invocation_id)
+  assert all(
+      e.invocation_id == invocation_id for e in events3 if e.invocation_id
+  )
   simplified_events3 = (
       workflow_testing_utils.simplify_events_with_node_and_agent_state(
           copy.deepcopy(events3),
@@ -1956,7 +1960,9 @@ async def test_multiple_pending_interrupts_isolation(
       parts=[
           types.Part(
               function_response=types.FunctionResponse(
-                  name=REQUEST_INPUT_FUNCTION_CALL_NAME, id=function_call_id, response={'ans': 'val1'}
+                  name=REQUEST_INPUT_FUNCTION_CALL_NAME,
+                  id=function_call_id,
+                  response={'ans': 'val1'},
               )
           )
       ],
@@ -1966,4 +1972,82 @@ async def test_multiple_pending_interrupts_isolation(
 
   # Verify that Invocation 1 resumed and produced output
   outputs3 = [e.output for e in events3 if e.output is not None]
-  assert "Resumed 1: val1" in outputs3
+  assert 'Resumed 1: val1' in outputs3
+
+
+@pytest.mark.xfail(reason='Resumability not recording multiple triggers properly')
+@pytest.mark.asyncio
+async def test_parallel_nodes_trigger_same_hitl_node(
+    request: pytest.FixtureRequest, resumable: bool
+):
+  """Tests that two nodes running in parallel can trigger the same node with HITL."""
+
+  @node(rerun_on_resume=True)
+  def node_c(ctx: Context, node_input: Any):
+    interrupt_id = f'req_c_{node_input}'
+    if interrupt_id not in ctx.resume_inputs:
+      yield RequestInput(interrupt_id=interrupt_id, message='input for c')
+      return
+    yield Event(
+        output=f"c_{node_input}_{ctx.resume_inputs[interrupt_id]['text']}"
+    )
+
+  def node_a():
+    return 'from_a'
+
+  def node_b():
+    return 'from_b'
+
+  agent = Workflow(
+      name='test_parallel_hitl',
+      edges=[
+          (START, (node_a, node_b), node_c),
+      ],
+  )
+  app = App(
+      name=request.function.__name__,
+      root_agent=agent,
+      resumability_config=(
+          ResumabilityConfig(is_resumable=True) if resumable else None
+      ),
+  )
+
+  runner = testing_utils.InMemoryRunner(app=app)
+
+  # Run 1: should pause on both branches because they trigger NodeC
+  events1 = await runner.run_async(testing_utils.get_user_content('start'))
+  req_events1 = workflow_testing_utils.get_request_input_events(events1)
+  assert len(req_events1) == 2
+
+  outputs1 = workflow_testing_utils.get_outputs(events1)
+  assert set(outputs1) == {'from_a', 'from_b'}
+
+  interrupt_ids = []
+  for e in req_events1:
+    interrupt_ids.extend(get_request_input_interrupt_ids(e))
+
+  invocation_id = events1[0].invocation_id
+
+  # Run 2: resume first interrupt
+  events2 = await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(
+              interrupt_ids[0], {'text': 'response 1'}
+          )
+      ),
+      invocation_id=invocation_id,
+  )
+  outputs2 = workflow_testing_utils.get_outputs(events2)
+  assert outputs2 == [f'c_from_a_response 1']
+
+  # Run 3: resume second interrupt
+  events3 = await runner.run_async(
+      new_message=testing_utils.UserContent(
+          create_request_input_response(
+              interrupt_ids[1], {'text': 'response 2'}
+          )
+      ),
+      invocation_id=invocation_id,
+  )
+  outputs3 = workflow_testing_utils.get_outputs(events3)
+  assert outputs3 == [f'c_from_b_response 2']

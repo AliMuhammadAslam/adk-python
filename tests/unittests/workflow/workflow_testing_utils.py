@@ -327,6 +327,13 @@ def get_output_events(events: list[Any], output: Any = None) -> list[Any]:
   ]
 
 
+def get_outputs(events: list[Event]) -> list[Any]:
+  """Extracts output values from events, skipping non-output events."""
+  return [
+      e.output for e in events if isinstance(e, Event) and e.output is not None
+  ]
+
+
 def strip_checkpoint_events(
     simplified_events: list[tuple[str, Any]],
 ) -> list[tuple[str, Any]]:
