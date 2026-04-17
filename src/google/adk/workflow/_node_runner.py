@@ -118,7 +118,7 @@ class NodeRunner:
       ctx = self._create_child_context(
           resume_inputs, attempt_count=attempt_count
       )
-      logger.info("node %s started.", ctx.node_path)
+      logger.debug("node %s started.", ctx.node_path)
       try:
         # Start the span within try-except block to record exceptions on the span
         async with node_tracing.start_as_current_node_span(
@@ -127,7 +127,7 @@ class NodeRunner:
           ctx._telemetry_context = telemetry_context
           await self._execute_node(ctx, node_input)
           await self._flush_output_and_deltas(ctx)
-          logger.info("node %s end.", ctx.node_path)
+          logger.debug("node %s end.", ctx.node_path)
           return ctx
       except Exception as e:
         from ._errors import DynamicNodeFailError
@@ -138,7 +138,7 @@ class NodeRunner:
           # normal node.
           ctx._error = e.error
           ctx._error_node_path = e.error_node_path
-          logger.info("node %s end.", ctx.node_path)
+          logger.debug("node %s end.", ctx.node_path)
           return ctx
 
         from ..events.event import Event
@@ -153,7 +153,7 @@ class NodeRunner:
         if not await self._attempt_retry(e, ctx, attempt_count):
           ctx._error = e
           ctx._error_node_path = ctx.node_path
-          logger.info("node %s end.", ctx.node_path)
+          logger.debug("node %s end.", ctx.node_path)
           return ctx
         logger.warning(
             "Node %s failed and is being retried locally. Note: retry count is"
@@ -262,12 +262,12 @@ class NodeRunner:
     """Iterate node.run(), track events in context, and enqueue them."""
     from ..utils.context_utils import Aclosing
 
-    logger.info("node %s execute loop start.", ctx.node_path)
+    logger.debug("node %s execute loop start.", ctx.node_path)
     async with Aclosing(self._node.run(ctx=ctx, node_input=node_input)) as agen:
       async for event in agen:
         self._track_event_in_context(event, ctx)
         await self._enqueue_event(event, ctx)
-    logger.info("node %s execute loop end.", ctx.node_path)
+    logger.debug("node %s execute loop end.", ctx.node_path)
 
   async def _run_node_loop_with_timeout(
       self, ctx: Context, node_input: Any, timeout: float

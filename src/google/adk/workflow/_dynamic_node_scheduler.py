@@ -156,7 +156,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
             f' Input does not match input_schema: {e}'
         ) from e
 
-    logger.info('node %s schedule start.', node_path)
+    logger.debug('node %s schedule start.', node_path)
 
     # Phase 1: Lazy rehydration from session events.
     if node_path not in self._state.runs:
@@ -164,7 +164,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
 
     if node_path not in self._state.runs:
       # Phase 3: Fresh execution.
-      logger.info('node %s schedule end: Fresh execution.', node_path)
+      logger.debug('node %s schedule end: Fresh execution.', node_path)
       return await self._run_node_internal(
           ctx,
           node,
@@ -184,14 +184,14 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
     state = run.state
     if state.status == NodeStatus.COMPLETED:
       # Already completed → return cached output.
-      logger.info('node %s schedule end: Already completed.', node_path)
+      logger.debug('node %s schedule end: Already completed.', node_path)
       return self._make_cached_ctx(ctx, node, node_path, run_id)
 
     if state.status == NodeStatus.WAITING:
       # Unresolved interrupts remain → propagate to parent.
       if state.interrupts:
         self._state.interrupt_ids.update(state.interrupts)
-        logger.info(
+        logger.debug(
             'node %s schedule end: Unresolved interrupts remain.', node_path
         )
         return self._make_cached_ctx(
@@ -219,13 +219,13 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
           output = dict(state.resume_inputs)
         state.status = NodeStatus.COMPLETED
         run.output = output
-        logger.info(
+        logger.debug(
             'node %s schedule end: Auto-complete with resume_inputs.', node_path
         )
         return self._make_cached_ctx(ctx, node, node_path, run_id)
 
       # All resolved, rerun → re-execute with resume_inputs.
-      logger.info(
+      logger.debug(
           'node %s schedule end: Re-execute with resume_inputs.', node_path
       )
       return await self._run_node_internal(
@@ -243,7 +243,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
 
     # Running in this invocation — await existing task.
     if run.task:
-      logger.info('node %s schedule end: Awaiting existing task.', node_path)
+      logger.debug('node %s schedule end: Awaiting existing task.', node_path)
       return await run.task
 
     raise RuntimeError(
@@ -254,7 +254,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
 
   def _rehydrate_from_events(self, ctx: Context, node_path: str) -> None:
     """Scan session events for a dynamic node's prior state."""
-    logger.info('node %s rehydrate start.', node_path)
+    logger.debug('node %s rehydrate start.', node_path)
     ic = ctx._invocation_context
 
     results = _reconstruct_node_states(
@@ -300,7 +300,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
 
     if state:
       self._state.runs[node_path] = DynamicNodeRun(state=state, output=output)
-    logger.info('node %s rehydrate end.', node_path)
+    logger.debug('node %s rehydrate end.', node_path)
 
   # --- Context construction ---
 
