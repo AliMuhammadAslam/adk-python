@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import sys
 from typing import Any
 from typing import TYPE_CHECKING
 
@@ -245,11 +244,9 @@ class NodeRunner:
 
     try:
       timeout = self._node.timeout
-      if timeout is not None and sys.version_info >= (3, 11):
+      if timeout is not None:
         await self._run_node_loop_with_timeout(ctx, node_input, timeout)
       else:
-        if timeout is not None:
-          self._log_timeout_not_supported_warning(timeout)
         await self._run_node_loop(ctx, node_input)
     except NodeInterruptedError:
       # A dynamic child interrupted via ctx.run_node().
@@ -273,21 +270,13 @@ class NodeRunner:
       self, ctx: Context, node_input: Any, timeout: float
   ) -> None:
     try:
-      async with asyncio.timeout(timeout):
-        await self._run_node_loop(ctx, node_input)
+      await asyncio.wait_for(
+          self._run_node_loop(ctx, node_input), timeout=timeout
+      )
     except asyncio.TimeoutError as e:
       from ._errors import NodeTimeoutError
 
       raise NodeTimeoutError(node_name=self._node.name, timeout=timeout) from e
-
-  def _log_timeout_not_supported_warning(self, timeout: float) -> None:
-    """Logs a warning when timeout is ignored due to Python version."""
-    logging.warning(
-        "Node %s: timeout %.2f seconds is ignored because Python version"
-        " is < 3.11",
-        self._node.name,
-        timeout,
-    )
 
   def _track_event_in_context(self, event: Event, ctx: Context) -> None:
     """Write yielded event results to ctx (source of truth)."""
