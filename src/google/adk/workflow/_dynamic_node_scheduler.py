@@ -31,6 +31,7 @@ from typing import TYPE_CHECKING
 from ..events._node_path_builder import _NodePathBuilder
 from ._node_state import NodeState
 from ._node_status import NodeStatus
+from ._schedule_dynamic_node import ScheduleDynamicNode
 from .utils._rehydration_utils import _ChildScanState
 from .utils._rehydration_utils import _reconstruct_node_states
 
@@ -89,7 +90,7 @@ class DynamicNodeState:
     return [run.task for run in self.runs.values() if run.task]
 
 
-class DynamicNodeScheduler:
+class DynamicNodeScheduler(ScheduleDynamicNode):
   """Handles ctx.run_node() calls for a Workflow.
 
   Implements ScheduleDynamicNode protocol via __call__. Tracks

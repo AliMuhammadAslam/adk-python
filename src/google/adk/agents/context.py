@@ -44,15 +44,15 @@ if TYPE_CHECKING:
   from ..telemetry.node_tracing import TelemetryContext
   from ..tools.tool_confirmation import ToolConfirmation
   from ..workflow._base_node import BaseNode
-  from ..workflow._dynamic_node_scheduler import DynamicNodeScheduler
   from ..workflow._graph_definitions import NodeLike
   from ..workflow._graph_definitions import RouteValue
+  from ..workflow._schedule_dynamic_node import ScheduleDynamicNode
   from .invocation_context import InvocationContext
 
 
 def _derive_scheduler(
     parent_ctx: Context | None,
-) -> DynamicNodeScheduler | None:
+) -> ScheduleDynamicNode | None:
   """Derives the dynamic node scheduler from the parent context."""
   if parent_ctx:
     scheduler = parent_ctx._workflow_scheduler
