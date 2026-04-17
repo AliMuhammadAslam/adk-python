@@ -23,6 +23,7 @@ from typing import Any
 
 from google.genai import types
 from pydantic import TypeAdapter
+from pydantic import ValidationError
 
 from ...events.event import Event
 from ...events.request_input import RequestInput
@@ -147,14 +148,14 @@ def _validate_resume_response(response_data: Any, schema: Any) -> Any:
             response_data
         )
         return model_instance.model_dump()
-      except Exception as e:
+      except ValidationError as e:
         raise ValueError(f'Validation failed for object schema: {e}') from e
 
     mapped_type = type_mapping.get(type_str) if type_str else None
     if mapped_type:
       try:
         return TypeAdapter(mapped_type).validate_python(response_data)
-      except Exception as e:
+      except ValidationError as e:
         raise ValueError(f'Failed to coerce data to {type_str}: {e}') from e
 
     # Fallback: skip validation for complex schemas (similar to base node)
@@ -163,7 +164,7 @@ def _validate_resume_response(response_data: Any, schema: Any) -> Any:
   # For Python types and Pydantic models, use TypeAdapter directly
   try:
     return TypeAdapter(schema).validate_python(response_data)
-  except Exception as e:
+  except ValidationError as e:
     raise ValueError(f'Validation failed against schema: {e}') from e
 
 
@@ -213,7 +214,7 @@ def _reconstruct_node_states(
           if schema:
             try:
               response_data = _validate_resume_response(response_data, schema)
-            except Exception as e:
+            except ValueError as e:
               raise ValueError(
                   f'Validation failed for interrupt {fr.id}: {e}'
               ) from e

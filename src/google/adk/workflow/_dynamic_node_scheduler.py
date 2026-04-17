@@ -29,6 +29,8 @@ from typing import Any
 from typing import TYPE_CHECKING
 
 from ..events._node_path_builder import _NodePathBuilder
+from pydantic import ValidationError
+
 from ._node_state import NodeState
 from ._node_status import NodeStatus
 from ._schedule_dynamic_node import ScheduleDynamicNode
@@ -150,7 +152,7 @@ class DynamicNodeScheduler(ScheduleDynamicNode):
     if node_input is not None:
       try:
         node_input = node._validate_input_data(node_input)
-      except Exception as e:
+      except ValidationError as e:
         raise ValueError(
             f"Runtime schema validation failed for dynamic node '{name}'."
             f' Input does not match input_schema: {e}'

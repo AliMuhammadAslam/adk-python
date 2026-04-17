@@ -28,6 +28,7 @@ from typing import TYPE_CHECKING
 
 from google.genai import types
 from pydantic import BaseModel
+from pydantic import PydanticSchemaGenerationError
 from pydantic import PrivateAttr
 from pydantic import TypeAdapter
 from typing_extensions import override
@@ -89,7 +90,7 @@ def _get_type_hints_for_unwrapped(func: Callable[..., Any]) -> dict[str, Any]:
   """Cached version of typing.get_type_hints."""
   try:
     return typing.get_type_hints(func)
-  except Exception:
+  except (TypeError, NameError, AttributeError):
     return {}
 
 
@@ -247,7 +248,7 @@ class FunctionNode(BaseNode):
         continue
       try:
         self._type_adapters[name] = TypeAdapter(hint)
-      except Exception:
+      except (TypeError, PydanticSchemaGenerationError):
         pass
 
     # Infer schemas based on the parameter binding mode.

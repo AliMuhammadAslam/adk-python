@@ -25,6 +25,7 @@ from pydantic import ConfigDict
 from pydantic import Field
 from pydantic import field_validator
 from pydantic import TypeAdapter
+from pydantic import ValidationError
 
 from ..utils._schema_utils import SchemaType
 from ._retry_config import RetryConfig
@@ -150,11 +151,11 @@ class BaseNode(BaseModel):
       # If schema is defined, try to parse the text as JSON.
       try:
         return TypeAdapter(self.input_schema).validate_json(text)
-      except Exception:
+      except ValidationError:
         # Fallback to validate_python if it's a raw string matching the schema.
         try:
           return TypeAdapter(self.input_schema).validate_python(text)
-        except Exception:
+        except ValidationError:
           pass
     return self._validate_schema(data, self.input_schema)
 
@@ -166,7 +167,7 @@ class BaseNode(BaseModel):
     # 1. Try standard validation first
     try:
       return self._validate_schema(data, self.output_schema)
-    except Exception as e:
+    except ValidationError as e:
       # 2. If failed, try to parse JSON ONLY if it's Content
       if isinstance(data, types.Content):
         text = ''.join(part.text for part in data.parts if part.text)
@@ -176,7 +177,7 @@ class BaseNode(BaseModel):
           try:
             validated = TypeAdapter(self.output_schema).validate_json(text)
             return self._to_serializable(validated)
-          except Exception:
+          except ValidationError:
             pass
 
       # 3. If not Content or parsing failed, re-raise original error
