@@ -17,6 +17,7 @@ from typing import Any
 from typing import Optional
 import uuid
 
+from pydantic import alias_generators
 from pydantic import BaseModel
 from pydantic import ConfigDict
 from pydantic import Field
@@ -27,7 +28,11 @@ from ..utils._schema_utils import SchemaType
 class RequestInput(BaseModel):
   """Represents a request for input from the user."""
 
-  model_config = ConfigDict(arbitrary_types_allowed=True)
+  model_config = ConfigDict(
+      arbitrary_types_allowed=True,
+      alias_generator=alias_generators.to_camel,
+      populate_by_name=True,
+  )
 
   interrupt_id: str = Field(
       description=(

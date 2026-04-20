@@ -53,7 +53,7 @@
           {
             "functionCall": {
               "args": {
-                "interrupt_id": "fc-1",
+                "interruptId": "fc-1",
                 "message": "Please review this time off request.",
                 "payload": {
                   "days": 2,

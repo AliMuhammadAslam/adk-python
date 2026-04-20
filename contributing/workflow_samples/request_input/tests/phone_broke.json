@@ -64,7 +64,7 @@
           {
             "functionCall": {
               "args": {
-                "interrupt_id": "fc-1",
+                "interruptId": "fc-1",
                 "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: Regarding Your Phone Issue - How We Can Help\n\nDear Customer,\n\nWe're very sorry to hear that your phone has broken. We understand how frustrating and disruptive this can be.\n\nTo help us understand what happened and assist you as quickly and efficiently as possible, could you please provide a few more details?\n\nPlease tell us:\n*   **What is the make and model of your phone?** (e.g., iPhone 13, Samsung Galaxy S22)\n*   **When did the phone break, and what happened?** (e.g., dropped it, it got wet, stopped turning on suddenly, screen went blank, etc.)\n*   **When and where was the phone purchased?** (This helps us determine warranty status.)\n*   **Have you already tried any troubleshooting steps?** (e.g., restarting, charging, etc.)\n\nOnce we have this information, we can guide you through the appropriate next steps, which may include troubleshooting, repair options, or warranty claims.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call our support team at [Your Company Phone Number] during our business hours [Business Hours, e.g., Monday-Friday, 9 AM - 5 PM EST].\n\nWe're here to help get your phone back up and running as quickly as possible.\n\nThank you for your patience.\n\nSincerely,\n\nThe [Your Company Name] Support Team\n---",
                 "payload": null,
                 "response_schema": null
@@ -153,7 +153,7 @@
           {
             "functionCall": {
               "args": {
-                "interrupt_id": "fc-2",
+                "interruptId": "fc-2",
                 "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: Your Phone Issue - How We Can Help\n\nDear Customer,\n\nWe're sorry to hear your phone has broken. To help us assist you quickly, please provide the following details:\n\n*   **Make and model of your phone?** (e.g., iPhone 13, Samsung Galaxy S22)\n*   **When and how did it break?** (e.g., dropped, got wet, stopped turning on)\n*   **When and where was it purchased?** (This helps with warranty)\n*   **Have you tried any troubleshooting steps?** (e.g., restarting, charging)\n\nOnce we have this information, we can guide you through the appropriate next steps.\n\nPlease reply to this email with the requested details, or call our support team at [Your Company Phone Number] during [Business Hours] if you prefer to speak directly.\n\nWe look forward to helping you.\n\nSincerely,\n\nThe [Your Company Name] Support Team\n---",
                 "payload": null,
                 "response_schema": null

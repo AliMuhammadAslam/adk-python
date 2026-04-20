@@ -51,7 +51,7 @@ _RESULT_KEY = 'result'
 
 def create_request_input_event(request_input: RequestInput) -> Event:
   """Creates a RequestInput event from a RequestInput object."""
-  args = request_input.model_dump(exclude={'response_schema'})
+  args = request_input.model_dump(exclude={'response_schema'}, by_alias=True)
   args['response_schema'] = (
       schema_to_json_schema(request_input.response_schema)
       if request_input.response_schema is not None

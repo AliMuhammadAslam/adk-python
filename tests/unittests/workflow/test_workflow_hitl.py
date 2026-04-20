@@ -393,7 +393,7 @@ async def test_workflow_request_input_resume(
               function_call=types.FunctionCall(
                   name=REQUEST_INPUT_FUNCTION_CALL_NAME,
                   args={
-                      'interrupt_id': interrupt_id,
+                      'interruptId': interrupt_id,
                       'message': 'Please provide user details.',
                       'payload': None,
                       'response_schema': {
@@ -549,7 +549,7 @@ async def test_workflow_allows_mixing_output_and_request_input(
   )
   assert simplified[1][0] == 'test_agent@1/NodeA@1'
   assert simplified[1][1].function_call.name == 'adk_request_input'
-  assert simplified[1][1].function_call.args['interrupt_id'] == 'req1'
+  assert simplified[1][1].function_call.args['interruptId'] == 'req1'
 
 
 @pytest.mark.parametrize(
@@ -809,7 +809,7 @@ async def test_workflow_rerun_with_multiple_inputs(
               function_call=types.FunctionCall(
                   name=REQUEST_INPUT_FUNCTION_CALL_NAME,
                   args={
-                      'interrupt_id': 'req2',
+                      'interruptId': 'req2',
                       'message': 'input 2',
                       'payload': None,
                       'response_schema': None,
@@ -1926,7 +1926,7 @@ async def test_multiple_pending_interrupts_isolation(
                       function_call=types.FunctionCall(
                           name=REQUEST_INPUT_FUNCTION_CALL_NAME,
                           args={
-                              'interrupt_id': fc_id,
+                              'interruptId': fc_id,
                               'message': f'input {fc_id}',
                           },
                           id=fc_id,

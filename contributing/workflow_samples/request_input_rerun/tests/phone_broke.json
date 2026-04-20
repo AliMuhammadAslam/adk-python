@@ -64,7 +64,7 @@
           {
             "functionCall": {
               "args": {
-                "interrupt_id": "fc-1",
+                "interruptId": "fc-1",
                 "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: Regarding Your Phone Issue - How We Can Help - [Your Company Name]\n\nDear Valued Customer,\n\nThank you for reaching out to us. We're very sorry to hear that you're experiencing an issue with your phone. We understand how frustrating it can be when your device isn't working as expected, and we're here to help.\n\nTo assist you as quickly and effectively as possible, could you please provide a few more details about the situation? This will help us understand the problem and guide you towards the best solution.\n\nPlease tell us:\n\n1.  **What is the model of your phone?** (e.g., iPhone 15, Samsung Galaxy S24, Google Pixel 8, etc.)\n2.  **When did you purchase the phone?** (Rough date or year is fine if you don't have the exact date.)\n3.  **Could you describe what happened and how the phone \"broke\"?** (e.g., \"It fell and the screen cracked,\" \"It won't turn on,\" \"It got wet,\" \"The battery stopped charging,\" \"It's stuck in a loop,\" etc.)\n4.  **Have you already attempted any troubleshooting steps?** (e.g., restarting the phone, checking charging cables, etc.)\n\nOnce we have this information, our support team will be able to assess the situation, discuss potential solutions such as troubleshooting, repair options, or warranty service, and guide you through the next steps.\n\nPlease reply to this email with the requested details, or if you prefer to speak with someone directly, you can call us at [Your Phone Number] during our business hours of [Your Business Hours].\n\nWe look forward to helping you resolve this issue soon.\n\nSincerely,\n\nThe Customer Support Team\n[Your Company Name]\n[Your Company Website (Optional)]\n---",
                 "payload": null,
                 "response_schema": null
@@ -153,7 +153,7 @@
           {
             "functionCall": {
               "args": {
-                "interrupt_id": "fc-2",
+                "interruptId": "fc-2",
                 "message": "Please review the following draft email and provide 'approve', 'reject', or feedback to revise.\n\n---\nSubject: Regarding Your Phone Issue - How We Can Help - [Your Company Name]\n\nDear Valued Customer,\n\nThank you for contacting us. We're sorry to hear about your phone issue and are ready to help.\n\nTo assist you efficiently, please provide the following details:\n\n1.  **What is the model of your phone?** (e.g., iPhone 15, Samsung Galaxy S24)\n2.  **When did you purchase the phone?** (Rough date or year is fine)\n3.  **How did the phone \"break\"?** (e.g., screen cracked, won't turn on, got wet)\n4.  **Have you attempted any troubleshooting steps?** (e.g., restarting, checking cables)\n\nWith this information, our team can better assess the problem and outline next steps (troubleshooting, repair, warranty).\n\nPlease reply to this email with the details. You can also call us at [Your Phone Number] during [Your Business Hours] if you prefer to speak directly.\n\nWe look forward to helping you resolve this soon.\n\nSincerely,\n\nThe Customer Support Team\n[Your Company Name]\n[Your Company Website (Optional)]\n---",
                 "payload": null,
                 "response_schema": null
