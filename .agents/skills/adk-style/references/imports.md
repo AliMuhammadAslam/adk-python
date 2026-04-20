@@ -8,6 +8,11 @@
   `from google.adk.agents.llm_agent import LlmAgent`
 - **Import from module**: Import from the module file, not from `__init__.py`.
   `from ..agents.llm_agent import LlmAgent` (not `from ..agents import LlmAgent`)
+- **CLI package** (`cli/`):
+  - Treat as an external package.
+  - Use **relative imports** for files within the `cli/` package.
+  - Use **absolute imports** for files outside of the `cli/` package.
+  - **Dependency Direction**: Only `cli/` can import from the rest of the codebase. The other codebase must **STRICTLY NOT** import from `cli/`.
 
 ## TYPE_CHECKING Imports
 
