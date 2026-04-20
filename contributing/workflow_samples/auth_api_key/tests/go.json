@@ -1,5 +1,5 @@
 {
-  "appName": "auth_config",
+  "appName": "auth_api_key",
   "events": [
     {
       "author": "user",
@@ -18,7 +18,7 @@
       }
     },
     {
-      "author": "auth_config",
+      "author": "auth_api_key",
       "content": {
         "parts": [
           {
@@ -51,7 +51,7 @@
         "fc-1"
       ],
       "nodeInfo": {
-        "path": "auth_config@1/fetch_weather@1"
+        "path": "auth_api_key@1/fetch_weather@1"
       }
     },
     {
@@ -77,14 +77,14 @@
       }
     },
     {
-      "author": "auth_config",
+      "author": "auth_api_key",
       "id": "e-4",
       "invocationId": "i-1",
       "nodeInfo": {
         "outputFor": [
-          "auth_config@1/fetch_weather@1"
+          "auth_api_key@1/fetch_weather@1"
         ],
-        "path": "auth_config@1/fetch_weather@1"
+        "path": "auth_api_key@1/fetch_weather@1"
       },
       "output": {
         "api_key_used": "1234****",
@@ -94,7 +94,7 @@
       }
     },
     {
-      "author": "auth_config",
+      "author": "auth_api_key",
       "content": {
         "parts": [
           {
@@ -106,7 +106,7 @@
       "id": "e-5",
       "invocationId": "i-1",
       "nodeInfo": {
-        "path": "auth_config@1/summarize@1"
+        "path": "auth_api_key@1/summarize@1"
       }
     }
   ],

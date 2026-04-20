@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Auth Config sample: FunctionNode with API key authentication.
+"""Auth API Key sample: FunctionNode with API key authentication.
 
 Demonstrates how to use `auth_config` on a FunctionNode to pause
 the workflow and request user credentials before running the node.
@@ -78,6 +78,6 @@ def summarize(node_input: dict):
 
 
 root_agent = Workflow(
-    name='auth_config',
+    name='auth_api_key',
     edges=[('START', fetch_weather, summarize)],
 )
