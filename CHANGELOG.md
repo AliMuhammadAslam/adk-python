@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.31.1](https://github.com/google/adk-python/compare/v1.31.0...v1.31.1) (2026-04-21)
+
+
+### Bug Fixes
+
+* block RCE vulnerability via nested YAML configurations in ADK ([e283ea0](https://github.com/google/adk-python/commit/e283ea04b2056f58632e07276b212274a0fba1e8))
+* bump Vertex SDK version ([21ebe29](https://github.com/google/adk-python/commit/21ebe29c9d930940235cbac50524ffd92d314fa7))
+* Disable bound token for mcp_tool ([d0afddd](https://github.com/google/adk-python/commit/d0afddda4ce78cebcb915132482eccd4424596e4))
+* web oauth flow and trace view ([c3dafdb](https://github.com/google/adk-python/commit/c3dafdbb46e38ff423f3e1380e5754d089f66986))
+
 ## [1.31.0](https://github.com/google/adk-python/compare/v1.30.0...v1.31.0) (2026-04-16)
 
 
