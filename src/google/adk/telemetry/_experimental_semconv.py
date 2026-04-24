@@ -139,7 +139,7 @@ def _safe_json_serialize_no_whitespaces(obj) -> str:
         ensure_ascii=False,
         default=lambda o: '<not serializable>',
     )
-  except (TypeError, OverflowError):
+  except (TypeError, ValueError, OverflowError):
     return '<not serializable>'
 
 

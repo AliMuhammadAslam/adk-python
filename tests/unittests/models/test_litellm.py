@@ -45,6 +45,7 @@ from google.adk.models.lite_llm import _model_response_to_chunk
 from google.adk.models.lite_llm import _model_response_to_generate_content_response
 from google.adk.models.lite_llm import _parse_tool_calls_from_text
 from google.adk.models.lite_llm import _redirect_litellm_loggers_to_stdout
+from google.adk.models.lite_llm import _safe_json_serialize
 from google.adk.models.lite_llm import _schema_to_dict
 from google.adk.models.lite_llm import _split_message_content_and_tool_calls
 from google.adk.models.lite_llm import _THOUGHT_SIGNATURE_SEPARATOR
@@ -678,6 +679,31 @@ def test_schema_to_dict_filters_none_enum_values():
       "READY",
       "DONE",
   ]
+
+
+def test_safe_json_serialize_serializable_object():
+  assert _safe_json_serialize({"a": 1, "b": [2, 3]}) == '{"a": 1, "b": [2, 3]}'
+
+
+def test_safe_json_serialize_non_serializable_object_falls_back_to_str():
+  class _NotJsonable:
+
+    def __repr__(self):
+      return "<not jsonable>"
+
+  assert _safe_json_serialize(_NotJsonable()) == "<not jsonable>"
+
+
+def test_safe_json_serialize_circular_dict_falls_back_to_str():
+  obj = {}
+  obj["self"] = obj
+  assert isinstance(_safe_json_serialize(obj), str)
+
+
+def test_safe_json_serialize_circular_list_falls_back_to_str():
+  obj = []
+  obj.append(obj)
+  assert isinstance(_safe_json_serialize(obj), str)
 
 
 MULTIPLE_FUNCTION_CALLS_STREAM = [
