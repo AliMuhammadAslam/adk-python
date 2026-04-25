@@ -401,7 +401,14 @@ async def handle_function_call_list_async(
   ]
 
   # Wait for all tasks to complete
-  function_response_events = await asyncio.gather(*tasks)
+  try:
+    function_response_events = await asyncio.gather(*tasks)
+  except Exception:
+    for t in tasks:
+      if not t.done():
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    raise
 
   # Filter out None results
   function_response_events = [
@@ -624,7 +631,14 @@ async def handle_function_calls_live(
   ]
 
   # Wait for all tasks to complete
-  function_response_events = await asyncio.gather(*tasks)
+  try:
+    function_response_events = await asyncio.gather(*tasks)
+  except Exception:
+    for t in tasks:
+      if not t.done():
+        t.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+    raise
 
   # Filter out None results
   function_response_events = [
