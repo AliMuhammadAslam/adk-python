@@ -197,20 +197,23 @@ def part_to_message_block(
     content = ""
     response_data = part.function_response.response
 
-    # Handle response with content array
+    # Handle response with content array or plain string
     if "content" in response_data and response_data["content"]:
-      content_items = []
-      for item in response_data["content"]:
-        if isinstance(item, dict):
-          # Handle text content blocks
-          if item.get("type") == "text" and "text" in item:
-            content_items.append(item["text"])
+      if isinstance(response_data["content"], str):
+        content = response_data["content"]
+      else:
+        content_items = []
+        for item in response_data["content"]:
+          if isinstance(item, dict):
+            # Handle text content blocks
+            if item.get("type") == "text" and "text" in item:
+              content_items.append(item["text"])
+            else:
+              # Handle other structured content
+              content_items.append(str(item))
           else:
-            # Handle other structured content
             content_items.append(str(item))
-        else:
-          content_items.append(str(item))
-      content = "\n".join(content_items) if content_items else ""
+        content = "\n".join(content_items) if content_items else ""
     # We serialize to str here
     # SDK ref: anthropic.types.tool_result_block_param
     # https://github.com/anthropics/anthropic-sdk-python/blob/main/src/anthropic/types/tool_result_block_param.py

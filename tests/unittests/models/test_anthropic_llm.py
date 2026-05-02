@@ -776,6 +776,29 @@ def test_part_to_message_block_with_multiple_content_items():
   assert result["content"] == "First part\nSecond part"
 
 
+def test_part_to_message_block_with_string_content():
+  """Test that a plain string in the content key is passed through as-is.
+
+  LoadSkillResourceTool returns {"content": "<file text>"} where content is
+  a string, not a list. Iterating over a string yields individual characters,
+  so without an isinstance check the result would be "H\ne\nl\nl\no" instead
+  of "Hello".
+  """
+  part = types.Part.from_function_response(
+      name="load_skill_resource",
+      response={
+          "skill_name": "my-skill",
+          "file_path": "references/doc.md",
+          "content": "Hello world",
+      },
+  )
+  part.function_response.id = "test_id_str"
+
+  result = part_to_message_block(part)
+
+  assert result["content"] == "Hello world"
+
+
 def test_part_to_message_block_with_pdf_document():
   """Test that part_to_message_block handles PDF document parts."""
   pdf_data = b"%PDF-1.4 fake pdf content"
